@@ -1,0 +1,21 @@
+venv/
+env/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.idea/
+.vscode/
+instance/
+*.db
+
+# Mantieni le migrazioni
+!migrations/
+
+#Ignora le immagini caricate
+uploads/
+
+# Ignora la cache dei test (generata da pytest)
+.pytest_cache/
+
+!frontend/.env

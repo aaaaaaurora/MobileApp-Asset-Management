@@ -1,2 +1,2 @@
-def test_infrastrutturaaa():
+def test_infrastrutturaa():
     assert True
