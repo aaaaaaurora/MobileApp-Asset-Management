@@ -4,17 +4,15 @@ metadata:
   name: campus-ingress
   namespace: default
   annotations:
-    # Specifica che stiamo usando NGINX come Ingress Controller 
-    kubernetes.io/ingress.class: "nginx"
-    
-    # Aumentiamo il limite di upload per permettere l'invio delle foto al Media Service!
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m" 
+    # L'annotazione per il Media Service rimane
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 spec:
+  ingressClassName: nginx 
   rules:
+  # --- REGOLA 1: API GATEWAY ---
   - host: 192.168.72.109.nip.io  
     http:
       paths:
-      # Regola 1: Tutte le chiamate che iniziano con /api vanno all'API Gateway 
       - path: /api
         pathType: Prefix
         backend:
@@ -22,12 +20,24 @@ spec:
             name: api-gateway-service
             port:
               number: 5000
-              
-      # (Opzionale per il futuro) Regola 2: Il resto va al Frontend
-      # - path: /
-      #   pathType: Prefix
-      #   backend:
-      #     service:
-      #       name: frontend-service
-      #       port:
-      #         number: 80
+
+  # --- REGOLA 2: RABBITMQ MANAGEMENT UI ---
+  - host: rabbitmq.192.168.72.109.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rabbitmq-service
+            port:
+              number: 15672
+
+    # (Opzionale per il futuro) Regola 2: Il resto va al Frontend
+      # - path: /
+      #   pathType: Prefix
+      #   backend:
+      #     service:
+      #       name: frontend-service
+      #       port:
+      #         number: 80

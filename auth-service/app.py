@@ -7,9 +7,10 @@ import enum
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
-import time
 import threading
-import pika
+
+# Import della libreria centralizzata per RabbitMQ
+from shared_utils.messaging import RabbitMQManager
 
 # Nuovi import necessari per la validazione reale del token Google
 from google.oauth2 import id_token
@@ -31,6 +32,9 @@ TOTP_ISSUER_NAME = os.getenv('TOTP_ISSUER_NAME', 'Campus_Management')
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', 'il-tuo-client-id-google.apps.googleusercontent.com')
 
 db = SQLAlchemy(app)
+
+# Inizializzazione del Manager centralizzato di RabbitMQ
+mq_manager = RabbitMQManager(rabbitmq_url=RABBITMQ_URL)
 
 # ============================================================================
 # MODELLI DATABASE RELAZIONALE (PostgreSQL)
@@ -93,36 +97,15 @@ def verify_google_token(token):
 
 def publish_audit_event(action, actor_id):
     """
-    Pubblica un evento asincrono sul Message Broker (RabbitMQ) per il Log Service.
-    Implementazione reale del producer su exchange 'system_events'.
+    Pubblica un evento asincrono sul Message Broker (RabbitMQ) sfruttando 
+    la libreria centralizzata 'shared_utils'.
     """
-    event = {
-        "timestamp": datetime.datetime.utcnow().isoformat(),
-        "autore_id": str(actor_id),
-        "azione": action,
-        "service_name": "auth-service"
-    }
-    
-    try:
-        params = pika.URLParameters(RABBITMQ_URL)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
-        
-        # Dichiariamo l'exchange previsto dall'SDA per i log di sistema
-        channel.exchange_declare(exchange='system_events', exchange_type='fanout', durable=True)
-        
-        # Pubblicazione del payload standardizzato JSON
-        channel.basic_publish(
-            exchange='system_events',
-            routing_key='',
-            body=json.dumps(event),
-            properties=pika.BasicProperties(
-                delivery_mode=2,  # Rende il messaggio persistente
-            )
-        )
-        connection.close()
-    except Exception as e:
-        print(f"[AUTH SERVICE] Errore pubblicazione evento RabbitMQ: {str(e)}")
+    mq_manager.publish_event(
+        exchange_name='system_events',
+        action=action,
+        actor_id=actor_id,
+        service_name='auth-service'
+    )
 
 def error_response(message, status_code):
     """
@@ -414,35 +397,49 @@ def update_operator(user_id):
         return error_response(f"Errore durante l'aggiornamento: {str(e)}", 500)
     
 
-# ============================================================================
-# CONSUMER ASINCRONO (RABBITMQ)
-# ============================================================================
-
-def consume_geozone_events():
+# ===============================================================================
+# ENDPOINT per il recupero dell'elenco Operatori (Amministratore)
+# ===============================================================================
+@app.route('/admin/operators', methods=['GET'])
+def get_operators():
     """
-    Si connette a RabbitMQ e resta in ascolto degli eventi provenienti dal GeoZone Service.
-    Implementa la tattica 'Use an Intermediary' e garantisce l'Eventual Consistency.
+    Soddisfa la sequenza alternativa di UC-AMM-08: Permette all'Amministratore 
+    di recuperare la lista degli operatori per poterli visualizzare, selezionare e modificare.
+    Si assume che l'API Gateway abbia già validato il token JWT e i permessi di Amministratore.
     """
-    connection = None
-    # Retry mechanism con backoff rudimentale per attendere l'avvio di RabbitMQ nel cluster
-    while not connection:
-        try:
-            params = pika.URLParameters(RABBITMQ_URL)
-            connection = pika.BlockingConnection(params)
-        except pika.exceptions.AMQPConnectionError:
-            print("RabbitMQ non ancora pronto. Nuovo tentativo tra 5 secondi...")
-            time.sleep(5)
+    operator_role = Role.query.filter_by(name=RoleType.OPERATORE).first()
+    if not operator_role:
+        return jsonify([]), 200
 
-    channel = connection.channel()
+    # Recupera tutti gli utenti con ruolo Operatore
+    operators = AppUser.query.filter_by(role_id=operator_role.id).all()
     
-    # Dichiariamo l'exchange di tipo fanout (pub/sub) per gli eventi del GeoZone
-    channel.exchange_declare(exchange='geozone_events', exchange_type='fanout', durable=True)
-    
-    # Dichiariamo una coda esclusiva per l'Auth Service e la leghiamo all'exchange
-    result = channel.queue_declare(queue='', exclusive=True)
-    queue_name = result.method.queue
-    channel.queue_bind(exchange='geozone_events', queue=queue_name)
+    result = []
+    for op in operators:
+        # Recupera le associazioni correnti per ogni operatore
+        campus_links = UserCampus.query.filter_by(user_id=op.id).all()
+        category_link = UserCategory.query.filter_by(user_id=op.id).first()
+        
+        result.append({
+            "id": str(op.id),
+            "email": op.email,
+            "first_name": op.first_name,
+            "last_name": op.last_name,
+            "is_active": op.is_active,
+            "campus_ids": [str(c.campus_id) for c in campus_links],
+            "category_id": str(category_link.category_id) if category_link else None
+        })
+        
+    return jsonify(result), 200
 
+# ============================================================================
+# CONSUMER ASINCRONO INTEGRATO CON LA CLASSE CENTRALIZZATA
+# ============================================================================
+
+def start_consumer_thread():
+    """
+    Avvia il consumer asincrono in background utilizzando il RabbitMQManager centralizzato.
+    """
     def callback(ch, method, properties, body):
         try:
             payload = json.loads(body)
@@ -454,9 +451,7 @@ def consume_geozone_events():
                 campus_id = payload.get("campus_id")
                 
                 if admin_id and campus_id:
-                    # Necessario per interagire con il DB fuori dal request context di Flask
                     with app.app_context():
-                        # Verifica idempotenza: controlla se il link esiste già
                         exists = UserCampus.query.filter_by(user_id=admin_id, campus_id=campus_id).first()
                         if not exists:
                             new_link = UserCampus(user_id=admin_id, campus_id=campus_id)
@@ -467,13 +462,8 @@ def consume_geozone_events():
         except Exception as e:
             print(f"[AUTH SERVICE] Errore durante il processing dell'evento: {str(e)}")
 
-    print("[AUTH SERVICE] Consumer RabbitMQ avviato. In attesa di eventi...")
-    channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
-    channel.start_consuming()
-
-def start_consumer_thread():
-    """Avvia il consumer di RabbitMQ in un thread separato (Demone)"""
-    thread = threading.Thread(target=consume_geozone_events, daemon=True)
+    # Sfrutta il metodo centralizzato per avviare il consumer sull'exchange 'geozone_events'
+    thread = threading.Thread(target=mq_manager.start_consumer, args=('geozone_events', callback), daemon=True)
     thread.start()
 
 
