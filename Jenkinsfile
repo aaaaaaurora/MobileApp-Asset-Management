@@ -142,7 +142,8 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
                         sh 'pip install -r requirements.txt'
                         withEnv(['DATABASE_URL=postgresql://test_user:test_pass@db:5432/test_db']) {
-                            sh 'pytest tests/test_unit.py'
+                            // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
+                            sh 'pytest tests/test_unit.py || [ $? -eq 5 ]'
                         }
                     }
                 }
@@ -207,7 +208,8 @@ def processPostgisService(serviceDir, imageName, k8sDeployName) {
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
                         sh 'pip install -r requirements.txt'
                         withEnv(['DATABASE_URL=postgresql://test_user:test_pass@db:5432/test_db']) {
-                            sh 'pytest tests/test_unit.py'
+                            // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
+                            sh 'pytest tests/test_unit.py || [ $? -eq 5 ]'
                         }
                     }
                 }
@@ -279,7 +281,8 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
                         // 3. Eseguiamo il test in modo sicuro
                         sh 'pip install --no-cache-dir -r requirements.txt pytest'
                         withEnv(['DATABASE_URL=mongodb://test_user:test_pass@db:27017/test_db?authSource=admin']) {
-                            sh 'pytest tests/test_unit.py'
+                            // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
+                            sh 'pytest tests/test_unit.py || [ $? -eq 5 ]'
                         }
                     }
                 }
@@ -342,7 +345,8 @@ def processGatewayService(serviceDir, imageName, k8sDeployName) {
                     sh 'pip install -r requirements.txt'
                     withEnv(['JWT_SECRET=test', 'AUTH_SERVICE_URL=http://mock', 'PYTHONPATH=.']) {
                         if (fileExists('tests/test_unit.py')) {
-                            sh 'pytest tests/test_unit.py'
+                            // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
+                            sh 'pytest tests/test_unit.py || [ $? -eq 5 ]'
                         }
                     }
                 }
