@@ -155,6 +155,7 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
+            sh "rm -rf shared_utils && cp -r ../shared_utils ."
             withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
@@ -221,6 +222,7 @@ def processPostgisService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
+            sh "rm -rf shared_utils && cp -r ../shared_utils ."
             withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
@@ -294,6 +296,7 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
+            sh "rm -rf shared_utils && cp -r ../shared_utils ."
             withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
@@ -358,6 +361,7 @@ def processGatewayService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
+            sh "rm -rf shared_utils && cp -r ../shared_utils ."
             withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
