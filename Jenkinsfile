@@ -35,6 +35,8 @@ pipeline {
                         // 2. Deploy dell'infrastruttura Relazionale (PostgreSQL) (nella cartella storage)
                         sh 'kubectl apply -f k8s/storage/postgres-deployment.yaml'
                         sh 'kubectl apply -f k8s/storage/postgres-configmap.yaml'
+                        echo "Configurazione Ingress Controller..."
+                        sh 'kubectl apply -f k8s/ingress.yaml'
                         
                         // 3. Inizializzazione degli schemi e dei 5 database logici in PostgreSQL (nella cartella storage)
                         sh 'kubectl delete job db-schema-init --ignore-not-found=true'

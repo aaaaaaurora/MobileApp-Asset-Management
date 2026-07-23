@@ -14,7 +14,7 @@ spec:
   - host: 192.168.72.109.nip.io  
     http:
       paths:
-      # Regola 1: Tutte le chiamate che iniziano con /api vanno all'API Gateway
+      # Regola 1: Tutte le chiamate che iniziano con /api vanno all'API Gateway 
       - path: /api
         pathType: Prefix
         backend:
