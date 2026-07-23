@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geozone-deployment
+  namespace: default
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: geozone-service
+  template:
+    metadata:
+      labels:
+        app: geozone-service
+    spec:
+      containers:
+      - name: geozone-service
+        image: claudia179/geozone-service-img:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        
+        # --- CONFIGURAZIONE AMBIENTE ---
+        env:
+        - name: PORT
+          value: "5000"
+        
+        # 1. URL DEL DATABASE SPAZIALE (PostgreSQL con PostGIS - geo_db)
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: geo-db-url
+        
+        # 2. CHIAVE DI SICUREZZA JWT 
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: jwt-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geozone-service
+  namespace: default
+spec:
+  selector:
+    app: geozone-service
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP

@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-deployment
+  namespace: default
+spec:
+  replicas: 2 # Active Redundancy per alta affidabilità
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: claudia179/auth-service-img:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        
+        # --- CONFIGURAZIONE AMBIENTE ---
+        env:
+        - name: PORT
+          value: "5000"
+        # 5. CONFIGURAZIONE 2FA (Microsoft Authenticator)
+        - name: TOTP_ISSUER_NAME
+          value: "Campus_Management"
+        
+        # 1. URL DEL DATABASE ISOLATO (PostgreSQL Auth)
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: auth-db-url   
+        
+        # 2. CHIAVE DI SICUREZZA JWT
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: jwt-secret
+              
+        # 3. COLLEGAMENTO AL MESSAGE BROKER (RabbitMQ per i Log)
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: rabbitmq-url
+        
+        # 4. GOOGLE OAUTH E FRONTEND
+        - name: GOOGLE_REDIRECT_URI
+          value: "http://192.168.72.109.nip.io:30001/auth/oauth/google/callback"
+        - name: FRONTEND_URL
+          value: "http://192.168.72.109.nip.io:30080"
+        - name: OAUTHLIB_INSECURE_TRANSPORT
+          value: "1"  
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: default
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP

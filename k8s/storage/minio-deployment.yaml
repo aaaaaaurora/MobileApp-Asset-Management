@@ -1,0 +1,84 @@
+# --- 1. SPAZIO DISCO PER LE IMMAGINI (PERSISTENZA) ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi 
+
+---
+# --- 2. IL SERVER OBJECT STORAGE (DEPLOYMENT) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: minio/minio:latest
+        # Avviamo il server puntando alla cartella /data e apriamo la console web sulla porta 9001
+        command:
+        - /bin/sh
+        - -c
+        - minio server /data --console-address ":9001"
+        
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: minio-root-user
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: minio-root-password
+          
+        ports:
+        - containerPort: 9000 # Porta per le chiamate API (S3) dal Media Service
+        - containerPort: 9001 # Porta per l'interfaccia grafica Web -> aprirla sul browser, fare login con admin_minio
+        
+        volumeMounts:
+        - name: minio-storage
+          mountPath: /data # Cartella dove MinIO salva fisicamente i bucket e le foto
+
+      volumes:
+      - name: minio-storage
+        persistentVolumeClaim:
+          claimName: minio-pvc
+
+---
+# --- 3. I SERVIZI DI RETE (SERVICE) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+  namespace: default
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+    - name: console
+      protocol: TCP
+      port: 9001
+      targetPort: 9001
+  type: ClusterIP

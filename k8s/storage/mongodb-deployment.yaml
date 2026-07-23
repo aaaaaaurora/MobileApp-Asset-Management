@@ -1,0 +1,72 @@
+# --- 1. SPAZIO DISCO PER MONGODB (PERSISTENZA) ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# --- 2. IL DATABASE (DEPLOYMENT) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:6.0
+        ports:
+        - containerPort: 27017
+        
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: mongo-root-user
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: mongo-root-password
+        
+        volumeMounts:
+        - name: mongodb-storage
+          mountPath: /data/db # Cartella standard dove MongoDB salva fisicamente i documenti BSON
+
+      volumes:
+      - name: mongodb-storage
+        persistentVolumeClaim:
+          claimName: mongodb-pvc
+
+---
+# --- 3. IL SERVIZIO DI RETE (SERVICE) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service # L'Asset Service userà questo hostname per connettersi
+  namespace: default
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+  type: ClusterIP

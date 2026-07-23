@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-deployment
+  namespace: default
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: log-service
+  template:
+    metadata:
+      labels:
+        app: log-service
+    spec:
+      containers:
+      - name: log-service
+        image: claudia179/log-service-img:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        
+        # --- CONFIGURAZIONE AMBIENTE ---
+        env:
+        - name: PORT
+          value: "5000"
+        
+        # 1. URL DEL DATABASE DI AUDIT (PostgreSQL - log_db)
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: log-db-url
+        
+        # 2. CHIAVE DI SICUREZZA JWT
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: jwt-secret
+
+        # 3. COLLEGAMENTO AL MESSAGE BROKER (Per mettersi in ascolto degli eventi)
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: rabbitmq-url
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-service
+  namespace: default
+spec:
+  selector:
+    app: log-service
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP

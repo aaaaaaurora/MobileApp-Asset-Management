@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-schema-init
+  namespace: default
+spec:
+  # Pulisce automaticamente il Pod del Job 10 minuti (600s) dopo che ha finito con successo.
+  ttlSecondsAfterFinished: 600
+  
+  # Se il job fallisce (es. il DB non è ancora pronto per accettare connessioni), riprova fino a 4 volte.
+  backoffLimit: 4
+  
+  template:
+    spec:
+      containers:
+      - name: schema-loader
+        image: postgres:15 
+        command: ["/bin/sh", "-c"]
+        
+        args:
+          - PGPASSWORD=$POSTGRES_PASSWORD psql -h postgres-service -U postgres -d postgres -f /scripts/init-schema.sql
+        
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: postgres-password 
+        
+        volumeMounts:
+        - name: schema-script
+          mountPath: /scripts 
+      
+      restartPolicy: OnFailure
+      
+      volumes:
+      - name: schema-script
+        configMap:
+          name: db-schema-script
