@@ -254,19 +254,15 @@ def processPostgisService(serviceDir, imageName, k8sDeployName) {
 }
 
 // ============================================================================
-// FUNZIONE 3: LOGICA PER MICROSERVIZI NOSQL (MONGODB 6.0)
-// ============================================================================
-// ============================================================================
-// FUNZIONE 3: LOGICA PER MICROSERVIZI NOSQL (MONGODB 6.0)
+// FUNZIONE 3: LOGICA PER MICROSERVIZI NOSQL (MONGODB)
 // ============================================================================
 def processMongoService(serviceDir, imageName, k8sDeployName) {
     stage("${serviceDir} - Test Unitari") {
         dir(serviceDir) {
             script {
-                echo "[${serviceDir}] Unit Testing su MongoDB..."
-                docker.image('mongo:6.0').withRun('--name mongo_test_${BUILD_NUMBER} -e MONGO_INITDB_ROOT_USERNAME=test_user -e MONGO_INITDB_ROOT_PASSWORD=test_pass') { c ->
-                    // Attesa attiva e robusta finché Mongo non risponde completamente
-                    sh 'sleep 5'
+                echo "[${serviceDir}] Unit Testing su MongoDB (Fallback v4.4 per supporto CPU VM)..."
+                docker.image('mongo:4.4').withRun('-e MONGO_INITDB_ROOT_USERNAME=test_user -e MONGO_INITDB_ROOT_PASSWORD=test_pass') { c ->
+                    sleep 10 // Attendiamo che Mongo sia completamente pronto
                     
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
                         sh 'pip install --no-cache-dir -r requirements.txt pytest'
@@ -289,8 +285,8 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Integration Test") {
         script {
-            docker.image('mongo:6.0').withRun('-e MONGO_INITDB_ROOT_USERNAME=test -e MONGO_INITDB_ROOT_PASSWORD=test') { dbContainer ->
-                sleep 5 
+            docker.image('mongo:4.4').withRun('-e MONGO_INITDB_ROOT_USERNAME=test -e MONGO_INITDB_ROOT_PASSWORD=test') { dbContainer ->
+                sleep 10 
 
                 docker.image("${DOCKER_USER}/${imageName}:${BUILD_NUMBER}").withRun("--link ${dbContainer.id}:db -e DATABASE_URL=mongodb://test:test@db:27017/integration_db?authSource=admin -e JWT_SECRET=test-secret") { appContainer ->
                     sleep 5
