@@ -485,7 +485,7 @@ if __name__ == '__main__':
             ])
             db.session.commit()
             
-    # Avvia il processo in background per ascoltare gli eventi RabbitMQ
+    # Avvia il processo in background per ascoltare gli eventi RabbitMQ 
     start_consumer_thread()
     
     app.run(host='0.0.0.0', port=5000)
