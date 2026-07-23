@@ -260,11 +260,23 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
     stage("${serviceDir} - Test Unitari") {
         dir(serviceDir) {
             script {
-                echo "[${serviceDir}] Unit Testing su MongoDB (Fallback v4.4 per supporto CPU VM)..."
+                echo "[${serviceDir}] Unit Testing su MongoDB (Polling Attivo)..."
+                
+                // 1. Lanciamo Mongo v4.4
                 docker.image('mongo:4.4').withRun('-e MONGO_INITDB_ROOT_USERNAME=test_user -e MONGO_INITDB_ROOT_PASSWORD=test_pass') { c ->
-                    sleep 10 // Attendiamo che Mongo sia completamente pronto
                     
+                    // 2. Attendiamo in modo deterministico che la porta 27017 sia aperta e pronta!
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
+                        sh '''
+                            echo "Attendendo che MongoDB sia pronto..."
+                            while ! python -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('db', 27017)); s.close()"; do
+                                sleep 2
+                                echo "In attesa di Mongo..."
+                            done
+                            echo "MongoDB pronto!"
+                        '''
+                        
+                        // 3. Eseguiamo il test in modo sicuro
                         sh 'pip install --no-cache-dir -r requirements.txt pytest'
                         withEnv(['DATABASE_URL=mongodb://test_user:test_pass@db:27017/test_db?authSource=admin']) {
                             sh 'pytest tests/test_unit.py'
@@ -286,7 +298,15 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
     stage("${serviceDir} - Integration Test") {
         script {
             docker.image('mongo:4.4').withRun('-e MONGO_INITDB_ROOT_USERNAME=test -e MONGO_INITDB_ROOT_PASSWORD=test') { dbContainer ->
-                sleep 10 
+                
+                // Attendiamo anche per l'integration test
+                docker.image('python:3.9').inside("--link ${dbContainer.id}:db -u 0:0") {
+                    sh '''
+                        while ! python -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('db', 27017)); s.close()"; do
+                            sleep 2
+                        done
+                    '''
+                }
 
                 docker.image("${DOCKER_USER}/${imageName}:${BUILD_NUMBER}").withRun("--link ${dbContainer.id}:db -e DATABASE_URL=mongodb://test:test@db:27017/integration_db?authSource=admin -e JWT_SECRET=test-secret") { appContainer ->
                     sleep 5
