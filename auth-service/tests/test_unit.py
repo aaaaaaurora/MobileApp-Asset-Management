@@ -1,3 +1,4 @@
+import os
 import pytest
 import json
 import jwt
@@ -5,6 +6,12 @@ import pyotp
 import datetime
 import uuid
 from unittest.mock import patch
+from sqlalchemy import text
+
+# ============================================================================
+# Variabile d'ambiente per permettere la connessione al database auth
+# ============================================================================
+os.environ['DATABASE_URL'] = 'postgresql://user:pass@127.0.0.1:5433/auth_db'
 
 # Importa l'app e i modelli dal tuo file principale (assunto come app.py)
 from app import app, db, AppUser, Role, RoleType, UserCampus, UserCategory
@@ -22,13 +29,20 @@ def client():
     app.config['TESTING'] = True
     app.config['JWT_SECRET'] = 'test-secret-key-per-pytest'
     
+    # Forza il test a usare il DB locale
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:pass@127.0.0.1:5433/auth_db'
+    
     with app.test_client() as client:
         with app.app_context():
-            # Pulisce e ricrea il database (usando il DB Postgres fornito dalla pipeline)
+            # 1. Abilita l'estensione UUID su Postgres prima di fare qualsiasi cosa
+            db.session.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
+            db.session.commit()
+            
+            # 2. Pulisce e ricrea il database
             db.drop_all()
             db.create_all()
             
-            # Seed dei ruoli necessari
+            # 3. Seed dei ruoli necessari
             db.session.add_all([
                 Role(name=RoleType.GUEST, description='Utente base'),
                 Role(name=RoleType.OPERATORE, description='Tecnico sul campo'),
@@ -38,7 +52,7 @@ def client():
             
             yield client
             
-            # Pulizia al termine del test
+            # 4. Pulizia al termine del test
             db.session.remove()
             db.drop_all()
 
