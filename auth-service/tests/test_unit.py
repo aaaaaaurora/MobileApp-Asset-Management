@@ -157,7 +157,7 @@ def test_create_operator_success(client):
     new_op = AppUser.query.filter_by(email="nuovo.operatore@campus.it").first()
     assert new_op is not None
     # Verifica che il ruolo sia effettivamente OPERATORE
-    role = Role.query.get(new_op.role_id)
+    role = db.session.get(Role, new_op.role_id)
     assert role.name == RoleType.OPERATORE
 
 def test_create_operator_duplicate(client):

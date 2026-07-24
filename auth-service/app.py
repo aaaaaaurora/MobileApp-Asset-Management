@@ -219,7 +219,7 @@ def verify_2fa():
     except jwt.InvalidTokenError:
         return error_response("INVALID_CODE", 401)
 
-    user = AppUser.query.get(user_id)
+    user = db.session.get(AppUser, user_id)
     if not user:
         return error_response("Utente non trovato", 404)
         
@@ -234,7 +234,7 @@ def verify_2fa():
         return error_response("INVALID_CODE", 401)
 
     # Denormalizzazione e Costruzione Payload JWT
-    role = Role.query.get(user.role_id)
+    role = db.session.get(Role, user.role_id)
     
     campus_links = UserCampus.query.filter_by(user_id=user.id).all()
     campus_ids = [str(link.campus_id) for link in campus_links]
@@ -347,7 +347,7 @@ def update_operator(user_id):
     Soddisfa le US 1-5, US 1-6 e l'UC-AMM-08 (Aggiornamento profilo esistente).
     """
     # 1. Verifica esistenza e validità dell'utente
-    user = AppUser.query.get(user_id)
+    user = db.session.get(AppUser, user_id)
     if not user:
         return error_response("Utente non trovato", 404)
 
