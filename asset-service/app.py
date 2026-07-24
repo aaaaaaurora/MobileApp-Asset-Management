@@ -1,12 +1,987 @@
-from flask import Flask, jsonify
+import os
+import datetime
+from bson import ObjectId
+from flask import Flask, request, jsonify
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
+import dateutil.parser
 
-# Inizializza l'applicazione Flask
+# Import della libreria centralizzata per RabbitMQ
+from shared_utils.messaging import RabbitMQManager
+
+# ============================================================================
+# INIZIALIZZAZIONE E CONFIGURAZIONE
+# ============================================================================
 app = Flask(__name__)
 
-# Endpoint di base per il controllo di salute (Health Check)
+# Configurazione MongoDB
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://test_user:test_pass@db:27017/asset_db?authSource=admin')
+try:
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    db = client.get_default_database()
+    
+    # Riferimenti alle collezioni previste dallo SDA
+    categories_col = db.categories
+    assets_col = db.assets
+    history_col = db.asset_history
+except ConnectionFailure as e:
+    print(f"[ASSET SERVICE] Errore di connessione a MongoDB: {e}")
+
+# Inizializzazione RabbitMQ centralizzato
+mq_manager = RabbitMQManager()
+
+# ============================================================================
+# FUNZIONI DI UTILITA' E MIDDLEWARE
+# ============================================================================
+
+def get_auth_context():
+    """
+    Estrae le informazioni di sicurezza propagate dall'API Gateway.
+    Il Gateway ha già validato il JWT, qui ci limitiamo a consumare i dati.
+    """
+    campuses_header = request.headers.get('X-User-Campuses', '')
+    campus_ids = [c.strip() for c in campuses_header.split(',')] if campuses_header else []
+    
+    return {
+        'user_id': request.headers.get('X-User-Id'),
+        'role': request.headers.get('X-User-Role'),
+        'campus_ids': campus_ids
+    }
+
+def serialize_mongo_doc(doc):
+    """
+    Converte ricorsivamente gli ObjectId di MongoDB in stringhe per la risposta JSON.
+    """
+    if not doc:
+        return None
+        
+    # Converte l'ID principale
+    if '_id' in doc:
+        doc['_id'] = str(doc['_id'])
+        
+    # Converte l'ID annidato all'interno dello snapshot storico (se presente)
+    if 'state_snapshot' in doc and '_id' in doc['state_snapshot']:
+        doc['state_snapshot']['_id'] = str(doc['state_snapshot']['_id'])
+        
+    return doc
+
+def error_response(message, status_code):
+    return jsonify({"error": message}), status_code
+
+def publish_event(action, extra_data=None):
+    """
+    Wrapper per pubblicare eventi verso DataInsight Service o altri consumer.
+    """
+    auth = get_auth_context()
+    mq_manager.publish_event(
+        exchange_name='system_events',
+        action=action,
+        actor_id=auth.get('user_id', 'unknown'),
+        service_name='asset-service',
+        extra_data=extra_data
+    )
+
+# ============================================================================
+# ENDPOINT DI SISTEMA
+# ============================================================================
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy"}), 200
 
+# ============================================================================
+# ENDPOINT: Creazione Categoria
+# ============================================================================
+
+@app.route('/api/categories', methods=['POST'])
+def create_category():
+    """
+    Crea una nuova categoria strutturale per gli asset.
+    """
+    auth = get_auth_context()
+    
+    # Solo l'Amministratore può creare nuove categorie
+    if auth.get('role') != 'AMMINISTRATORE':
+        return error_response("Accesso negato. Richiesto ruolo AMMINISTRATORE.", 403)
+
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return error_response("Il payload deve contenere il campo 'name'", 400)
+
+    category_name = data.get('name').strip()
+
+    # Verifica se esiste già una categoria con questo nome
+    if categories_col.find_one({"name": {"$regex": f"^{category_name}$", "$options": "i"}}):
+        return error_response("Categoria già esistente", 409)
+
+    # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
+    new_category = {
+        "name": category_name,
+        "description": data.get('description', ''),
+        "attributes": [], # Inizialmente vuoto, popolato dinamicamente in seguito
+        "created_by": auth.get('user_id'),
+        "created_at": datetime.datetime.utcnow().isoformat(),
+        "updated_at": datetime.datetime.utcnow().isoformat()
+    }
+
+    try:
+        result = categories_col.insert_one(new_category)
+        new_category['_id'] = str(result.inserted_id)
+        
+        # Pubblicazione evento asincrono per il DataInsight Service
+        publish_event("CATEGORY_CREATED", {"category_id": new_category['_id'], "category_name": category_name})
+
+        return jsonify({
+            "message": "Categoria creata con successo",
+            "category": new_category
+        }), 201
+
+    except Exception as e:
+        return error_response(f"Errore durante il salvataggio: {str(e)}", 500)
+    
+    
+# ============================================================================
+# ENDPOINT: Consultazione di tutte le categorie
+# ============================================================================
+
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    """
+    Recupera l'elenco completo di tutte le categorie di asset a sistema.
+    Accessibile sia da Amministratori che da Operatori (e Guest se configurato nel Gateway).
+    """
+    try:
+        # Recupera tutte le categorie. MongoDB restituisce un cursore che convertiamo in lista.
+        categories = list(categories_col.find())
+        
+        # Serializza gli ObjectId per renderli compatibili con JSON
+        serialized_categories = [serialize_mongo_doc(cat) for cat in categories]
+        
+        return jsonify(serialized_categories), 200
+    except Exception as e:
+        return error_response(f"Errore durante il recupero delle categorie: {str(e)}", 500)
+
+
+# ============================================================================
+# ENDPOINT: Consultazione dettagli di una singola categoria
+# ============================================================================
+@app.route('/api/categories/<category_id>', methods=['GET'])
+def get_category(category_id):
+    """
+    Recupera i dettagli di una singola categoria (inclusi i suoi attributi dinamici futuri).
+    """
+    if not ObjectId.is_valid(category_id):
+        return error_response("ID categoria non valido", 400)
+
+    try:
+        category = categories_col.find_one({"_id": ObjectId(category_id)})
+        
+        if not category:
+            return error_response("Categoria non trovata", 404)
+            
+        return jsonify(serialize_mongo_doc(category)), 200
+    except Exception as e:
+        return error_response(f"Errore durante la ricerca della categoria: {str(e)}", 500)
+
+
+# ============================================================================
+# ENDPOINT: Modifica di una categoria esistente
+# ============================================================================
+@app.route('/api/categories/<category_id>', methods=['PUT'])
+def update_category(category_id):
+    """
+    Modifica le informazioni base della categoria (nome, descrizione).
+    Non si occupa degli attributi dinamici.
+    """
+    auth = get_auth_context()
+    
+    # Controllo ruoli di sicurezza
+    if auth.get('role') != 'AMMINISTRATORE':
+        return error_response("Accesso negato. Richiesto ruolo AMMINISTRATORE.", 403)
+
+    if not ObjectId.is_valid(category_id):
+        return error_response("ID categoria non valido", 400)
+
+    data = request.get_json()
+    if not data:
+        return error_response("Payload mancante", 400)
+
+    update_fields = {}
+    
+    # 1. Validazione e aggiornamento Nome
+    if 'name' in data and data['name'].strip():
+        new_name = data['name'].strip()
+        # Assicuriamoci che il nuovo nome non vada in conflitto con un'altra categoria esistente
+        existing = categories_col.find_one({
+            "name": {"$regex": f"^{new_name}$", "$options": "i"}, 
+            "_id": {"$ne": ObjectId(category_id)}
+        })
+        if existing:
+            return error_response("Il nome inserito è già in uso da un'altra categoria", 409)
+        update_fields['name'] = new_name
+
+    # 2. Aggiornamento Descrizione
+    if 'description' in data:
+        update_fields['description'] = data['description']
+
+    if not update_fields:
+        return error_response("Nessun campo valido fornito per l'aggiornamento", 400)
+
+    update_fields['updated_at'] = datetime.datetime.utcnow().isoformat()
+
+    try:
+        # Aggiornamento atomico in MongoDB
+        result = categories_col.update_one(
+            {"_id": ObjectId(category_id)},
+            {"$set": update_fields}
+        )
+
+        if result.matched_count == 0:
+            return error_response("Categoria non trovata", 404)
+
+        # Tracciabilità asincrona
+        publish_event("CATEGORY_UPDATED", {
+            "category_id": category_id, 
+            "updated_fields": list(update_fields.keys())
+        })
+
+        # Recupera e restituisce il documento aggiornato
+        updated_category = categories_col.find_one({"_id": ObjectId(category_id)})
+        return jsonify(serialize_mongo_doc(updated_category)), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante l'aggiornamento: {str(e)}", 500)
+    
+
+# ============================================================================
+# ENDPOINT: Gestione attributi dinamici di una categoria 
+# ============================================================================
+# Tipi di dato supportati dal sistema per gli attributi dinamici
+ALLOWED_ATTRIBUTE_TYPES = ['string', 'number', 'boolean', 'date', 'enum']
+
+@app.route('/api/categories/<category_id>/attributes', methods=['POST'])
+def add_category_attribute(category_id):
+    """
+    Aggiunge un nuovo attributo dinamico alla configurazione di una categoria esistente.
+    """
+    auth = get_auth_context()
+    
+    # Controllo ruoli di sicurezza
+    if auth.get('role') != 'AMMINISTRATORE':
+        return error_response("Accesso negato. Richiesto ruolo AMMINISTRATORE.", 403)
+
+    if not ObjectId.is_valid(category_id):
+        return error_response("ID categoria non valido", 400)
+
+    data = request.get_json()
+    if not data:
+        return error_response("Payload mancante", 400)
+
+    # 1. Validazione campi obbligatori dell'attributo
+    attr_name = data.get('name', '').strip()
+    attr_type = data.get('type', '').strip().lower()
+
+    if not attr_name or not attr_type:
+        return error_response("I campi 'name' e 'type' sono obbligatori", 400)
+
+    if attr_type not in ALLOWED_ATTRIBUTE_TYPES:
+        return error_response(
+            f"Tipo attributo non valido. Tipi consentiti: {', '.join(ALLOWED_ATTRIBUTE_TYPES)}", 
+            400
+        )
+
+    # 2. Validazione specifica per il tipo 'enum' (Menu a tendina)
+    options = data.get('options', [])
+    if attr_type == 'enum':
+        if not isinstance(options, list) or len(options) == 0:
+            return error_response(
+                "Per il tipo 'enum' (menu a tendina) è obbligatorio fornire una lista non vuota in 'options'", 
+                400
+            )
+    else:
+        # Se non è un enum, scartiamo eventuali opzioni inviate per errore dal frontend
+        options = [] 
+
+    # 3. Costruzione dell'oggetto attributo
+    # Viene aggiunto il campo 'status' per gestire la futura US 2-4 (Deprecazione)
+    new_attribute = {
+        "name": attr_name,
+        "type": attr_type,
+        "required": bool(data.get('required', False)),
+        "filterable": bool(data.get('filterable', False)),
+        "editable": bool(data.get('editable', True)),
+        "visible": bool(data.get('visible', True)),
+        "options": options,
+        "status": "active"  # Valori previsti: 'active' | 'deprecated'
+    }
+
+    try:
+        # 4. Verifica esistenza categoria e prevenzione duplicati logici
+        category = categories_col.find_one({"_id": ObjectId(category_id)})
+        if not category:
+            return error_response("Categoria non trovata", 404)
+
+        existing_attrs = category.get('attributes', [])
+        for attr in existing_attrs:
+            if attr['name'].lower() == attr_name.lower():
+                return error_response(f"L'attributo '{attr_name}' esiste già in questa categoria", 409)
+
+        # 5. Inserimento atomico in MongoDB tramite operatore $push
+        result = categories_col.update_one(
+            {"_id": ObjectId(category_id)},
+            {
+                "$push": {"attributes": new_attribute},
+                "$set": {"updated_at": datetime.datetime.utcnow().isoformat()}
+            }
+        )
+
+        if result.modified_count == 0:
+            return error_response("Nessuna modifica effettuata", 400)
+
+        # 6. Tracciabilità asincrona (DataInsight Service / Log Service)
+        publish_event("ATTRIBUTE_ADDED", {
+            "category_id": category_id,
+            "attribute_name": attr_name,
+            "attribute_type": attr_type
+        })
+
+        # 7. Ritorna il documento completo e aggiornato
+        updated_category = categories_col.find_one({"_id": ObjectId(category_id)})
+        return jsonify(serialize_mongo_doc(updated_category)), 201
+
+    except Exception as e:
+        return error_response(f"Errore durante l'aggiunta dell'attributo: {str(e)}", 500)
+
+
+# ============================================================================
+# ENDPOINT: Modifica di un attributo dinamico di una categoria
+# ============================================================================
+
+@app.route('/api/categories/<category_id>/attributes/<attribute_name>', methods=['PUT'])
+def update_category_attribute(category_id, attribute_name):
+    """
+    Modifica un attributo esistente (rinomina, cambio tipo) o ne imposta lo stato (es. unavailable).
+    Gestisce la conversione automatica o blocca in caso di incompatibilità.
+    """
+    auth = get_auth_context()
+    
+    if auth.get('role') != 'AMMINISTRATORE':
+        return error_response("Accesso negato. Richiesto ruolo AMMINISTRATORE.", 403)
+
+    if not ObjectId.is_valid(category_id):
+        return error_response("ID categoria non valido", 400)
+
+    data = request.get_json()
+    if not data:
+        return error_response("Payload mancante", 400)
+
+    # 1. Recupero la categoria e cerco l'attributo specifico
+    category = categories_col.find_one({"_id": ObjectId(category_id)})
+    if not category:
+        return error_response("Categoria non trovata", 404)
+
+    current_attr = next((attr for attr in category.get('attributes', []) if attr['name'] == attribute_name), None)
+    if not current_attr:
+        return error_response("Attributo non trovato nella categoria specificata", 404)
+
+    # 2. Estrazione e validazione dei nuovi valori
+    new_name = data.get('name', current_attr['name']).strip()
+    new_type = data.get('type', current_attr['type']).strip().lower()
+    new_status = data.get('status', current_attr.get('status', 'active')).strip().lower()
+
+    if new_type not in ALLOWED_ATTRIBUTE_TYPES:
+        return error_response(f"Tipo non valido. Consentiti: {', '.join(ALLOWED_ATTRIBUTE_TYPES)}", 400)
+
+    if new_status not in ['active', 'unavailable']:
+        return error_response("Stato non valido. Valori consentiti: 'active', 'unavailable'", 400)
+
+    # 3. Controllo collisioni di nome durante la rinomina
+    if new_name != attribute_name:
+        if any(attr['name'].lower() == new_name.lower() for attr in category.get('attributes', [])):
+            return error_response(f"Un attributo con il nome '{new_name}' esiste già", 409)
+
+    # 4. Gestione cambio tipo (US 2-3) e incompatibilità
+    if new_type != current_attr['type']:
+        # Verifica se esistono già asset fisici che hanno popolato questo metadato
+        assets_using_attr = assets_col.count_documents({
+            "category_id": category_id,
+            f"metadata.{attribute_name}": {"$exists": True}
+        })
+        
+        # Se ci sono asset, una modifica massiva del tipo potrebbe corrompere i dati storici
+        if assets_using_attr > 0:
+            return error_response(
+                "Operazione bloccata per incompatibilità: esistono asset storici che utilizzano questo attributo. "
+                "Strategia consigliata: dichiarare l'attributo come 'unavailable' e crearne uno nuovo.", 
+                409
+            )
+
+    # 5. Costruzione dell'attributo aggiornato
+    updated_attr = {
+        "name": new_name,
+        "type": new_type,
+        "required": bool(data.get('required', current_attr.get('required'))),
+        "filterable": bool(data.get('filterable', current_attr.get('filterable'))),
+        "editable": bool(data.get('editable', current_attr.get('editable'))),
+        "visible": bool(data.get('visible', current_attr.get('visible'))),
+        "options": data.get('options', current_attr.get('options')),
+        "status": new_status
+    }
+
+    try:
+        # 6. Rinomina chiave nei dati storici degli asset (US 2-3)
+        if new_name != attribute_name:
+            # Usa $rename per aggiornare in modo efficiente le chiavi nei documenti MongoDB
+            assets_col.update_many(
+                {"category_id": category_id, f"metadata.{attribute_name}": {"$exists": True}},
+                {"$rename": {f"metadata.{attribute_name}": f"metadata.{new_name}"}}
+            )
+
+        # 7. Aggiornamento dell'attributo nell'array tramite l'operatore posizionale '$'
+        categories_col.update_one(
+            {"_id": ObjectId(category_id), "attributes.name": attribute_name},
+            {"$set": {
+                "attributes.$": updated_attr,
+                "updated_at": datetime.datetime.utcnow().isoformat()
+            }}
+        )
+
+        # 8. Eventi RabbitMQ
+        publish_event("ATTRIBUTE_UPDATED", {
+            "category_id": category_id,
+            "old_name": attribute_name,
+            "new_name": new_name,
+            "new_type": new_type
+        })
+
+        if new_status == "unavailable" and current_attr.get('status') != "unavailable":
+            publish_event("ATTRIBUTE_DEPRECATED", {
+                "category_id": category_id,
+                "attribute_name": new_name
+            })
+
+        # Restituisce il documento aggiornato
+        updated_category = categories_col.find_one({"_id": ObjectId(category_id)})
+        return jsonify(serialize_mongo_doc(updated_category)), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante l'aggiornamento dell'attributo: {str(e)}", 500)
+    
+
+# ============================================================================
+# UTILITY DI VALIDAZIONE METADATI DINAMICI
+# ============================================================================
+
+def validate_asset_metadata(payload_metadata, category_attributes):
+    """
+    Valida il dizionario dei metadati inviato dal client contro la struttura 
+    della categoria (tipi, obbligatorietà, enum, deprecazione).
+    """
+    validated_data = {}
+    errors = []
+
+    # Creiamo un dizionario di facile accesso per gli attributi della categoria
+    # Ignoriamo totalmente quelli con status 'unavailable' (US 2-4)
+    active_attrs = {attr['name']: attr for attr in category_attributes if attr.get('status') != 'unavailable'}
+
+    # 1. Verifica campi obbligatori
+    for attr_name, attr_rules in active_attrs.items():
+        if attr_rules.get('required') and attr_name not in payload_metadata:
+            errors.append(f"Il campo obbligatorio '{attr_name}' è mancante.")
+
+    # 2. Verifica tipi di dato e vincoli per i campi forniti
+    for key, value in payload_metadata.items():
+        if key not in active_attrs:
+            # Opzionale: puoi ignorare campi non previsti o bloccarli. Qui li blocchiamo per pulizia.
+            errors.append(f"L'attributo '{key}' non è valido o è stato deprecato per questa categoria.")
+            continue
+
+        rules = active_attrs[key]
+        expected_type = rules['type']
+
+        if value is None or value == "":
+            if rules.get('required'):
+                errors.append(f"Il campo '{key}' non può essere vuoto.")
+            continue # Se non è obbligatorio e viene inviato vuoto, lo accettiamo come nullo
+
+        # Validazione Tipo
+        try:
+            if expected_type == 'string':
+                if not isinstance(value, str):
+                    errors.append(f"Il campo '{key}' deve essere una stringa.")
+                else:
+                    validated_data[key] = str(value)
+
+            elif expected_type == 'number':
+                if not isinstance(value, (int, float)):
+                    errors.append(f"Il campo '{key}' deve essere un numero.")
+                else:
+                    validated_data[key] = float(value)
+
+            elif expected_type == 'boolean':
+                if not isinstance(value, bool):
+                    errors.append(f"Il campo '{key}' deve essere un booleano (true/false).")
+                else:
+                    validated_data[key] = bool(value)
+
+            elif expected_type == 'date':
+                # Verifica che sia una data ISO 8601 valida
+                dateutil.parser.isoparse(str(value))
+                validated_data[key] = str(value)
+
+            elif expected_type == 'enum':
+                if value not in rules.get('options', []):
+                    errors.append(f"Il valore '{value}' non è tra le opzioni valide per '{key}'.")
+                else:
+                    validated_data[key] = str(value)
+
+        except ValueError:
+            errors.append(f"Formato non valido per il campo '{key}' (Atteso: {expected_type}).")
+
+    return validated_data, errors
+
+# ============================================================================
+# ENDPOINT: Censimento definitivo di un nuovo Asset
+# ============================================================================
+
+@app.route('/api/assets', methods=['POST'])
+def create_asset():
+    """
+    Censimento definitivo di un nuovo Asset.
+    Riceve i metadati (inclusi quelli suggeriti dall'AI e confermati dall'operatore)
+    e li salva validandoli rispetto alla categoria.
+    """
+    auth = get_auth_context()
+    user_id = auth.get('user_id')
+    user_role = auth.get('role')
+    user_campuses = auth.get('campus_ids', [])
+
+    # Solo Operatori e Amministratori possono censire asset
+    if user_role not in ['OPERATORE', 'AMMINISTRATORE']:
+        return error_response("Non hai i permessi per censire un asset", 403)
+
+    data = request.get_json()
+    if not data:
+        return error_response("Payload mancante", 400)
+
+    category_id = data.get('category_id')
+    campus_id = data.get('campus_id')
+    geometry = data.get('geometry') # Formato atteso: GeoJSON {"type": "Point", "coordinates": [lng, lat]}
+    raw_metadata = data.get('metadata', {})
+
+    if not category_id or not campus_id or not geometry:
+        return error_response("Parametri mancanti: 'category_id', 'campus_id' e 'geometry' sono obbligatori", 400)
+
+    if not ObjectId.is_valid(category_id):
+        return error_response("ID categoria non valido", 400)
+
+    # Controllo giurisdizione: un operatore può censire solo nei campus a lui assegnati
+    if user_role == 'OPERATORE' and campus_id not in user_campuses:
+        return error_response("Non sei autorizzato a operare sul campus specificato", 403)
+
+    # 1. Recupero la categoria per le regole di validazione
+    category = categories_col.find_one({"_id": ObjectId(category_id)})
+    if not category:
+        return error_response("Categoria non trovata", 404)
+
+    # 2. Validazione rigorosa dei metadati
+    validated_metadata, validation_errors = validate_asset_metadata(raw_metadata, category.get('attributes', []))
+    
+    if validation_errors:
+        return jsonify({"error": "Errore di validazione metadati", "details": validation_errors}), 422
+
+    # 3. Costruzione del documento Asset
+    timestamp = datetime.datetime.utcnow().isoformat()
+    new_asset = {
+        "category_id": category_id,
+        "campus_id": campus_id, # Soft Link al GeoZone Service
+        "geometry": geometry,   # GeoJSON nativo per indicizzazione spaziale
+        "metadata": validated_metadata,
+        "created_by": user_id,
+        "updated_by": user_id,
+        "created_at": timestamp,
+        "updated_at": timestamp
+    }
+
+    try:
+        # 4. Inserimento dell'Asset nello stato corrente
+        result = assets_col.insert_one(new_asset)
+        asset_id = str(result.inserted_id)
+        new_asset['_id'] = asset_id
+
+        # 5. Immutabilità: Creazione dello snapshot nella History
+        snapshot = {
+            "asset_id": asset_id,
+            "action": "CREATE",
+            "actor_id": user_id,
+            "timestamp": timestamp,
+            "state_snapshot": new_asset
+        }
+        history_col.insert_one(snapshot)
+
+        # 6. Tracciabilità asincrona (RabbitMQ)
+        publish_event("ASSET_CREATED", {
+            "asset_id": asset_id,
+            "category_id": category_id,
+            "campus_id": campus_id
+        })
+
+        return jsonify({
+            "message": "Asset censito con successo",
+            "asset": new_asset
+        }), 201
+
+    except Exception as e:
+        return error_response(f"Errore durante il censimento: {str(e)}", 500)
+    
+
+# ============================================================================
+# ENDPOINT: Consultazione di un Asset esistente
+# ============================================================================
+
+@app.route('/api/assets/<asset_id>', methods=['GET'])
+def get_asset(asset_id):
+    """
+    Restituisce la scheda completa di un asset.
+    """
+    auth = get_auth_context()
+    user_role = auth.get('role')
+    user_campuses = auth.get('campus_ids', [])
+
+    if not ObjectId.is_valid(asset_id):
+        return error_response("ID asset non valido", 400)
+
+    try:
+        asset = assets_col.find_one({"_id": ObjectId(asset_id)})
+        
+        if not asset:
+            return error_response("Asset non trovato", 404)
+
+        # Controllo autorizzazione territoriale (US 5-3)
+        if user_role == 'OPERATORE' and asset.get('campus_id') not in user_campuses:
+            return error_response("Accesso negato: l'asset non appartiene alla tua giurisdizione", 403)
+
+        return jsonify(serialize_mongo_doc(asset)), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante il recupero dell'asset: {str(e)}", 500)
+    
+    
+# ============================================================================
+# ENDPOINT: Aggiornamento di un Asset esistente (metadati e coordinate)
+# ============================================================================
+
+@app.route('/api/assets/<asset_id>', methods=['PUT'])
+def update_asset(asset_id):
+    """
+    Aggiorna i metadati e/o le coordinate di un asset, preservando i campi deprecati
+    e generando un nuovo snapshot nello storico.
+    """
+    auth = get_auth_context()
+    user_id = auth.get('user_id')
+    user_role = auth.get('role')
+    user_campuses = auth.get('campus_ids', [])
+
+    if user_role not in ['OPERATORE', 'AMMINISTRATORE']:
+        return error_response("Non hai i permessi per modificare un asset", 403)
+
+    if not ObjectId.is_valid(asset_id):
+        return error_response("ID asset non valido", 400)
+
+    data = request.get_json()
+    if not data:
+        return error_response("Payload mancante", 400)
+
+    try:
+        # 1. Recupero lo stato attuale dell'asset
+        current_asset = assets_col.find_one({"_id": ObjectId(asset_id)})
+        if not current_asset:
+            return error_response("Asset non trovato", 404)
+
+        # Controllo autorizzazione territoriale per la modifica
+        if user_role == 'OPERATORE' and current_asset.get('campus_id') not in user_campuses:
+            return error_response("Accesso negato: non puoi modificare asset fuori dalla tua giurisdizione", 403)
+
+        # 2. Recupero la categoria per la validazione strutturale
+        category_id = current_asset.get('category_id')
+        category = categories_col.find_one({"_id": ObjectId(category_id)})
+        if not category:
+            return error_response("Errore di integrità: categoria dell'asset non trovata", 500)
+
+        # 3. Validazione dei nuovi metadati
+        raw_metadata = data.get('metadata', {})
+        validated_metadata, validation_errors = validate_asset_metadata(raw_metadata, category.get('attributes', []))
+        
+        if validation_errors:
+            return jsonify({"error": "Errore di validazione metadati", "details": validation_errors}), 422
+
+        # 4. Fusione dei dati: recuperiamo i valori degli attributi deprecati (Unavailable) 
+        # dal vecchio asset e li iniettiamo nel nuovo dizionario per non perderli (US 4-1 / US 2-4)
+        deprecated_keys = [attr['name'] for attr in category.get('attributes', []) if attr.get('status') == 'unavailable']
+        preserved_metadata = {k: v for k, v in current_asset.get('metadata', {}).items() if k in deprecated_keys}
+        
+        # Merge: i metadati validati (nuovi) sovrascrivono quelli correnti, i deprecati vengono mantenuti
+        final_metadata = {**preserved_metadata, **validated_metadata}
+
+        # 5. Costruzione del documento di aggiornamento
+        timestamp = datetime.datetime.utcnow().isoformat()
+        update_fields = {
+            "metadata": final_metadata,
+            "updated_by": user_id,
+            "updated_at": timestamp
+        }
+
+        # L'aggiornamento geografico è opzionale
+        if 'geometry' in data:
+            update_fields['geometry'] = data['geometry']
+
+        # 6. Salvataggio del nuovo stato corrente (sovrascrittura su 'assets')
+        assets_col.update_one(
+            {"_id": ObjectId(asset_id)},
+            {"$set": update_fields}
+        )
+
+        # Ricarico l'asset aggiornato per lo snapshot
+        updated_asset = assets_col.find_one({"_id": ObjectId(asset_id)})
+
+        # 7. Tracciabilità assoluta: Snapshot su 'asset_history'
+        snapshot = {
+            "asset_id": asset_id,
+            "action": "UPDATE",
+            "actor_id": user_id,
+            "timestamp": timestamp,
+            "state_snapshot": updated_asset
+        }
+        history_col.insert_one(snapshot)
+
+        # 8. Eventi RabbitMQ
+        publish_event("ASSET_UPDATED", {
+            "asset_id": asset_id,
+            "category_id": category_id,
+            "updated_keys": list(raw_metadata.keys())
+        })
+
+        return jsonify({
+            "message": "Asset aggiornato con successo",
+            "asset": serialize_mongo_doc(updated_asset)
+        }), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante l'aggiornamento dell'asset: {str(e)}", 500)
+
+
+# ============================================================================
+# ENDPOINT: Ricerca, filtraggio e visualizzazione massiva degli Asset
+# ============================================================================
+
+@app.route('/api/assets', methods=['GET'])
+def get_assets():
+    """
+    Motore di ricerca massivo per gli asset. 
+    Supporta visualizzazione cartografica (GeoJSON incluso nelle risposte), 
+    visualizzazione ad elenco, filtri di sicurezza per ruolo, 
+    filtro per categoria e filtri dinamici sugli attributi.
+    """
+    auth = get_auth_context()
+    user_role = auth.get('role')
+    user_campuses = auth.get('campus_ids', [])
+
+    # Inizializzazione della query vuota per MongoDB
+    mongo_query = {}
+
+    # 1. Filtro di Sicurezza Territoriale (US 5-3, US 5-4)
+    if user_role == 'OPERATORE':
+        # Un operatore vede SOLO ed ESCLUSIVAMENTE gli asset dei suoi campus autorizzati
+        if not user_campuses:
+            # Se un operatore non ha campus assegnati, la query restituirebbe tutto. 
+            # Dobbiamo bloccare restituendo array vuoto.
+            return jsonify({"assets": [], "pagination": {}}), 200 
+            
+        mongo_query['campus_id'] = {'$in': user_campuses}
+        
+    elif user_role == 'AMMINISTRATORE':
+        # Un amministratore vede tutto di default, ma può filtrare volontariamente per campus
+        requested_campus = request.args.get('campus_id')
+        if requested_campus:
+            mongo_query['campus_id'] = requested_campus
+
+    # 2. Filtro per Categoria Strutturale (US 5-2)
+    category_id = request.args.get('category_id')
+    if category_id:
+        if not ObjectId.is_valid(category_id):
+            return error_response("ID Categoria non valido", 400)
+        mongo_query['category_id'] = category_id
+
+    # 3. Filtri Dinamici sugli Attributi (US 5-2)
+    def parse_filter_value(v):
+        """Tenta il cast del valore stringa al tipo nativo corretto."""
+        v = v.strip()
+        if v.lower() == 'true': return True
+        if v.lower() == 'false': return False
+        try:
+            return float(v) # MongoDB incrocia automaticamente int e float
+        except ValueError:
+            return v # Se fallisce, è una normale stringa
+
+    for key, value in request.args.items():
+        if key.startswith('attr_'):
+            attr_name = key[5:] 
+            
+            if ',' in value:
+                parsed_values = [parse_filter_value(v) for v in value.split(',')]
+                mongo_query[f'metadata.{attr_name}'] = {'$in': parsed_values}
+            else:
+                mongo_query[f'metadata.{attr_name}'] = parse_filter_value(value)
+                
+    # 4. Configurazione Paginazione
+    try:
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50)) # Mostra 50 risultati di default
+        if page < 1: page = 1
+        if limit < 1 or limit > 500: limit = 50 # Previeni payload massivi
+    except ValueError:
+        page = 1
+        limit = 50
+        
+    skip = (page - 1) * limit
+
+    try:
+        # 5. Esecuzione query paginata su MongoDB
+        cursor = assets_col.find(mongo_query).skip(skip).limit(limit)
+        assets_list = list(cursor)
+        
+        # Recupero del numero totale di documenti che matchano i filtri
+        total_count = assets_col.count_documents(mongo_query)
+        
+        serialized_assets = [serialize_mongo_doc(asset) for asset in assets_list]
+        
+        # 6. Costruzione della Risposta
+        # Ogni elemento in 'assets' include il campo 'geometry' in formato GeoJSON,
+        # fornendo al frontend (US 5-1) tutto ciò che serve per piazzare i marker sulla mappa
+        # e per costruire la tabella in Visualizzazione Elenco.
+        return jsonify({
+            "assets": serialized_assets,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total_count": total_count,
+                "total_pages": (total_count + limit - 1) // limit
+            }
+        }), 200
+        
+    except Exception as e:
+        return error_response(f"Errore durante la ricerca degli asset: {str(e)}", 500)
+    
+
+# ===================================================================================
+# ENDPOINT: Eliminazione di un Asset esistente (soft delete con tracciamento storico)
+# ===================================================================================
+
+@app.route('/api/assets/<asset_id>', methods=['DELETE'])
+def delete_asset(asset_id):
+    """
+    Elimina fisicamente un asset dalla collezione corrente, ma ne conserva traccia
+    nella collezione storica generando un evento di tipo DELETE.
+    """
+    auth = get_auth_context()
+    user_id = auth.get('user_id')
+    user_role = auth.get('role')
+    user_campuses = auth.get('campus_ids', [])
+
+    if user_role not in ['OPERATORE', 'AMMINISTRATORE']:
+        return error_response("Non hai i permessi per eliminare un asset", 403)
+
+    if not ObjectId.is_valid(asset_id):
+        return error_response("ID asset non valido", 400)
+
+    try:
+        # 1. Recupero l'asset prima di eliminarlo
+        asset_to_delete = assets_col.find_one({"_id": ObjectId(asset_id)})
+        
+        if not asset_to_delete:
+            return error_response("Asset non trovato", 404)
+
+        # Controllo autorizzazione territoriale
+        if user_role == 'OPERATORE' and asset_to_delete.get('campus_id') not in user_campuses:
+            return error_response("Accesso negato: non puoi eliminare asset fuori dalla tua giurisdizione", 403)
+
+        category_id = asset_to_delete.get('category_id')
+        campus_id = asset_to_delete.get('campus_id')
+
+        # 2. Registrazione dell'eliminazione nello storico (Audit Trail)
+        timestamp = datetime.datetime.utcnow().isoformat()
+        snapshot = {
+            "asset_id": asset_id,
+            "action": "DELETE",
+            "actor_id": user_id,
+            "timestamp": timestamp,
+            "state_snapshot": asset_to_delete # Salviamo l'ultimo stato noto prima della cancellazione
+        }
+        history_col.insert_one(snapshot)
+
+        # 3. Eliminazione fisica dalla collezione corrente
+        assets_col.delete_one({"_id": ObjectId(asset_id)})
+
+        # 4. Tracciabilità asincrona (RabbitMQ)
+        publish_event("ASSET_DELETED", {
+            "asset_id": asset_id,
+            "category_id": category_id,
+            "campus_id": campus_id
+        })
+
+        return jsonify({"message": "Asset eliminato con successo"}), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante l'eliminazione dell'asset: {str(e)}", 500)
+
+
+# ===================================================================================
+# ENDPOINT: Consultazione dello storico completo di un Asset 
+# ===================================================================================
+@app.route('/api/assets/<asset_id>/history', methods=['GET'])
+def get_asset_history(asset_id):
+    """
+    Restituisce l'intero ciclo di vita di un asset, dal censimento originale 
+    alle modifiche successive, fino all'eventuale eliminazione.
+    """
+    auth = get_auth_context()
+    user_role = auth.get('role')
+    user_campuses = auth.get('campus_ids', [])
+
+    if not ObjectId.is_valid(asset_id):
+        return error_response("ID asset non valido", 400)
+
+    try:
+        # Recupero lo stato attuale dell'asset per controllare i permessi territoriali
+        current_asset = assets_col.find_one({"_id": ObjectId(asset_id)})
+        
+        # Se l'asset è stato cancellato (non è in assets_col), cerchiamo l'ultimo snapshot in history_col
+        # per verificare a quale campus apparteneva e far scattare i dovuti controlli di sicurezza.
+        if not current_asset:
+            last_snapshot = history_col.find_one(
+                {"asset_id": asset_id}, 
+                sort=[("timestamp", -1)]
+            )
+            if not last_snapshot:
+                return error_response("Nessuno storico trovato per questo asset", 404)
+            current_asset = last_snapshot.get('state_snapshot', {})
+
+        if user_role == 'OPERATORE' and current_asset.get('campus_id') not in user_campuses:
+            return error_response("Accesso negato allo storico di questo asset", 403)
+
+        # Estrazione di tutti gli snapshot ordinati cronologicamente (dal più vecchio al più recente)
+        history_cursor = history_col.find({"asset_id": asset_id}).sort("timestamp", 1)
+        history_list = list(history_cursor)
+        
+        serialized_history = [serialize_mongo_doc(record) for record in history_list]
+
+        return jsonify({"asset_id": asset_id, "history": serialized_history}), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante il recupero dello storico: {str(e)}", 500)
+
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
