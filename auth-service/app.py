@@ -4,6 +4,7 @@ import json
 import jwt
 import pyotp
 import enum
+from sqlalchemy import text
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
@@ -118,15 +119,21 @@ def error_response(message, status_code):
 @app.before_request
 def initialize_database():
     """
-    Assicura che i ruoli di base vengano popolati automaticamente.
+    Assicura che il database sia pronto e i ruoli di base vengano popolati.
     Sostituisce il blocco __main__ che viene ignorato da Docker (flask run).
     """
-    # Se lo abbiamo già fatto, salta per non rallentare l'app
     if getattr(app, '_database_initialized', False):
         return
 
     try:
-        # Seed dei ruoli necessari se la tabella è vuota
+        # 1. Abilita l'estensione UUID nativa di Postgres (FONDAMENTALE)
+        db.session.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
+        db.session.commit()
+        
+        # 2. Crea le tabelle se non esistono già
+        db.create_all()
+
+        # 3. Seed dei ruoli necessari se la tabella è vuota
         if not Role.query.first():
             db.session.add_all([
                 Role(name=RoleType.GUEST, description='Utente base'),
@@ -135,11 +142,13 @@ def initialize_database():
             ])
             db.session.commit()
             print("[AUTH SERVICE] Seed dei ruoli completato con successo.")
-    except Exception:
-        # Ignora l'errore se il database non è ancora pronto o sincronizzato
-        pass
+            
+    except Exception as e:
+        # Stampiamo l'errore nel log invece di ignorarlo in silenzio!
+        print(f"[AUTH SERVICE] Errore critico in inizializzazione DB: {e}")
+        db.session.rollback()
     finally:
-        # Segna l'operazione come completata per l'intero ciclo di vita dell'app
+        # Segna l'operazione come completata
         app._database_initialized = True
 
 # ============================================================================
