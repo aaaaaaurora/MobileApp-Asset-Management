@@ -90,7 +90,7 @@ def health_check():
     return jsonify({"status": "healthy"}), 200
 
 # ============================================================================
-# ENDPOINT: Creazione Categoria
+# ENDPOINT: Creazione Categoria 
 # ============================================================================
 
 @app.route('/api/categories', methods=['POST'])
