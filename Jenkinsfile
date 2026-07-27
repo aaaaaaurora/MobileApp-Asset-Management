@@ -137,6 +137,9 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
         dir(serviceDir) {
             script {
                 echo "[${serviceDir}] Unit Testing su PostgreSQL..."
+
+                sh "rm -rf shared_utils && cp -r ../shared_utils ."
+
                 docker.image('postgres:15').withRun('-e POSTGRES_DB=test_db -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_pass') { c ->
                     docker.image('postgres:15').inside("--link ${c.id}:db") {
                         sh 'while ! pg_isready -h db -U test_user; do sleep 1; done'
@@ -204,6 +207,9 @@ def processPostgisService(serviceDir, imageName, k8sDeployName) {
         dir(serviceDir) {
             script {
                 echo "[${serviceDir}] Unit Testing su PostGIS..."
+
+                sh "rm -rf shared_utils && cp -r ../shared_utils ."
+
                 docker.image('postgis/postgis:15-3.3').withRun('-e POSTGRES_DB=test_db -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_pass') { c ->
                     docker.image('postgres:15').inside("--link ${c.id}:db") {
                         sh 'while ! pg_isready -h db -U test_user; do sleep 1; done'
@@ -268,6 +274,8 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
             script {
                 echo "[${serviceDir}] Unit Testing su MongoDB (Polling Attivo)..."
                 
+                sh "rm -rf shared_utils && cp -r ../shared_utils ."
+
                 // 1. Lanciamo Mongo v4.4
                 docker.image('mongo:4.4').withRun('-e MONGO_INITDB_ROOT_USERNAME=test_user -e MONGO_INITDB_ROOT_PASSWORD=test_pass') { c ->
                     
