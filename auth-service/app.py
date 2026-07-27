@@ -86,7 +86,6 @@ def verify_google_token(token):
     """
     if not token or token == "invalid":
         return None
-        
     try:
         # Verifica crittografica della firma di Google e dell'audience (Client ID)
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
