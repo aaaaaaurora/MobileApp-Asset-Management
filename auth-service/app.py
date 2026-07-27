@@ -466,7 +466,6 @@ def start_consumer_thread():
     thread = threading.Thread(target=mq_manager.start_consumer, args=('geozone_events', callback), daemon=True)
     thread.start()
 
-
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
