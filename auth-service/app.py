@@ -112,6 +112,35 @@ def error_response(message, status_code):
     """
     return jsonify({"error": message}), status_code
 
+# ============================================================================
+# HOOK DI INIZIALIZZAZIONE (Eseguito alla prima richiesta)
+# ============================================================================
+@app.before_request
+def initialize_database():
+    """
+    Assicura che i ruoli di base vengano popolati automaticamente.
+    Sostituisce il blocco __main__ che viene ignorato da Docker (flask run).
+    """
+    # Se lo abbiamo già fatto, salta per non rallentare l'app
+    if getattr(app, '_database_initialized', False):
+        return
+
+    try:
+        # Seed dei ruoli necessari se la tabella è vuota
+        if not Role.query.first():
+            db.session.add_all([
+                Role(name=RoleType.GUEST, description='Utente base'),
+                Role(name=RoleType.OPERATORE, description='Tecnico sul campo'),
+                Role(name=RoleType.AMMINISTRATORE, description='Admin sistema')
+            ])
+            db.session.commit()
+            print("[AUTH SERVICE] Seed dei ruoli completato con successo.")
+    except Exception:
+        # Ignora l'errore se il database non è ancora pronto o sincronizzato
+        pass
+    finally:
+        # Segna l'operazione come completata per l'intero ciclo di vita dell'app
+        app._database_initialized = True
 
 # ============================================================================
 # ENDPOINT per il Liveness e Readiness Probe di Kubernetes
