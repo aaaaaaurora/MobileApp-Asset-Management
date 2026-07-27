@@ -163,7 +163,7 @@ def get_categories():
 
 
 # ============================================================================
-# ENDPOINT: Consultazione dettagli di una singola categoria 
+# ENDPOINT: Consultazione dettagli di una singola categoria
 # ============================================================================
 @app.route('/api/categories/<category_id>', methods=['GET'])
 def get_category(category_id):
