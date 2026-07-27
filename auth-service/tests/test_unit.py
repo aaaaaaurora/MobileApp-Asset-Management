@@ -8,11 +8,6 @@ import uuid
 from unittest.mock import patch
 from sqlalchemy import text
 
-# ============================================================================
-# Variabile d'ambiente per permettere la connessione al database auth
-# ============================================================================
-os.environ['DATABASE_URL'] = 'postgresql://user:pass@127.0.0.1:5433/auth_db'
-
 # Importa l'app e i modelli dal tuo file principale (assunto come app.py)
 from app import app, db, AppUser, Role, RoleType, UserCampus, UserCategory
 
@@ -29,8 +24,8 @@ def client():
     app.config['TESTING'] = True
     app.config['JWT_SECRET'] = 'test-secret-key-per-pytest'
     
-    # Forza il test a usare il DB locale
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:pass@127.0.0.1:5433/auth_db'
+    # Legge l'URL dinamico da Jenkins, altrimenti usa il default locale per i tuoi test su PC
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/auth_db')
     
     with app.test_client() as client:
         with app.app_context():
