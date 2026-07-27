@@ -137,14 +137,12 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
         dir(serviceDir) {
             script {
                 echo "[${serviceDir}] Unit Testing su PostgreSQL..."
-
-                sh "rm -rf shared_utils && cp -r ../shared_utils ."
-
                 docker.image('postgres:15').withRun('-e POSTGRES_DB=test_db -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_pass') { c ->
                     docker.image('postgres:15').inside("--link ${c.id}:db") {
                         sh 'while ! pg_isready -h db -U test_user; do sleep 1; done'
                     }
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
+                        sh 'rm -rf shared_utils && cp -r ../shared_utils .'
                         sh 'pip install -r requirements.txt'
                         withEnv(['DATABASE_URL=postgresql://test_user:test_pass@db:5432/test_db', 'PYTHONPATH=.:..' , 'PYTHONDONTWRITEBYTECODE=1']) {
                             // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
@@ -158,7 +156,10 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
-            sh "rm -rf shared_utils && cp -r ../shared_utils ."
+            // Copia e pulizia sicura tramite container root
+            docker.image('python:3.9').inside('-u 0:0') {
+                sh "rm -rf shared_utils && cp -r ../shared_utils ."
+            }
             withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
@@ -207,14 +208,12 @@ def processPostgisService(serviceDir, imageName, k8sDeployName) {
         dir(serviceDir) {
             script {
                 echo "[${serviceDir}] Unit Testing su PostGIS..."
-
-                sh "rm -rf shared_utils && cp -r ../shared_utils ."
-
                 docker.image('postgis/postgis:15-3.3').withRun('-e POSTGRES_DB=test_db -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_pass') { c ->
                     docker.image('postgres:15').inside("--link ${c.id}:db") {
                         sh 'while ! pg_isready -h db -U test_user; do sleep 1; done'
                     }
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
+                        sh 'rm -rf shared_utils && cp -r ../shared_utils .'
                         sh 'pip install -r requirements.txt'
                         withEnv(['DATABASE_URL=postgresql://test_user:test_pass@db:5432/test_db', 'PYTHONPATH=.:..' , 'PYTHONDONTWRITEBYTECODE=1']) {
                             // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
@@ -228,8 +227,10 @@ def processPostgisService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
-            sh "rm -rf shared_utils && cp -r ../shared_utils ."
-            withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
+            // Copia e pulizia sicura tramite container root
+            docker.image('python:3.9').inside('-u 0:0') {
+                sh "rm -rf shared_utils && cp -r ../shared_utils ."
+            }            withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
         }
@@ -273,15 +274,13 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
         dir(serviceDir) {
             script {
                 echo "[${serviceDir}] Unit Testing su MongoDB (Polling Attivo)..."
-                
-                sh "rm -rf shared_utils && cp -r ../shared_utils ."
-
                 // 1. Lanciamo Mongo v4.4
                 docker.image('mongo:4.4').withRun('-e MONGO_INITDB_ROOT_USERNAME=test_user -e MONGO_INITDB_ROOT_PASSWORD=test_pass') { c ->
                     
                     // 2. Attendiamo in modo deterministico che la porta 27017 sia aperta e pronta!
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
                         sh '''
+                            rm -rf shared_utils && cp -r ../shared_utils .
                             echo "Attendendo che MongoDB sia pronto..."
                             while ! python -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('db', 27017)); s.close()"; do
                                 sleep 2
@@ -303,7 +302,10 @@ def processMongoService(serviceDir, imageName, k8sDeployName) {
 
     stage("${serviceDir} - Build") {
         dir(serviceDir) {
-            sh "rm -rf shared_utils && cp -r ../shared_utils ."
+            // Pulizia sicura tramite container root prima della build
+            docker.image('python:3.9').inside('-u 0:0') {
+                sh "rm -rf shared_utils && cp -r ../shared_utils ."
+            }
             withDockerRegistry(credentialsId: 'dockerhub-id', url: 'https://index.docker.io/v1/') {
                 sh "docker build -t ${DOCKER_USER}/${imageName}:${BUILD_NUMBER} ."
             }
