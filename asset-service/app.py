@@ -15,9 +15,9 @@ from shared_utils.messaging import RabbitMQManager
 app = Flask(__name__)
 
 # Configurazione MongoDB
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://test_user:test_pass@db:27017/asset_db?authSource=admin')
+DATABASE_URL = os.getenv('DATABASE_URL', 'mongodb://test_user:test_pass@db:27017/asset_db?authSource=admin')
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client = MongoClient(DATABASE_URL, serverSelectionTimeoutMS=5000)
     db = client.get_default_database()
     
     # Riferimenti alle collezioni previste dallo SDA

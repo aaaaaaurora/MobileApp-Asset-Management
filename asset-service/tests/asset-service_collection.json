@@ -1,7 +1,686 @@
 {
-    "info": {
-      "name": "Dummy Collection",
-      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-    },
-    "item": []
-  }
+	"info": {
+		"name": "Asset Service - Newman Pipeline Tests",
+		"description": "Test automatizzati per la CI/CD dell'Asset Service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Status is healthy\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"healthy\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Create Category (Admin)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"pm.test(\"Category created successfully and ID saved\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.category.name).to.eql(\"Veicoli\");",
+							"    pm.collectionVariables.set(\"category_id\", jsonData.category._id);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Veicoli\",\n    \"description\": \"Categoria mezzi\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/categories",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"categories"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Create Category (Operator Forbidden)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 403 Forbidden\", function () {",
+							"    pm.response.to.have.status(403);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"PC\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/categories",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"categories"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Create Category (Duplicate Conflict)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 409 Conflict\", function () {",
+							"    pm.response.to.have.status(409);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Veicoli\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/categories",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"categories"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Add Attribute 'targa' (String)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"targa\",\n    \"type\": \"string\",\n    \"required\": true,\n    \"filterable\": true\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/categories/{{category_id}}/attributes",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"categories",
+						"{{category_id}}",
+						"attributes"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Add Attribute 'anno' (Number)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"anno\",\n    \"type\": \"number\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/categories/{{category_id}}/attributes",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"categories",
+						"{{category_id}}",
+						"attributes"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "7. Create Asset (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"pm.test(\"Asset created successfully and ID saved\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.asset.campus_id).to.eql(\"campus-A\");",
+							"    pm.collectionVariables.set(\"asset_id\", jsonData.asset._id);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"campus_id\": \"campus-A\",\n    \"geometry\": {\"type\": \"Point\", \"coordinates\": [12.0, 42.0]},\n    \"metadata\": {\"targa\": \"AB123CD\", \"anno\": 2021}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/assets",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "8. Create Asset (Territorial Violation)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 403 Forbidden\", function () {",
+							"    pm.response.to.have.status(403);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"campus_id\": \"campus-X\",\n    \"geometry\": {\"type\": \"Point\", \"coordinates\": [12.0, 42.0]},\n    \"metadata\": {\"targa\": \"AB123CD\"}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/assets",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "9. Create Asset (Validation Missing Required)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+							"    pm.response.to.have.status(422);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"campus_id\": \"campus-A\",\n    \"geometry\": {\"type\": \"Point\", \"coordinates\": [12.0, 42.0]},\n    \"metadata\": {\"anno\": 2021}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/assets",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "10. Create Asset (Validation Wrong Type)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+							"    pm.response.to.have.status(422);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"campus_id\": \"campus-A\",\n    \"geometry\": {\"type\": \"Point\", \"coordinates\": [12.0, 42.0]},\n    \"metadata\": {\"targa\": \"AB123CD\", \"anno\": \"Duemilaventuno\"}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/assets",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "11. Get Single Asset",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Correct Asset returned\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.metadata.targa).to.eql(\"AB123CD\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" }
+				],
+				"url": {
+					"raw": "{{base_url}}/api/assets/{{asset_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets",
+						"{{asset_id}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "12. Search Assets with Dynamic Filters",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Array returns elements\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.assets.length).to.be.greaterThan(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" }
+				],
+				"url": {
+					"raw": "{{base_url}}/api/assets?attr_anno=2021",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets"
+					],
+					"query": [
+						{
+							"key": "attr_anno",
+							"value": "2021"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "13. Deprecate Attribute",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"status\": \"unavailable\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/categories/{{category_id}}/attributes/anno",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"categories",
+						"{{category_id}}",
+						"attributes",
+						"anno"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "14. Update Asset (Preserve Deprecated)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"Targa is updated but anno is preserved\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.asset.metadata.targa).to.eql(\"NEW-TARGA\");",
+							"    pm.expect(jsonData.asset.metadata.anno).to.eql(2021);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{ "key": "X-User-Id", "value": "op-456" },
+					{ "key": "X-User-Role", "value": "OPERATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"metadata\": {\"targa\": \"NEW-TARGA\"}\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/assets/{{asset_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets",
+						"{{asset_id}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "15. Delete Asset",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" }
+				],
+				"url": {
+					"raw": "{{base_url}}/api/assets/{{asset_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets",
+						"{{asset_id}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "16. Check Asset History (After Delete)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"pm.test(\"History contains DELETE action\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.history.length).to.eql(3); // CREATE, UPDATE, DELETE",
+							"    pm.expect(jsonData.history[2].action).to.eql(\"DELETE\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-User-Id", "value": "admin-123" },
+					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
+					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" }
+				],
+				"url": {
+					"raw": "{{base_url}}/api/assets/{{asset_id}}/history",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"assets",
+						"{{asset_id}}",
+						"history"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "category_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "asset_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
