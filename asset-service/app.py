@@ -55,7 +55,7 @@ def serialize_mongo_doc(doc):
     if not doc:
         return None
         
-    # Converte l'ID principale
+    # Converte l'ID principale 
     if '_id' in doc:
         doc['_id'] = str(doc['_id'])
         
