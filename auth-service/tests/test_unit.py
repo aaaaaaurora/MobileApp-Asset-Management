@@ -214,3 +214,4 @@ def test_get_operators(client):
     emails = [op['email'] for op in response.json]
     assert "op1@campus.it" in emails
     assert "op2@campus.it" in emails
+    
