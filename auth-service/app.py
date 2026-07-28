@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
+import uuid
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -316,8 +317,13 @@ def create_operator():
     # Assegnazione Giurisdizione Territoriale (Soft Links multipli)
     # Se campus_ids è vuoto, l'anagrafica viene creata come "Zero-Campus Operator"
     for c_id in campus_ids:
-        user_campus = UserCampus(user_id=new_operator.id, campus_id=c_id)
-        db.session.add(user_campus)
+        try:
+            campus_uuid = uuid.UUID(c_id) if not isinstance(c_id, uuid.UUID) else c_id
+            user_campus = UserCampus(user_id=new_operator.id, campus_id=campus_uuid)
+            db.session.add(user_campus)
+        except ValueError:
+            db.session.rollback()
+            return error_response(f"Formato UUID campus non valido: {c_id}", 400)
 
     try:
         db.session.commit()
@@ -380,8 +386,13 @@ def update_operator(user_id):
             UserCampus.query.filter_by(user_id=user.id).delete()
             # Inserisce i nuovi link (può essere una lista vuota per lo Zero-Campus)
             for c_id in campus_ids:
-                new_campus = UserCampus(user_id=user.id, campus_id=c_id)
-                db.session.add(new_campus)
+                try:
+                    campus_uuid = uuid.UUID(c_id) if not isinstance(c_id, uuid.UUID) else c_id
+                    new_campus = UserCampus(user_id=user.id, campus_id=campus_uuid)
+                    db.session.add(new_campus)
+                except ValueError:
+                    db.session.rollback()
+                    return error_response(f"Formato UUID campus non valido: {c_id}", 400)
 
         # 5. Consolidamento transazione
         db.session.commit()
