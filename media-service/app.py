@@ -195,18 +195,21 @@ def upload_images():
             db.session.add(metadata)
             db.session.commit()
 
-            # 4. Generazione Evento Asincrono
-            mq_manager.publish_event(
-                exchange_name='system_events',
-                action='MEDIA_UPLOADED',
-                actor_id=user_id,
-                service_name='media-service',
-                payload={
-                    "media_id": str(media_id),
-                    "size_bytes": size_bytes,
-                    "mime_type": mime_type
-                }
-            )
+            # 4. Generazione Evento Asincrono (Resiliente)
+            try:
+                mq_manager.publish_event(
+                    exchange_name='system_events',
+                    action='MEDIA_UPLOADED',
+                    actor_id=user_id,
+                    service_name='media-service',
+                    extra_data={
+                        "media_id": str(media_id),
+                        "size_bytes": size_bytes,
+                        "mime_type": mime_type
+                    }
+                )
+            except Exception as mq_err:
+                print(f"[MEDIA SERVICE] Avviso: Impossibile notificare l'upload a RabbitMQ: {mq_err}")
 
             uploaded_results.append({
                 "media_id": str(media_id),
@@ -218,7 +221,7 @@ def upload_images():
             db.session.rollback()
             errors.append({"filename": original_filename, "error": f"Errore storage: {str(minio_err)}"})
         except Exception as db_err:
-            db.session.rollback()
+
             # Tentativo di compensazione: rimuovere il file orfano da MinIO se il DB fallisce
             try:
                 minio_client.remove_object(MEDIA_BUCKET, object_key)
@@ -293,14 +296,17 @@ def analyze_image(media_id_str):
     if not metadata:
         return jsonify({"error": "Immagine non trovata nel database"}), 404
 
-    # Pubblica evento di richiesta analisi
-    mq_manager.publish_event(
-        exchange_name='system_events',
-        action='MEDIA_ANALYSIS_REQUESTED',
-        actor_id=user_id,
-        service_name='media-service',
-        payload={"media_id": str(media_uuid)}
-    )
+    # Pubblica evento di richiesta analisi (Resiliente)
+    try:
+        mq_manager.publish_event(
+            exchange_name='system_events',
+            action='MEDIA_ANALYSIS_REQUESTED',
+            actor_id=user_id,
+            service_name='media-service',
+            extra_data={"media_id": str(media_uuid)}
+        )
+    except Exception as mq_err:
+        print(f"Avviso RabbitMQ (Analysis Requested): {mq_err}")
 
     try:
         # 2. Recupero del file binario direttamente da MinIO in memoria
@@ -342,14 +348,17 @@ def analyze_image(media_id_str):
             "confidence_score": response.label_annotations[0].score if response.label_annotations else 0.0
         }
 
-        # Pubblicazione evento di successo analisi
-        mq_manager.publish_event(
-            exchange_name='system_events',
-            action='MEDIA_ANALYSIS_COMPLETED',
-            actor_id=user_id,
-            service_name='media-service',
-            payload={"media_id": str(media_uuid), "tags_count": len(suggested_tags)}
-        )
+        # Pubblicazione evento di successo analisi (Resiliente)
+        try:
+            mq_manager.publish_event(
+                exchange_name='system_events',
+                action='MEDIA_ANALYSIS_COMPLETED',
+                actor_id=user_id,
+                service_name='media-service',
+                extra_data={"media_id": str(media_uuid), "tags_count": len(suggested_tags)}
+            )
+        except Exception as mq_err:
+            print(f"Avviso RabbitMQ (Analysis Completed): {mq_err}")
 
         return jsonify({
             "media_id": str(media_uuid),
@@ -359,15 +368,16 @@ def analyze_image(media_id_str):
 
     except Exception as e:
         # Circuit Breaker / Modalità Degradata (Fallback)
-        # In caso di errore di Google Vision o di Minio, registriamo l'errore 
-        # ma non blocchiamo l'operatore (restituiamo suggerimenti vuoti o base)
-        mq_manager.publish_event(
-            exchange_name='system_events',
-            action='MEDIA_ANALYSIS_FAILED',
-            actor_id=user_id,
-            service_name='media-service',
-            payload={"media_id": str(media_uuid), "error": str(e)}
-        )
+        try:
+            mq_manager.publish_event(
+                exchange_name='system_events',
+                action='MEDIA_ANALYSIS_FAILED',
+                actor_id=user_id,
+                service_name='media-service',
+                extra_data={"media_id": str(media_uuid), "error": str(e)}
+            )
+        except Exception as mq_err:
+            print(f"Avviso RabbitMQ (Analysis Failed): {mq_err}")
 
         return jsonify({
             "media_id": str(media_uuid),
@@ -379,7 +389,7 @@ def analyze_image(media_id_str):
                 "tags": [],
                 "confidence_score": 0.0
             }
-        }), 200 # Restituiamo 200 per evitare blocchi bloccanti al client (resilienza architetturale)
+        }), 200 
 
 # ==========================================
 # ENDPOINT: Cancellazione Media (Fisica e Logica)
@@ -417,14 +427,17 @@ def delete_image(media_id_str):
         db.session.delete(metadata)
         db.session.commit()
 
-        # 4. Pubblicazione evento asincrono di cancellazione
-        mq_manager.publish_event(
-            exchange_name='system_events',
-            action='MEDIA_DELETED',
-            actor_id=user_id,
-            service_name='media-service',
-            payload={"media_id": str(media_uuid)}
-        )
+        # 4. Pubblicazione evento asincrono di cancellazione (Resiliente)
+        try:
+            mq_manager.publish_event(
+                exchange_name='system_events',
+                action='MEDIA_DELETED',
+                actor_id=user_id,
+                service_name='media-service',
+                extra_data={"media_id": str(media_uuid)}
+            )
+        except Exception as mq_err:
+            print(f"[MEDIA SERVICE] Avviso: Impossibile notificare l'eliminazione a RabbitMQ: {mq_err}")
 
         return jsonify({
             "media_id": str(media_uuid),
