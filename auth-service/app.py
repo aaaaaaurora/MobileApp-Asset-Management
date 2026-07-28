@@ -8,7 +8,6 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
-import uuid
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -101,24 +100,12 @@ def publish_audit_event(action, actor_id):
     Pubblica un evento asincrono sul Message Broker (RabbitMQ) sfruttando 
     la libreria centralizzata 'shared_utils'.
     """
-    try:
-        # Se actor_id è già un oggetto UUID, prendiamo la sua stringa, altrimenti lo convertiamo
-        if actor_id:
-            clean_actor_id = str(actor_id) if isinstance(actor_id, uuid.UUID) else str(uuid.UUID(str(actor_id)))
-        else:
-            clean_actor_id = None
-    except (ValueError, TypeError):
-        clean_actor_id = None
-
-    try:
-        mq_manager.publish_event(
-            exchange_name='system_events',
-            action=action,
-            actor_id=clean_actor_id,
-            service_name='auth-service'
-        )
-    except Exception as e:
-        print(f"[AUTH SERVICE] Errore non bloccante pubblicazione evento audit: {str(e)}")
+    mq_manager.publish_event(
+        exchange_name='system_events',
+        action=action,
+        actor_id=actor_id,
+        service_name='auth-service'
+    )
 
 def error_response(message, status_code):
     """
@@ -329,13 +316,8 @@ def create_operator():
     # Assegnazione Giurisdizione Territoriale (Soft Links multipli)
     # Se campus_ids è vuoto, l'anagrafica viene creata come "Zero-Campus Operator"
     for c_id in campus_ids:
-        try:
-            campus_uuid = uuid.UUID(c_id) if not isinstance(c_id, uuid.UUID) else c_id
-            user_campus = UserCampus(user_id=new_operator.id, campus_id=campus_uuid)
-            db.session.add(user_campus)
-        except ValueError:
-            db.session.rollback()
-            return error_response(f"Formato UUID campus non valido: {c_id}", 400)
+        user_campus = UserCampus(user_id=new_operator.id, campus_id=c_id)
+        db.session.add(user_campus)
 
     try:
         db.session.commit()
@@ -398,13 +380,8 @@ def update_operator(user_id):
             UserCampus.query.filter_by(user_id=user.id).delete()
             # Inserisce i nuovi link (può essere una lista vuota per lo Zero-Campus)
             for c_id in campus_ids:
-                try:
-                    campus_uuid = uuid.UUID(c_id) if not isinstance(c_id, uuid.UUID) else c_id
-                    new_campus = UserCampus(user_id=user.id, campus_id=campus_uuid)
-                    db.session.add(new_campus)
-                except ValueError:
-                    db.session.rollback()
-                    return error_response(f"Formato UUID campus non valido: {c_id}", 400)
+                new_campus = UserCampus(user_id=user.id, campus_id=c_id)
+                db.session.add(new_campus)
 
         # 5. Consolidamento transazione
         db.session.commit()
@@ -513,20 +490,6 @@ def start_consumer_thread():
 # ============================================================================
 
 if __name__ == '__main__':
-    with app.app_context():
-        # Creazione automatica delle tabelle solo se non esistono
-        db.create_all()
-        
-        # Seed temporaneo dei ruoli necessari se il DB è vuoto
-        if not Role.query.first():
-            db.session.add_all([
-                Role(name=RoleType.GUEST, description='Utente base'),
-                Role(name=RoleType.OPERATORE, description='Tecnico sul campo'),
-                Role(name=RoleType.AMMINISTRATORE, description='Admin sistema')
-            ])
-            db.session.commit()
-            
     # Avvia il processo in background per ascoltare gli eventi RabbitMQ 
     start_consumer_thread()
-    
     app.run(host='0.0.0.0', port=5000)
