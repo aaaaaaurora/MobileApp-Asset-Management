@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from shared_utils.messaging import RabbitMQManager
 
 # ============================================================================
-# INIZIALIZZAZIONE E CONFIGURAZIONE
+# INIZIALIZZAZIONE E CONFIGURAZIONE 
 # ============================================================================
 app = Flask(__name__)
 

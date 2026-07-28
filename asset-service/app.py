@@ -32,7 +32,7 @@ except ConnectionFailure as e:
 mq_manager = RabbitMQManager()
 
 # ============================================================================
-# FUNZIONI DI UTILITA' E MIDDLEWARE
+# FUNZIONI DI UTILITA' E MIDDLEWARE 
 # ============================================================================
 
 def get_auth_context():
