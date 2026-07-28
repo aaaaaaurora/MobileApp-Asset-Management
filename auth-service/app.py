@@ -371,7 +371,6 @@ def create_operator():
         db.session.rollback()
         return error_response(f"Errore durante il salvataggio: {str(e)}", 500)
     
-
 # ===============================================================================
 # ENDPOINT per l'aggiornamento di un profilo Operatore esistente (Amministratore)
 # ===============================================================================
