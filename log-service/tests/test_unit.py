@@ -70,7 +70,7 @@ def test_audit_log_repository_insert(client):
     with app.app_context():
         log_entry = AuditLog(
             service_name="ticket-service",
-            action="TICKET_CREATED",
+            action="CREATE_WARNING",
             payload={"priority": "high"}
         )
         saved = AuditLogRepository.insert(log_entry)

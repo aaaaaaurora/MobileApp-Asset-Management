@@ -203,9 +203,8 @@ class AuditLogRepository:
             base_query = base_query.filter(AuditLog.payload['campus_id'].astext.in_(campus_ids))
 
         assets_count = base_query.filter(AuditLog.action == 'ASSET_CREATED').count()
-        tickets_count = base_query.filter(AuditLog.action.in_(['TICKET_CREATED', 'REPORT_CREATED'])).count()
-        interventions_count = base_query.filter(AuditLog.action.in_(['INTERVENTION_CREATED', 'MAINTENANCE_CREATED'])).count()
-        operators_count = base_query.filter(AuditLog.action == 'USER_CREATED').count()
+        tickets_count = base_query.filter(AuditLog.action.in_(['CREATE_WARNING', 'RESOLVE_WARNING'])).count()
+        interventions_count = base_query.filter(AuditLog.action.in_(['LOG_MANTEINANCE'])).count()
 
         category_distribution = db.session.query(
             AuditLog.payload['category_id'].astext.label('category_id'),
@@ -232,7 +231,6 @@ class AuditLogRepository:
                 "assets": assets_count,
                 "tickets": tickets_count,
                 "interventions": interventions_count,
-                "operators": operators_count
             },
             "distributions": {
                 "by_category": {row[0]: row[1] for row in category_dist_results if row[0]},
