@@ -6,8 +6,7 @@ from unittest.mock import patch
 # ============================================================================
 # SETUP AMBIENTE
 # ============================================================================
-# Questo verrà sovrascritto da Jenkins, ma fa da fallback per i test in locale
-os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5434/warning_db')
+os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/warning_db')
 
 from app import app, db, Warning, WarningStatus, MaintenanceIntervention, MaintenanceType
 
@@ -18,7 +17,7 @@ from app import app, db, Warning, WarningStatus, MaintenanceIntervention, Mainte
 def client():
     """Configura Flask in modalità TESTING e crea un DB pulito per ogni test."""
     app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5434/warning_db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/warning_db')
     
     with app.test_client() as client:
         with app.app_context():
