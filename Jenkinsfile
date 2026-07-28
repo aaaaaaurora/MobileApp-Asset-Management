@@ -195,6 +195,10 @@ def processPostgresService(serviceDir, imageName, k8sDeployName, useMinio = fals
                 if (useMinio) {
                     // Avvia MinIO reale solo se richiesto (Media Service)[cite: 2]
                     docker.image('minio/minio:latest').withRun('--name minio-integration -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin', 'server /data') { minioContainer ->
+
+                        echo "Attendo 10 secondi che MinIO sia completamente operativo..."
+                        sh 'sleep 10'
+                        
                         runIntegrationTest("--link ${minioContainer.id}:minio", "-e MINIO_ENDPOINT=minio:9000 -e MINIO_ACCESS_KEY=minioadmin -e MINIO_SECRET_KEY=minioadmin -e USE_MOCK_STORAGE=false")
                     }
                 } else {

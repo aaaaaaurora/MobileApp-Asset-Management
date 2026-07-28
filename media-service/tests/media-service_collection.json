@@ -132,7 +132,7 @@
 						{
 							"key": "images",
 							"type": "file",
-							"src": ["test_image.txt"]
+							"src": ["invalid_file.txt"]
 						}
 					]
 				},
