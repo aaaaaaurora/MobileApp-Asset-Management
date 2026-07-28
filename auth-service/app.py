@@ -9,8 +9,6 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
-
-# Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
 
 # Nuovi import necessari per la validazione reale del token Google

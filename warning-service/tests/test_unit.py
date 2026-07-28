@@ -3,6 +3,7 @@ import uuid
 import pytest
 from unittest.mock import patch
 
+
 # ============================================================================
 # SETUP AMBIENTE
 # ============================================================================
@@ -22,7 +23,6 @@ def client():
     with app.test_client() as client:
         with app.app_context():
             # Inizializza l'estensione pgcrypto per gen_random_uuid() se manca
-            from sqlalchemy import text
             db.session.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto";'))
             db.session.commit()
             
