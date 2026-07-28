@@ -1,7 +1,815 @@
 {
-    "info": {
-      "name": "Dummy Collection",
-      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-    },
-    "item": []
-  }
+	"info": {
+		"_postman_id": "c1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6",
+		"name": "Geozone Service Tests",
+		"description": "Collezione completa per i test del microservizio Geozone basata su app.py e test_unit.py",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"item": [
+				{
+					"name": "Health Check (Kubernetes Probe)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Status is healthy\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(\"healthy\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Creazione Campus (POST)",
+			"item": [
+				{
+					"name": "Create Campus - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"campus_id\", jsonData.campus.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							},
+							{
+								"key": "X-User-Id",
+								"value": "admin-123"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Campus Postman Test\",\n    \"description\": \"Polo creato tramite Postman\",\n    \"geometry\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [[10.0, 45.0], [11.0, 45.0], [11.0, 46.0], [10.0, 46.0], [10.0, 45.0]]\n        ]\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Campus - Unauthorized",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 403\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "OPERATORE"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Campus Operatore\",\n    \"geometry\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [[10.0, 45.0], [11.0, 45.0], [11.0, 46.0], [10.0, 46.0], [10.0, 45.0]]\n        ]\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Campus - Missing Payload",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Campus - Invalid Geometry Type",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Campus Lineare\",\n    \"geometry\": {\n        \"type\": \"LineString\",\n        \"coordinates\": [[10.0, 45.0], [11.0, 45.0]]\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Campus - Duplicate Name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Campus Postman Test\",\n    \"geometry\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [[10.0, 45.0], [11.0, 45.0], [11.0, 46.0], [10.0, 46.0], [10.0, 45.0]]\n        ]\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Consultazione Campus (GET)",
+			"item": [
+				{
+					"name": "Get All Campuses - Unauthenticated",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Campuses - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response is array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(Array.isArray(jsonData)).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "GUEST"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Campus - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "OPERATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses/{{campus_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses",
+								"{{campus_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Campus - Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "OPERATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses/00000000-0000-0000-0000-000000000000",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Aggiornamento Campus (PUT)",
+			"item": [
+				{
+					"name": "Update Campus - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Nuovo Nome Campus Postman\",\n    \"geometry\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [[10.0, 45.0], [11.0, 45.0], [11.0, 46.0], [10.0, 46.0], [10.0, 45.0]]\n        ]\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses/{{campus_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses",
+								"{{campus_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Campus - Unauthorized",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 403\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "OPERATORE"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Nome Non Valido\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses/{{campus_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses",
+								"{{campus_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Point-In-Polygon Verifica (POST)",
+			"item": [
+				{
+					"name": "Verify Location - Inside",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Is Inside is True\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_inside).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"campusId\": \"{{campus_id}}\",\n    \"latitudine\": 45.5,\n    \"longitudine\": 10.5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/verify-location",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"verify-location"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Location - Outside",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Is Inside is False\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.is_inside).to.be.false;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"campusId\": \"{{campus_id}}\",\n    \"latitudine\": 40.0,\n    \"longitudine\": 12.0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/verify-location",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"verify-location"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Location - Missing Parameters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"campusId\": \"{{campus_id}}\",\n    \"latitudine\": 45.4642\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/verify-location",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"verify-location"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Location - Invalid Coordinates",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"campusId\": \"{{campus_id}}\",\n    \"latitudine\": \"coordinata_rotta\",\n    \"longitudine\": 9.19\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/geozones/verify-location",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"verify-location"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "6. Eliminazione Campus (DELETE)",
+			"item": [
+				{
+					"name": "Delete Campus - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses/{{campus_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses",
+								"{{campus_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Campus - Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/geozones/campuses/{{campus_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"geozones",
+								"campuses",
+								"{{campus_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "campus_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
