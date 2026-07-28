@@ -263,7 +263,7 @@ def get_image(media_id_str):
         return jsonify({"error": f"Errore nel recupero dell'immagine dallo storage: {str(minio_err)}"}), 500
 
 # ==========================================
-# ENDPOINT: US 3-3 (Analisi Intelligente AI)
+# ENDPOINT: US 3-3 
 # ==========================================
 @app.route('/images/<media_id_str>/analyze', methods=['POST'])
 def analyze_image(media_id_str):
