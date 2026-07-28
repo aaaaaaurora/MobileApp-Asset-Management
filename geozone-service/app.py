@@ -69,7 +69,7 @@ def error_response(message, status_code):
     return jsonify({"error": message}), status_code
 
 # ============================================================================
-# ENDPOINT DI SISTEMA
+# ENDPOINT DI SISTEMA 
 # ============================================================================
 @app.route('/health', methods=['GET'])
 def health_check():
