@@ -28,14 +28,19 @@ fi
 
 echo "[Setup Auth] Container target trovato: $APP_CONTAINER"
 
-# 2. Script Python eseguito all'interno del container per inserire i ruoli di base
+# 2. Script Python eseguito all'interno del container per abilitare l'estensione UUID e inserire i ruoli
 PYTHON_SEED_SCRIPT="
 from app import db, app
 from app import Role, RoleType
+from sqlalchemy import text
 import sys
 
 try:
     with app.app_context():
+        # Abilita l'estensione UUID su Postgres per consentire l'uso di uuid_generate_v4()
+        db.session.execute(text('CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";'))
+        db.session.commit()
+
         # Inserisce i ruoli di dominio essenziali attesi dall'Auth Service
         # (GUEST, OPERATORE, AMMINISTRATORE)
         roles_to_insert = [
@@ -51,7 +56,7 @@ try:
                 db.session.add(role)
         
         db.session.commit()
-        print('Ruoli di base inseriti con successo nel DB effimero!')
+        print('Estensione UUID e ruoli di base inseriti con successo nel DB effimero!')
 except Exception as e:
     print(f'ERRORE CRITICO SEED AUTH: {e}')
     sys.exit(1)

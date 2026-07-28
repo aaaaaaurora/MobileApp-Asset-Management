@@ -471,7 +471,7 @@ def start_consumer_thread():
         except Exception as e:
             print(f"[AUTH SERVICE] Errore durante il processing dell'evento: {str(e)}")
 
-    # Sfrutta il metodo centralizzato dichiarando una coda nominale per la scalabilità 
+    # Sfrutta il metodo centralizzato dichiarando una coda nominale per la scalabilità
     thread = threading.Thread(
         target=mq_manager.start_consumer, 
         kwargs={
