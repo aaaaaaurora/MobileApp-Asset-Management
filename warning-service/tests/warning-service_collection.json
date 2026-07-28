@@ -102,7 +102,7 @@
 							"",
 							"pm.test(\"Verifica errore di isolamento\", function () {",
 							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.error).to.include('non esiste o non raggiungibile');",
+							"    pm.expect(jsonData.error).to.include('non esiste');",
 							"});"
 						],
 						"type": "text/javascript"
@@ -260,7 +260,7 @@
 							"pm.test(\"Status code is 404 (Asset irraggiungibile)\", function () {",
 							"    pm.response.to.have.status(404);",
 							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.error).to.include('non esiste o non raggiungibile');",
+							"    pm.expect(jsonData.error).to.include('non esiste');",
 							"});"
 						],
 						"type": "text/javascript"

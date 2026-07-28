@@ -58,7 +58,7 @@ data:
 
     CREATE TABLE user_category (
       user_id UUID REFERENCES app_user(id),
-      category_id UUID NOT NULL,
+      category_id VARCHAR(24) NOT NULL,
       PRIMARY KEY (user_id, category_id)
     );
 
@@ -112,7 +112,7 @@ data:
     -- Tabella 1: Segnalazioni Pubbliche
     CREATE TABLE warning (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      asset_id UUID NOT NULL,       -- Soft link a MongoDB (Asset Service)
+      asset_id VARCHAR(24) NOT NULL,       -- Soft link a MongoDB (Asset Service)
       campus_id UUID NOT NULL,      -- Denormalizzato per filtro rapido
       reporter_id UUID NOT NULL,    -- Soft link a PostgreSQL (Auth Service)
       description TEXT NOT NULL,
@@ -129,13 +129,19 @@ data:
     -- Tabella 2: Interventi di Manutenzione (Append-Only)
     CREATE TABLE maintenance_intervention (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      asset_id UUID NOT NULL,
+      asset_id VARCHAR(24) NOT NULL,
       campus_id UUID NOT NULL,
       operator_id UUID NOT NULL,
       warning_id UUID REFERENCES warning(id), -- NULL se intervento preventivo
       intervention_type maintenance_type NOT NULL,
       technical_note TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Tabella 3: cache locale degli Asset 
+    CREATE TABLE local_asset_cache (
+      asset_id VARCHAR(24) PRIMARY KEY,
+      campus_id UUID NOT NULL
     );
 
     -- ==========================================
@@ -151,7 +157,7 @@ data:
       service_name VARCHAR(50),
       action VARCHAR(100),
       actor_id UUID,
-      entity_id UUID,
+      entity_id VARCHAR(100),
       payload JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );

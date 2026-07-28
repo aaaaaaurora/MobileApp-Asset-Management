@@ -35,13 +35,13 @@ def mock_rabbitmq(monkeypatch):
 ADMIN_HEADERS = {
     'X-User-Id': 'admin-123',
     'X-User-Role': 'AMMINISTRATORE',
-    'X-User-Campuses': 'campus-A,campus-B'
+    'X-Campus-Ids': 'campus-A,campus-B'
 }
 
 OPERATOR_HEADERS = {
     'X-User-Id': 'op-456',
     'X-User-Role': 'OPERATORE',
-    'X-User-Campuses': 'campus-A'
+    'X-Campus-Ids': 'campus-A'
 }
 
 # ============================================================================

@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 
 # Impostiamo l'ambiente di test prima di importare l'app
-os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/geozone_db')
+os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/log_db')
 
 from app import app, db, AuditLog, AuditLogRepository
 

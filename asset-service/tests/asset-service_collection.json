@@ -64,7 +64,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -104,7 +104,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "X-Campus-Ids", "value": "campus-A" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -144,7 +144,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -184,7 +184,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -226,7 +226,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -273,7 +273,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "X-Campus-Ids", "value": "campus-A" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -313,7 +313,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "X-Campus-Ids", "value": "campus-A" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -353,7 +353,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "X-Campus-Ids", "value": "campus-A" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -393,7 +393,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "X-Campus-Ids", "value": "campus-A" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -437,7 +437,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" }
+					{ "key": "X-Campus-Ids", "value": "campus-A" }
 				],
 				"url": {
 					"raw": "{{base_url}}/api/assets/{{asset_id}}",
@@ -477,7 +477,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" }
+					{ "key": "X-Campus-Ids", "value": "campus-A" }
 				],
 				"url": {
 					"raw": "{{base_url}}/api/assets?attr_anno=2021",
@@ -518,7 +518,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" },
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -566,7 +566,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A" },
+					{ "key": "X-Campus-Ids", "value": "campus-A" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -607,7 +607,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" }
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" }
 				],
 				"url": {
 					"raw": "{{base_url}}/api/assets/{{asset_id}}",
@@ -648,7 +648,7 @@
 				"header": [
 					{ "key": "X-User-Id", "value": "admin-123" },
 					{ "key": "X-User-Role", "value": "AMMINISTRATORE" },
-					{ "key": "X-User-Campuses", "value": "campus-A,campus-B" }
+					{ "key": "X-Campus-Ids", "value": "campus-A,campus-B" }
 				],
 				"url": {
 					"raw": "{{base_url}}/api/assets/{{asset_id}}/history",

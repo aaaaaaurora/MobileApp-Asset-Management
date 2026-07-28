@@ -6,6 +6,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 import datetime
+from sqlalchemy.dialects.postgresql import UUID
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -30,7 +31,7 @@ class Campus(db.Model):
     __tablename__ = 'campus'
 
     # ID generato nativamente da PostgreSQL (gen_random_uuid)
-    id = db.Column(db.String(36), primary_key=True, server_default=func.gen_random_uuid())
+    id = db.Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     
@@ -45,7 +46,7 @@ class Campus(db.Model):
 # ============================================================================
 def get_auth_context():
     """Estrae le informazioni di sicurezza propagate dall'API Gateway."""
-    campuses_header = request.headers.get('X-User-Campuses', '')
+    campuses_header = request.headers.get('X-Campus-Ids', '')
     campus_ids = [c.strip() for c in campuses_header.split(',')] if campuses_header else []
     
     return {
@@ -60,7 +61,7 @@ def publish_event(action, extra_data=None):
     mq_manager.publish_event(
         exchange_name='system_events',
         action=action,
-        actor_id=auth.get('user_id', 'unknown'),
+        actor_id=auth.get('user_id') or None,
         service_name='geozone-service',
         extra_data=extra_data
     )
@@ -132,7 +133,7 @@ def create_campus():
 
         # 5. Pubblicazione dell'evento RabbitMQ (fondamentale per l'Auth Service)
         publish_event("CAMPUS_CREATED", {
-            "campus_id": campus_id,
+            "campus_id": str(campus_id),
             "campus_name": name
         })
 

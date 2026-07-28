@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 import dateutil.parser
+import threading
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -39,7 +40,7 @@ def get_auth_context():
     Estrae le informazioni di sicurezza propagate dall'API Gateway.
     Il Gateway ha già validato il JWT, qui ci limitiamo a consumare i dati.
     """
-    campuses_header = request.headers.get('X-User-Campuses', '')
+    campuses_header = request.headers.get('X-Campus-Ids', '')
     campus_ids = [c.strip() for c in campuses_header.split(',')] if campuses_header else []
     
     return {
@@ -76,7 +77,7 @@ def publish_event(action, extra_data=None):
     mq_manager.publish_event(
         exchange_name='system_events',
         action=action,
-        actor_id=auth.get('user_id', 'unknown'),
+        actor_id=auth.get('user_id') or None,
         service_name='asset-service',
         extra_data=extra_data
     )
@@ -758,6 +759,7 @@ def update_asset(asset_id):
         publish_event("ASSET_UPDATED", {
             "asset_id": asset_id,
             "category_id": category_id,
+            "campus_id": updated_asset.get('campus_id'),
             "updated_keys": list(raw_metadata.keys())
         })
 
@@ -979,9 +981,78 @@ def get_asset_history(asset_id):
 
     except Exception as e:
         return error_response(f"Errore durante il recupero dello storico: {str(e)}", 500)
+    
+    
+# ============================================================================
+# CONSUMER ASINCRONO PER PULIZIA DATI ORFANI
+# ============================================================================
+def process_system_events(ch, method, properties, body):
+    """Ascolta eventi di sistema come l'eliminazione di un Campus per pulire gli Asset."""
+    try:
+        payload = json.loads(body.decode('utf-8'))
+        action = payload.get("azione")
+        
+        if action == "CAMPUS_DELETED":
+            campus_id = payload.get("campus_id")
+            if campus_id:
+                # Troviamo tutti gli asset del campus eliminato
+                assets_to_delete = list(assets_col.find({"campus_id": campus_id}))
+                
+                for asset in assets_to_delete:
+                    asset_id = str(asset['_id'])
+                    category_id = asset.get('category_id')
+                    
+                    # 1. Tracciamento storico (Soft Delete Logico)
+                    history_col.insert_one({
+                        "asset_id": asset_id,
+                        "action": "DELETE (CASCADE CAMPUS)",
+                        "actor_id": "system",
+                        "timestamp": datetime.datetime.utcnow().isoformat(),
+                        "state_snapshot": asset
+                    })
+                    
+                    # 2. Eliminazione fisica
+                    assets_col.delete_one({"_id": ObjectId(asset_id)})
+                    
+                    # 3. Notifica agli altri servizi usando direttamente mq_manager 
+                    # (perché siamo in un thread senza contesto di richiesta HTTP)
+                    mq_manager.publish_event(
+                        exchange_name='system_events',
+                        action='ASSET_DELETED',
+                        actor_id='system',
+                        service_name='asset-service',
+                        extra_data={
+                            "asset_id": asset_id,
+                            "category_id": category_id,
+                            "campus_id": campus_id
+                        }
+                    )
+                    
+        # Ack manuale se auto_ack=False
+        if ch.is_open and not getattr(ch, 'auto_ack', True):
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            
+    except Exception as e:
+        print(f"[ASSET SERVICE] Errore elaborazione evento asincrono: {str(e)}")
+
+def start_consumer_thread():
+    """Avvia il consumer asincrono in background."""
+    thread = threading.Thread(
+        target=mq_manager.start_consumer, 
+        kwargs={
+            'exchange_name': 'system_events',
+            'callback_function': process_system_events,
+            'queue_name': 'asset_service_queue',
+            'durable_queue': True
+        },
+        daemon=True
+    )
+    thread.start()
 
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
 if __name__ == '__main__':
+    
+    start_consumer_thread()
     app.run(host='0.0.0.0', port=5000)

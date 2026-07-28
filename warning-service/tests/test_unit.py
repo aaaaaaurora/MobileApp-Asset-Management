@@ -9,7 +9,8 @@ from sqlalchemy import text
 # ============================================================================
 os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/warning_db')
 
-from app import app, db, Warning, WarningStatus, MaintenanceIntervention, MaintenanceType
+# Aggiunto import di LocalAssetCache
+from app import app, db, Warning, WarningStatus, MaintenanceIntervention, MaintenanceType, LocalAssetCache
 
 # ============================================================================
 # FIXTURE CONDIVISE
@@ -42,20 +43,7 @@ def mock_rabbitmq():
     with patch('app.mq_manager.publish_event') as mock_pub:
         yield mock_pub
 
-@pytest.fixture
-def mock_asset_service():
-    """Mock per la validazione sincrona dell'asset verso l'Asset Service."""
-    with patch('app.requests.get') as mock_get:
-        # Crea una finta risposta (mock) per requests.get
-        mock_response = mock_get.return_value
-        mock_response.status_code = 200
-        # Di default restituisce un payload valido. I test specifici possono sovrascriverlo.
-        mock_response.json.return_value = {
-            "id": "123e4567-e89b-12d3-a456-426614174000",
-            "campus_id": "987e6543-e21b-34d5-c678-426614174999"
-        }
-        yield mock_get
-
+# Il mock_asset_service è stato RIMOSSO perché non facciamo più chiamate HTTP sincrone.
 
 # ============================================================================
 # TEST CASES
@@ -67,11 +55,19 @@ def test_health_check(client):
     assert response.status_code == 200
     assert response.json['status'] == 'healthy'
 
-def test_create_warning_success(client, mock_asset_service):
+def test_create_warning_success(client):
     """Verifica la creazione corretta di una segnalazione pubblica (US 6-1)."""
+    campus_id = uuid.uuid4()
+    asset_id_str = "123456789012345678901234" # Stringa 24 caratteri (simula ObjectId)
+    
+    # 1. Popola la cache locale simulando un evento ricevuto via RabbitMQ in precedenza
+    cache_entry = LocalAssetCache(asset_id=asset_id_str, campus_id=campus_id)
+    db.session.add(cache_entry)
+    db.session.commit()
+
     headers = {'X-User-Id': str(uuid.uuid4())}
     payload = {
-        "asset_id": "123e4567-e89b-12d3-a456-426614174000",
+        "asset_id": asset_id_str,
         "descrizione": "L'asset risulta danneggiato."
     }
     
@@ -86,18 +82,17 @@ def test_create_warning_success(client, mock_asset_service):
     assert warning is not None
     assert warning.description == "L'asset risulta danneggiato."
 
-def test_create_warning_invalid_asset(client, mock_asset_service):
-    """Verifica che la creazione fallisca se l'Asset Service restituisce 404."""
-    # Sovrascrive il mock per simulare un asset inesistente
-    mock_asset_service.return_value.status_code = 404
-    
+def test_create_warning_invalid_asset(client):
+    """Verifica che la creazione fallisca se l'Asset Service non è in cache (404 cache miss)."""
     headers = {'X-User-Id': str(uuid.uuid4())}
     payload = {
-        "asset_id": "123e4567-e89b-12d3-a456-426614174000",
+        "asset_id": "123456789012345678901234",
         "descrizione": "Test asset inesistente"
     }
     
+    # Non inseriamo l'asset in LocalAssetCache, forzando un cache miss
     response = client.post('/warnings', json=payload, headers=headers)
+    
     assert response.status_code == 404
     assert "non esiste" in response.json['error']
 
@@ -106,9 +101,9 @@ def test_get_warnings_operator(client):
     campus_1 = uuid.uuid4()
     campus_2 = uuid.uuid4()
     
-    # Crea due segnalazioni in due campus diversi
-    w1 = Warning(asset_id=uuid.uuid4(), campus_id=campus_1, reporter_id=uuid.uuid4(), description="Guasto C1")
-    w2 = Warning(asset_id=uuid.uuid4(), campus_id=campus_2, reporter_id=uuid.uuid4(), description="Guasto C2")
+    # Crea due segnalazioni in due campus diversi (usando ID fittizi da 24 char)
+    w1 = Warning(asset_id="111111111111111111111111", campus_id=campus_1, reporter_id=uuid.uuid4(), description="Guasto C1")
+    w2 = Warning(asset_id="222222222222222222222222", campus_id=campus_2, reporter_id=uuid.uuid4(), description="Guasto C2")
     db.session.add_all([w1, w2])
     db.session.commit()
     
@@ -131,7 +126,7 @@ def test_resolve_warning_success(client):
     
     # 1. Prepara una segnalazione aperta
     warning = Warning(
-        asset_id=uuid.uuid4(),
+        asset_id="123456789012345678901234", # Aggiornato a 24 char
         campus_id=campus_id,
         reporter_id=uuid.uuid4(),
         description="Palo della luce fulminato"
@@ -167,7 +162,7 @@ def test_resolve_warning_wrong_campus(client):
     campus_non_autorizzato = uuid.uuid4()
     
     warning = Warning(
-        asset_id=uuid.uuid4(),
+        asset_id="123456789012345678901234", # Aggiornato a 24 char
         campus_id=campus_non_autorizzato,
         reporter_id=uuid.uuid4(),
         description="Ticket blindato"
@@ -186,18 +181,23 @@ def test_resolve_warning_wrong_campus(client):
     assert response.status_code == 403
     assert "Non sei autorizzato" in response.json['error']
 
-def test_create_maintenance_success(client, mock_asset_service):
+def test_create_maintenance_success(client):
     """Verifica la creazione di un intervento di manutenzione diretta (US 4-3)."""
-    # Usiamo l'ID campus che la nostra finta API (mock) dell'Asset Service restituirà
-    campus_id = "987e6543-e21b-34d5-c678-426614174999" 
+    campus_id = uuid.uuid4()
+    asset_id_str = "123456789012345678901234"
+    
+    # Popola la cache locale
+    cache_entry = LocalAssetCache(asset_id=asset_id_str, campus_id=campus_id)
+    db.session.add(cache_entry)
+    db.session.commit()
     
     headers = {
         'X-User-Id': str(uuid.uuid4()),
         'X-User-Role': 'OPERATORE',
-        'X-Campus-Ids': campus_id
+        'X-Campus-Ids': str(campus_id)
     }
     payload = {
-        "asset_id": "123e4567-e89b-12d3-a456-426614174000",
+        "asset_id": asset_id_str,
         "nota_intervento": "Ispezione ordinaria. Tutto ok.",
         "tipo_intervento": "preventiva"
     }
@@ -211,15 +211,23 @@ def test_create_maintenance_success(client, mock_asset_service):
     assert maintenance.intervention_type == MaintenanceType.preventiva
     assert maintenance.warning_id is None # Nessuna segnalazione collegata
 
-def test_create_maintenance_invalid_type(client, mock_asset_service):
+def test_create_maintenance_invalid_type(client):
     """Verifica che il sistema respinga tipologie di intervento non previste dall'Enum."""
+    campus_id = uuid.uuid4()
+    asset_id_str = "123456789012345678901234"
+    
+    # Popola la cache locale
+    cache_entry = LocalAssetCache(asset_id=asset_id_str, campus_id=campus_id)
+    db.session.add(cache_entry)
+    db.session.commit()
+
     headers = {
         'X-User-Id': str(uuid.uuid4()),
         'X-User-Role': 'OPERATORE',
-        'X-Campus-Ids': "987e6543-e21b-34d5-c678-426614174999"
+        'X-Campus-Ids': str(campus_id)
     }
     payload = {
-        "asset_id": "123e4567-e89b-12d3-a456-426614174000",
+        "asset_id": asset_id_str,
         "nota_intervento": "Test tipologia errata",
         "tipo_intervento": "non_esiste" # Errato
     }

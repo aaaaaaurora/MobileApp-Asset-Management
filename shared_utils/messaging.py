@@ -30,12 +30,27 @@ class RabbitMQManager:
         """
         Pubblica un evento standardizzato su un Exchange RabbitMQ.
         """
+        # Estrazione intelligente dell'entity_id dai dati extra per normalizzarlo per il Log Service
+        entity_id = None
+        if extra_data and isinstance(extra_data, dict):
+            entity_id = (
+                extra_data.get('entity_id') or 
+                extra_data.get('asset_id') or 
+                extra_data.get('campus_id') or 
+                extra_data.get('media_id') or 
+                extra_data.get('category_id') or
+                extra_data.get('warning_id') or
+                extra_data.get('maintenance_id')
+            )
+
         event = {
             "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            "autore_id": str(actor_id),
+            "autore_id": str(actor_id) if actor_id is not None else None,
+            "entity_id": str(entity_id) if entity_id is not None else None,
             "azione": action,
             "service_name": service_name
         }
+        
         if extra_data and isinstance(extra_data, dict):
             event.update(extra_data)
 

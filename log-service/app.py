@@ -12,6 +12,7 @@ from marshmallow import Schema, fields, INCLUDE, ValidationError
 import csv
 import io
 from flask import Response
+import dateutil.parser
 
 # Importiamo il gestore centralizzato per RabbitMQ (dalla cartella condivisa)
 from shared_utils.messaging import RabbitMQManager
@@ -30,7 +31,7 @@ logger = logging.getLogger('log-service')
 app = Flask(__name__)
 
 # Configurazione PostgreSQL compatibile con Kubernetes e ambiente locale 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/geozone_db')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/log_db')
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -52,7 +53,7 @@ def get_auth_context():
     Estrae le informazioni di sicurezza propagate dall'API Gateway.
     Il Log Service è passivo e si fida ciecamente di questi header.
     """
-    campuses_header = request.headers.get('X-User-Campuses', '')
+    campuses_header = request.headers.get('X-Campus-Ids', '')
     campus_ids = [c.strip() for c in campuses_header.split(',')] if campuses_header else []
     
     return {
@@ -80,7 +81,7 @@ class AuditLog(db.Model):
     service_name = db.Column(db.String(50), nullable=False, index=True)
     action = db.Column(db.String(100), nullable=False, index=True)
     actor_id = db.Column(UUID(as_uuid=True), nullable=True, index=True)
-    entity_id = db.Column(UUID(as_uuid=True), nullable=True, index=True)
+    entity_id = db.Column(db.String(100), nullable=True, index=True) 
     
     # JSONB essenziale per query complesse, filtri e dashboard flessibili
     payload = db.Column(JSONB, nullable=False)
@@ -119,7 +120,7 @@ class EventPayloadSchema(Schema):
     # UUIDs che potrebbero essere stringhe vuote o null se l'evento è di sistema
     autore_id = fields.UUID(allow_none=True, load_default=None)
     correlation_id = fields.UUID(allow_none=True, load_default=None)
-    entity_id = fields.UUID(allow_none=True, load_default=None)
+    entity_id = fields.String(allow_none=True, load_default=None) 
     
     timestamp = fields.String(allow_none=True)
 
@@ -204,7 +205,7 @@ class AuditLogRepository:
 
         assets_count = base_query.filter(AuditLog.action == 'ASSET_CREATED').count()
         tickets_count = base_query.filter(AuditLog.action.in_(['CREATE_WARNING', 'RESOLVE_WARNING'])).count()
-        interventions_count = base_query.filter(AuditLog.action.in_(['LOG_MANTEINANCE'])).count()
+        interventions_count = base_query.filter(AuditLog.action.in_(['LOG_MAINTENANCE'])).count()
 
         category_distribution = db.session.query(
             AuditLog.payload['category_id'].astext.label('category_id'),
@@ -532,6 +533,10 @@ def process_log_event(ch, method, properties, body):
             schema = EventPayloadSchema()
             validated_data = schema.load(message_data)
             
+            # Parsing sicuro del timestamp originale emesso dal publisher
+            raw_timestamp = validated_data.get('timestamp')
+            parsed_created_at = dateutil.parser.isoparse(raw_timestamp) if raw_timestamp else None
+
             # 3. Creazione del modello AuditLog
             log_entry = AuditLog(
                 correlation_id=validated_data.get('correlation_id'),
@@ -539,7 +544,8 @@ def process_log_event(ch, method, properties, body):
                 action=validated_data.get('azione'),
                 actor_id=validated_data.get('autore_id'),
                 entity_id=validated_data.get('entity_id'),
-                payload=message_data
+                payload=message_data,
+                created_at=parsed_created_at  
             )
             
             # 4. Salvataggio su database

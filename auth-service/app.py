@@ -4,11 +4,12 @@ import json
 import jwt
 import pyotp
 import enum
-from sqlalchemy import text
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
+
+# Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
 
 # Nuovi import necessari per la validazione reale del token Google
@@ -72,7 +73,7 @@ class UserCampus(db.Model):
 class UserCategory(db.Model):
     __tablename__ = 'user_category'
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('app_user.id'), primary_key=True)
-    category_id = db.Column(UUID(as_uuid=True), primary_key=True) # Soft link all'Asset Service
+    category_id = db.Column(db.String(24), primary_key=True) # Soft link all'Asset Service
 
 
 # ============================================================================
@@ -85,6 +86,7 @@ def verify_google_token(token):
     """
     if not token or token == "invalid":
         return None
+        
     try:
         # Verifica crittografica della firma di Google e dell'audience (Client ID)
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
@@ -111,43 +113,6 @@ def error_response(message, status_code):
     """
     return jsonify({"error": message}), status_code
 
-# ============================================================================
-# HOOK DI INIZIALIZZAZIONE (Eseguito alla prima richiesta)
-# ============================================================================
-@app.before_request
-def initialize_database():
-    """
-    Assicura che il database sia pronto e i ruoli di base vengano popolati.
-    Sostituisce il blocco __main__ che viene ignorato da Docker (flask run).
-    """
-    if getattr(app, '_database_initialized', False):
-        return
-
-    try:
-        # 1. Abilita l'estensione UUID nativa di Postgres (FONDAMENTALE)
-        db.session.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
-        db.session.commit()
-        
-        # 2. Crea le tabelle se non esistono già
-        db.create_all()
-
-        # 3. Seed dei ruoli necessari se la tabella è vuota
-        if not Role.query.first():
-            db.session.add_all([
-                Role(name=RoleType.GUEST, description='Utente base'),
-                Role(name=RoleType.OPERATORE, description='Tecnico sul campo'),
-                Role(name=RoleType.AMMINISTRATORE, description='Admin sistema')
-            ])
-            db.session.commit()
-            print("[AUTH SERVICE] Seed dei ruoli completato con successo.")
-            
-    except Exception as e:
-        # Stampiamo l'errore nel log invece di ignorarlo in silenzio!
-        print(f"[AUTH SERVICE] Errore critico in inizializzazione DB: {e}")
-        db.session.rollback()
-    finally:
-        # Segna l'operazione come completata
-        app._database_initialized = True
 
 # ============================================================================
 # ENDPOINT per il Liveness e Readiness Probe di Kubernetes
@@ -254,7 +219,7 @@ def verify_2fa():
     except jwt.InvalidTokenError:
         return error_response("INVALID_CODE", 401)
 
-    user = db.session.get(AppUser, user_id)
+    user = AppUser.query.get(user_id)
     if not user:
         return error_response("Utente non trovato", 404)
         
@@ -269,7 +234,7 @@ def verify_2fa():
         return error_response("INVALID_CODE", 401)
 
     # Denormalizzazione e Costruzione Payload JWT
-    role = db.session.get(Role, user.role_id)
+    role = Role.query.get(user.role_id)
     
     campus_links = UserCampus.query.filter_by(user_id=user.id).all()
     campus_ids = [str(link.campus_id) for link in campus_links]
@@ -358,7 +323,7 @@ def create_operator():
         db.session.commit()
         
         # Recupera l'ID dell'admin dagli header passati dal Gateway
-        admin_id = request.headers.get('X-User-Id', 'Unknown')
+        admin_id = request.headers.get('X-User-Id')
         publish_audit_event("CREATE_OPERATOR_PROFILE", admin_id)
         
         return jsonify({
@@ -382,7 +347,7 @@ def update_operator(user_id):
     Soddisfa le US 1-5, US 1-6 e l'UC-AMM-08 (Aggiornamento profilo esistente).
     """
     # 1. Verifica esistenza e validità dell'utente
-    user = db.session.get(AppUser, user_id)
+    user = AppUser.query.get(user_id)
     if not user:
         return error_response("Utente non trovato", 404)
 
@@ -422,7 +387,7 @@ def update_operator(user_id):
         db.session.commit()
         
         # 6. Tracciabilità
-        admin_id = request.headers.get('X-User-Id', 'Unknown')
+        admin_id = request.headers.get('X-User-Id')
         publish_audit_event("UPDATE_OPERATOR_PROFILE", admin_id)
 
         return jsonify({"status": "updated"}), 200
@@ -493,13 +458,32 @@ def start_consumer_thread():
                             db.session.add(new_link)
                             db.session.commit()
                             print(f"[AUTH SERVICE] Campus {campus_id} associato con successo all'Admin {admin_id}")
+
+            elif action == "CAMPUS_DELETED":
+                campus_id = payload.get("campus_id")
+                if campus_id:
+                    with app.app_context():
+                        # Elimina tutte le associazioni degli utenti a questo campus
+                        UserCampus.query.filter_by(campus_id=campus_id).delete()
+                        db.session.commit()
+                        print(f"[AUTH SERVICE] Campus {campus_id} eliminato. Rimossi i link agli operatori.")
                             
         except Exception as e:
             print(f"[AUTH SERVICE] Errore durante il processing dell'evento: {str(e)}")
 
-    # Sfrutta il metodo centralizzato per avviare il consumer sull'exchange 'geozone_events'
-    thread = threading.Thread(target=mq_manager.start_consumer, args=('geozone_events', callback), daemon=True)
+    # Sfrutta il metodo centralizzato dichiarando una coda nominale per la scalabilità
+    thread = threading.Thread(
+        target=mq_manager.start_consumer, 
+        kwargs={
+            'exchange_name': 'system_events',
+            'callback_function': callback,
+            'queue_name': 'auth_service_queue',
+            'durable_queue': True
+        },
+        daemon=True
+    )
     thread.start()
+
 
 # ============================================================================
 # ENTRY POINT

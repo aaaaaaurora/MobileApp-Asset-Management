@@ -2,11 +2,12 @@ import os
 import uuid
 import datetime
 import enum
-import requests
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import text
+import json
+import threading
 
 # Assumo la presenza del modulo condiviso come negli altri servizi
 from shared_utils.messaging import RabbitMQManager 
@@ -20,7 +21,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # Servizi esterni
-ASSET_SERVICE_URL = os.getenv('ASSET_SERVICE_URL', 'http://asset-service:5000')
 RABBITMQ_URL = os.getenv('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq-service:5672/')
 mq_manager = RabbitMQManager(rabbitmq_url=RABBITMQ_URL)
 
@@ -38,7 +38,7 @@ class MaintenanceType(enum.Enum):
 class Warning(db.Model):
     __tablename__ = 'warning'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    asset_id = db.Column(UUID(as_uuid=True), nullable=False)
+    asset_id = db.Column(db.String(24), nullable=False)
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
     reporter_id = db.Column(UUID(as_uuid=True), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -49,13 +49,19 @@ class Warning(db.Model):
 class MaintenanceIntervention(db.Model):
     __tablename__ = 'maintenance_intervention'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    asset_id = db.Column(UUID(as_uuid=True), nullable=False)
+    asset_id = db.Column(db.String(24), nullable=False)
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
     operator_id = db.Column(UUID(as_uuid=True), nullable=False)
     warning_id = db.Column(UUID(as_uuid=True), db.ForeignKey('warning.id'), nullable=True)
     intervention_type = db.Column(db.Enum(MaintenanceType), nullable=False)
     technical_note = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=datetime.datetime.utcnow)
+    
+    
+class LocalAssetCache(db.Model):
+    __tablename__ = 'local_asset_cache'
+    asset_id = db.Column(db.String(24), primary_key=True)
+    campus_id = db.Column(UUID(as_uuid=True), nullable=False)
 
 # ==========================================
 # UTILITIES
@@ -68,67 +74,84 @@ def get_auth_context():
         'campus_ids': request.headers.get('X-Campus-Ids', '').split(',') if request.headers.get('X-Campus-Ids') else []
     }
 
-def validate_asset_sync(asset_id, auth_context):
-    """
-    Comunica sincronicamente con l'Asset Service per validare l'esistenza
-    dell'asset e recuperarne il campus_id.
-    """
-    try:
-        headers = {
-            'X-User-Id': auth_context['user_id'],
-            'X-User-Role': auth_context['role'],
-            'X-Campus-Ids': ','.join(auth_context['campus_ids'])
-        }
-        # Invocazione endpoint Asset Service (Presuppone rotta GET /assets/{id})
-        response = requests.get(f"{ASSET_SERVICE_URL}/assets/{asset_id}", headers=headers, timeout=5)
-        
-        if response.status_code == 200:
-            return response.json() # Struttura attesa: { "id": "...", "campus_id": "..." }
-        return None
-    except requests.RequestException:
-        return None
-
 def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
     """Sfrutta il Manager centralizzato per emettere log asincroni."""
     event_data = {
         "azione": action,
-        "entita_id": str(entity_id),
+        "entity_id": str(entity_id),
         "autore_id": str(actor_id),
         "campus_id": str(campus_id),
         "dettagli": payload_details
     }
     mq_manager.publish_event('system_events', action, str(actor_id), 'warning-service', event_data)
-
-# ============================================================================
-# HOOK DI INIZIALIZZAZIONE (Eseguito alla prima richiesta)
-# ============================================================================
-@app.before_request
-def initialize_database():
-    """
-    Assicura che il database sia pronto.
-    Sostituisce il blocco __main__ che viene ignorato da Docker (flask run).
-    """
-    if getattr(app, '_database_initialized', False):
-        return
-
-    try:
-        # 1. Abilita l'estensione UUID e l'estensione pgcrypto
-        db.session.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
-        db.session.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto";'))
-        db.session.commit()
-        
-        # 2. Crea le tabelle se non esistono già
-        db.create_all()
-
-        print("[WARNING SERVICE] Inizializzazione DB completata con successo.")
+    
+    
+# ==========================================
+# CONSUMER ASINCRONO PER CACHE ASSET
+# ==========================================
+def process_asset_events(ch, method, properties, body):
+    """Callback per elaborare gli eventi dell'Asset Service e aggiornare la cache locale."""
+    with app.app_context():
+        try:
+            payload = json.loads(body.decode('utf-8'))
+            action = payload.get("azione")
             
-    except Exception as e:
-        # Stampiamo l'errore nel log invece di ignorarlo in silenzio!
-        print(f"[WARNING SERVICE] Errore critico in inizializzazione DB: {e}")
-        db.session.rollback()
-    finally:
-        # Segna l'operazione come completata per l'intero ciclo di vita dell'app
-        app._database_initialized = True
+            # Intercettiamo solo gli eventi legati agli asset
+            if action in ["ASSET_CREATED", "ASSET_UPDATED"]:
+                asset_id = payload.get("asset_id")
+                campus_id = payload.get("campus_id")
+                
+                if asset_id and campus_id:
+                    campus_uuid = uuid.UUID(campus_id)
+                    asset = db.session.get(LocalAssetCache, asset_id)
+                    
+                    if not asset:
+                        # Se non esiste, lo creiamo
+                        asset = LocalAssetCache(asset_id=asset_id, campus_id=campus_uuid)
+                        db.session.add(asset)
+                    else:
+                        # Se esiste, aggiorniamo il campus in caso di spostamento
+                        asset.campus_id = campus_uuid
+                        
+                    db.session.commit()
+                    
+            elif action == "ASSET_DELETED":
+                asset_id = payload.get("asset_id")
+                if asset_id:
+                    asset = db.session.get(LocalAssetCache, asset_id)
+                    if asset:
+                        db.session.delete(asset)
+                        db.session.commit()
+            
+            elif action == "CAMPUS_DELETED":
+                campus_id = payload.get("campus_id")
+                if campus_id:
+                    campus_uuid = uuid.UUID(campus_id)
+                    # Elimina dalla cache locale tutti gli asset di quel campus
+                    db.session.query(LocalAssetCache).filter_by(campus_id=campus_uuid).delete()
+                    db.session.commit()
+
+            # Ack manuale se auto_ack è impostato a False nel manager
+            if ch.is_open and not getattr(ch, 'auto_ack', True):
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                
+        except Exception as e:
+            print(f"[WARNING SERVICE] Errore elaborazione evento asincrono: {str(e)}")
+            db.session.rollback()
+
+def start_consumer_thread():
+    """Avvia il consumer asincrono in background utilizzando il RabbitMQManager."""
+    thread = threading.Thread(
+        target=mq_manager.start_consumer, 
+        kwargs={
+            'exchange_name': 'system_events',
+            'callback_function': process_asset_events,
+            'queue_name': 'warning_service_queue',
+            'durable_queue': True
+        },
+        daemon=True
+    )
+    thread.start()
 
 # ==========================================
 # ENDPOINT INFRASTRUTTURALE: Health Check
@@ -167,15 +190,14 @@ def create_warning():
     if not asset_id_str:
         return jsonify({"error": "L'ID dell'asset è obbligatorio"}), 400
 
-    # Verifica cross-service dell'Asset
-    asset_data = validate_asset_sync(asset_id_str, auth_ctx)
-    if not asset_data:
-        return jsonify({"error": "Asset indicato non esiste o non raggiungibile"}), 404
-
-    campus_id_str = asset_data.get('campus_id')
+    # Verifica locale dell'Asset (Event-Carried State Transfer)
+    local_asset = db.session.get(LocalAssetCache, asset_id_str)
+    if not local_asset:
+        return jsonify({"error": "Asset indicato non esiste a sistema (cache miss)"}), 404
+        
+    campus_id_str = str(local_asset.campus_id)
 
     try:
-        asset_uuid = uuid.UUID(asset_id_str)
         campus_uuid = uuid.UUID(campus_id_str)
         reporter_uuid = uuid.UUID(reporter_id)
     except ValueError:
@@ -183,7 +205,7 @@ def create_warning():
 
     # Creazione record
     new_warning = Warning(
-        asset_id=asset_uuid,
+        asset_id=asset_id_str,
         campus_id=campus_uuid,
         reporter_id=reporter_uuid,
         description=description.strip()
@@ -201,7 +223,7 @@ def create_warning():
             entity_id=warning_id,
             actor_id=reporter_id,
             campus_id=campus_id_str,
-            payload_details={"asset_id": str(asset_uuid), "status": "aperta"}
+            payload_details={"asset_id": str(asset_id_str), "status": "aperta"}
         )
 
         return jsonify({
@@ -413,19 +435,18 @@ def create_maintenance():
     except KeyError:
         return jsonify({"error": "Tipo intervento non valido. Usa 'preventiva' o 'correttiva'"}), 400
 
-    # 1. Chiamata sincrona all'Asset Service per validare l'esistenza fisica
-    asset_data = validate_asset_sync(asset_id_str, auth_ctx)
-    if not asset_data:
-        return jsonify({"error": "Asset indicato non esiste o non raggiungibile"}), 404
+    # 1. Verifica locale dell'Asset (Event-Carried State Transfer)
+    local_asset = db.session.get(LocalAssetCache, asset_id_str)
+    if not local_asset:
+        return jsonify({"error": "Asset indicato non esiste a sistema (cache miss)"}), 404
         
-    campus_id_str = asset_data.get('campus_id')
+    campus_id_str = str(local_asset.campus_id)
     
     # 2. Controllo di Autorizzazione (RBAC) Territoriale
     if campus_id_str not in authorized_campus_ids:
         return jsonify({"error": "Non sei autorizzato a operare sugli asset di questo campus"}), 403
 
     try:
-        asset_uuid = uuid.UUID(asset_id_str)
         campus_uuid = uuid.UUID(campus_id_str)
         operator_uuid = uuid.UUID(user_id)
     except ValueError:
@@ -433,7 +454,7 @@ def create_maintenance():
 
     # 3. Creazione record (Senza collegamento a warning)
     new_maintenance = MaintenanceIntervention(
-        asset_id=asset_uuid,
+        asset_id=asset_id_str, 
         campus_id=campus_uuid,
         operator_id=operator_uuid,
         warning_id=None, # Manutenzione diretta
@@ -467,3 +488,12 @@ def create_maintenance():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Errore interno del server: {str(e)}"}), 500
+    
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
+if __name__ == '__main__':
+    # Avvia il processo in background per ascoltare gli eventi RabbitMQ 
+    start_consumer_thread()
+    
+    app.run(host='0.0.0.0', port=5000)
