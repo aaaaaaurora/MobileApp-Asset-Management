@@ -136,7 +136,7 @@
             {
               "key": "images",
               "type": "file",
-              "value": null
+              "src": "invalid_file.txt"
             }
           ]
         },
