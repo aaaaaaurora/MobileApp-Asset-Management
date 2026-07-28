@@ -1,355 +1,453 @@
 {
-  "info": {
-    "name": "Log Service - Full Test Suite",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Collezione Postman coerente con i test pytest per coprire tutte le funzionalità del Log Service (US 7-1, US 7-2, US 7-3)."
-  },
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://127.0.0.1:5000",
-      "type": "string"
-    },
-    {
-      "key": "sample_log_id",
-      "value": "INSERISCI_QUI_UN_UUID_VALIDO",
-      "type": "string"
-    }
-  ],
-  "item": [
-    {
-      "name": "1. Health Check",
-      "item": [
-        {
-          "name": "Get Health Status",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/health",
-              "host": ["{{base_url}}"],
-              "path": ["health"]
-            },
-            "description": "Verifica che la rotta di health check risponda correttamente e confermi la connessione al database[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response is healthy and connected', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.status).to.eql('healthy');",
-                  "    pm.expect(jsonData.database).to.eql('connected');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "2. Consultazione Storico (US 7-1)",
-      "item": [
-        {
-          "name": "Get Logs - Unauthorized (403)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "OPERATORE"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "user-123"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/logs",
-              "host": ["{{base_url}}"],
-              "path": ["api", "logs"]
-            },
-            "description": "Verifica che un utente con ruolo OPERATORE non autorizzato riceva un errore 403 Forbidden[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 403', function () { pm.response.to.have.status(403); });",
-                  "pm.test('Error message present', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('error');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Logs - Success Admin Paginato",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "admin-123"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/logs?limit=10&page=1",
-              "host": ["{{base_url}}"],
-              "path": ["api", "logs"],
-              "query": [
-                { "key": "limit", "value": "10" },
-                { "key": "page", "value": "1" }
-              ]
-            },
-            "description": "Verifica la consultazione dello storico con successo per l'Amministratore con parametri di paginazione[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response contains pagination fields', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('total_items');",
-                  "    pm.expect(jsonData).to.have.property('logs');",
-                  "    pm.expect(jsonData.logs).to.be.an('array');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Logs - Con Filtri (Service & Campus JSONB)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/logs?service_name=asset-service&campus_id=campus-uuid-123",
-              "host": ["{{base_url}}"],
-              "path": ["api", "logs"],
-              "query": [
-                { "key": "service_name", "value": "asset-service" },
-                { "key": "campus_id", "value": "campus-uuid-123" }
-              ]
-            },
-            "description": "Verifica i filtri combinati basati sulle colonne tradizionali e sulle proprietà interne del JSONB[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Total items is a number', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.total_items).to.be.a('number');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "3. Dettaglio Singolo Log (US 7-1)",
-      "item": [
-        {
-          "name": "Get Log By ID - Success",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/logs/{{sample_log_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["api", "logs", "{{sample_log_id}}"]
-            },
-            "description": "Recupera il dettaglio integrale di un singolo evento storico tramite il suo UUID[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response contains log details and payload', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('id');",
-                  "    pm.expect(jsonData).to.have.property('payload');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Log By ID - Not Found (404)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/logs/00000000-0000-0000-0000-000000000000",
-              "host": ["{{base_url}}"],
-              "path": ["api", "logs", "00000000-0000-0000-0000-000000000000"]
-            },
-            "description": "Verifica che un UUID inesistente restituisca correttamente 404 Not Found[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 404', function () { pm.response.to.have.status(404); });"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "4. Esportazione CSV (US 7-2)",
-      "item": [
-        {
-          "name": "Export Logs CSV",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/logs/export?service_name=asset-service",
-              "host": ["{{base_url}}"],
-              "path": ["api", "logs", "export"],
-              "query": [
-                { "key": "service_name", "value": "asset-service" }
-              ]
-            },
-            "description": "Verifica l'esportazione dinamica in formato CSV con esplosione delle chiavi JSONB[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Content-Type is text/csv', function () {",
-                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv');",
-                  "});",
-                  "pm.test('Content-Disposition is attachment', function () {",
-                  "    pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "5. Dashboard e Metriche (US 7-3)",
-      "item": [
-        {
-          "name": "Get Dashboard Metrics",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/dashboard/metrics",
-              "host": ["{{base_url}}"],
-              "path": ["api", "dashboard", "metrics"]
-            },
-            "description": "Verifica il calcolo delle metriche KPI aggregate e delle distribuzioni per campus/categoria[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response contains totals and distributions', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('totals');",
-                  "    pm.expect(jsonData).to.have.property('distributions');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Dashboard Charts (Time-Series & Dynamic)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-User-Role",
-                "value": "AMMINISTRATORE"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/dashboard/charts?dynamic_attribute=status",
-              "host": ["{{base_url}}"],
-              "path": ["api", "dashboard", "charts"],
-              "query": [
-                { "key": "dynamic_attribute", "value": "status" }
-              ]
-            },
-            "description": "Verifica la generazione di serie storiche e distribuzioni su attributi custom dinamici estratti dal JSONB[cite: 5]."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response contains time_series and dynamic_distribution', function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('time_series');",
-                  "    pm.expect(jsonData).to.have.property('dynamic_distribution');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  ]
+	"info": {
+		"_postman_id": "f8e7d6c5-b4a3-9f8e-7d6c-5b4a3f8e7d6c",
+		"name": "Log Service Tests",
+		"description": "Collezione completa per i test del microservizio Log basata su app.py e test_unit.py",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"item": [
+				{
+					"name": "Health Check (Kubernetes Probe)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Status is healthy and database connected\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(\"healthy\");",
+									"    pm.expect(jsonData.database).to.eql(\"connected\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Consultazione Storico (GET /api/logs)",
+			"item": [
+				{
+					"name": "Get Logs - Unauthorized (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 403\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"pm.test(\"Error message present\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "OPERATORE"
+							},
+							{
+								"key": "X-User-Id",
+								"value": "user-123"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/logs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Logs - Success Admin Paginato (Estrae Log ID)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Response contains pagination fields\", function () {",
+									"    pm.expect(jsonData).to.have.property('total_items');",
+									"    pm.expect(jsonData).to.have.property('logs');",
+									"    pm.expect(jsonData.logs).to.be.an('array');",
+									"});",
+									"if (jsonData.logs && jsonData.logs.length > 0) {",
+									"    pm.collectionVariables.set(\"sample_log_id\", jsonData.logs[0].id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							},
+							{
+								"key": "X-User-Id",
+								"value": "admin-123"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/logs?limit=10&page=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Logs - Con Filtri (Service & Campus JSONB)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Total items is a number\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.total_items).to.be.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/logs?service_name=asset-service&campus_id=campus-uuid-123",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs"
+							],
+							"query": [
+								{
+									"key": "service_name",
+									"value": "asset-service"
+								},
+								{
+									"key": "campus_id",
+									"value": "campus-uuid-123"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Dettaglio Singolo Log (GET /api/logs/:id)",
+			"item": [
+				{
+					"name": "Get Log By ID - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response contains log details and payload\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('payload');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/logs/{{sample_log_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs",
+								"{{sample_log_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Log By ID - Not Found (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/logs/00000000-0000-0000-0000-000000000000",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Esportazione CSV (GET /api/logs/export)",
+			"item": [
+				{
+					"name": "Export Logs CSV - Success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Content-Type is text/csv\", function () {",
+									"    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv');",
+									"});",
+									"pm.test(\"Content-Disposition is attachment\", function () {",
+									"    pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/logs/export?service_name=asset-service",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs",
+								"export"
+							],
+							"query": [
+								{
+									"key": "service_name",
+									"value": "asset-service"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Dashboard e Metriche (GET /api/dashboard)",
+			"item": [
+				{
+					"name": "Get Dashboard Metrics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response contains totals and distributions\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totals');",
+									"    pm.expect(jsonData).to.have.property('distributions');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/metrics",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"metrics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Dashboard Charts (Time-Series & Dynamic)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test(\"Response contains time_series and dynamic_distribution\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('time_series');",
+									"    pm.expect(jsonData).to.have.property('dynamic_distribution');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-User-Role",
+								"value": "AMMINISTRATORE"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/charts?dynamic_attribute=status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"charts"
+							],
+							"query": [
+								{
+									"key": "dynamic_attribute",
+									"value": "status"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "sample_log_id",
+			"value": "",
+			"type": "string"
+		}
+	]
 }

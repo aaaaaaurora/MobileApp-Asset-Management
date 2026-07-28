@@ -29,7 +29,7 @@ logger = logging.getLogger('log-service')
 
 app = Flask(__name__)
 
-# Configurazione PostgreSQL compatibile con Kubernetes e ambiente locale 
+# Configurazione PostgreSQL compatibile con Kubernetes e ambiente locale
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/geozone_db')
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
