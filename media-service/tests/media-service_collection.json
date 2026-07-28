@@ -1,7 +1,289 @@
 {
-    "info": {
-      "name": "Dummy Collection",
-      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-    },
-    "item": []
-  }
+	"info": {
+		"name": "Media Service Collection",
+		"description": "Test E2E per le rotte del Media Service (Upload, Anteprima, Analisi AI e Cancellazione)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Status is healthy\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"healthy\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Upload Image (Success & Save ID)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201 (Created)\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Salvataggio Media ID per i test successivi\", function () {",
+							"    pm.expect(jsonData.uploaded).to.be.an(\"array\").that.is.not.empty;",
+							"    var mediaId = jsonData.uploaded[0].media_id;",
+							"    pm.collectionVariables.set(\"last_media_id\", mediaId);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": ["test_image.jpg"]
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/images/upload",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"images",
+						"upload"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Upload Image (Invalid Extension Error)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 400 per estensione non consentita\", function () {",
+							"    pm.response.to.have.status(400);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.errors[0].error).to.include(\"Estensione file non consentita\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "images",
+							"type": "file",
+							"src": []
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/images/upload",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"images",
+						"upload"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Get Image Preview (Redirect to MinIO)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 302 (Redirect)\", function () {",
+							"    pm.response.to.have.status(302);",
+							"});",
+							"",
+							"pm.test(\"Presente l'header Location con il presigned url\", function () {",
+							"    pm.expect(pm.response.headers.has(\"Location\")).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/images/{{last_media_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"images",
+						"{{last_media_id}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Analyze Image with AI (Google Vision)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Restituisce i suggerimenti strutturati\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property(\"suggestions\");",
+							"    pm.expect(jsonData.suggestions).to.have.property(\"tags\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/images/{{last_media_id}}/analyze",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"images",
+						"{{last_media_id}}",
+						"analyze"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Delete Image (MinIO & DB)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200 (Deleted)\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"deleted\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/images/{{last_media_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"images",
+						"{{last_media_id}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:5000",
+			"type": "string"
+		},
+		{
+			"key": "last_media_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
