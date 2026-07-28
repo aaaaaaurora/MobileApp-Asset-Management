@@ -2,7 +2,7 @@ import os
 import uuid
 import pytest
 from unittest.mock import patch
-
+from sqlalchemy import text
 
 # ============================================================================
 # SETUP AMBIENTE
