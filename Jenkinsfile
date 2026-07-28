@@ -185,7 +185,7 @@ def processPostgresService(serviceDir, imageName, k8sDeployName, useMinio = fals
                             def collection = sh(script: "find . -name '*_collection.json' | head -n 1", returnStdout: true).trim()
                             if (collection) {
                                 docker.image('postman/newman').inside("--link ${appContainer.id}:app --entrypoint=''") {
-                                    sh "newman run ${collection} --reporters cli --env-var base_url=http://app:5000"
+                                    sh "newman run ${collection} --reporters cli --working-dir . --env-var base_url=http://app:5000"
                                 }
                             }
                         }

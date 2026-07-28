@@ -5,15 +5,11 @@ pip install Pillow==10.0.0 --break-system-packages --quiet
 echo "Generazione dell'immagine di test con Pillow..."
 python3 -c "
 from PIL import Image
-import os
-
 img = Image.new('RGB', (100, 100), color='blue')
-
-# Salva nella directory corrente
 img.save('test_image.jpg', 'JPEG')
-
-# Salva anche dentro la cartella tests/ per Newman
-os.makedirs('tests', exist_ok=True)
-img.save('tests/test_image.jpg', 'JPEG')
 "
-echo "File test_image.jpg generato con successo per Newman."
+echo "File test_image.jpg generato con successo."
+
+# Aggiungi questa riga per il test dell'estensione non valida!
+echo "Questo è un file di testo, non un'immagine." > invalid_file.txt
+echo "File invalid_file.txt generato per il test di errore."
