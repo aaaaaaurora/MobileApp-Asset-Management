@@ -1,7 +1,373 @@
 {
-    "info": {
-      "name": "Dummy Collection",
-      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-    },
-    "item": []
-  }
+	"info": {
+		"name": "Auth Service Collection",
+		"description": "Test E2E per le rotte dell'Auth Service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Status is healthy\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"healthy\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Auth Google (Missing Token)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 400 per payload vuoto\", function () {",
+							"    pm.response.to.have.status(400);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.include(\"Token mancante\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{}"
+				},
+				"url": {
+					"raw": "{{base_url}}/auth/google",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"auth",
+						"google"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Auth Google (Invalid Token)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 400 per token non valido\", function () {",
+							"    pm.response.to.have.status(400);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.eql(\"LOGIN_CANCELLED\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"google_id_token\": \"invalid\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/auth/google",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"auth",
+						"google"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Verify 2FA (Invalid Code)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 401 per token temporaneo falso\", function () {",
+							"    pm.response.to.have.status(401);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.eql(\"INVALID_CODE\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"temp_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.falso\",\n    \"totp_code\": \"123456\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/auth/2fa/verify",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"auth",
+						"2fa",
+						"verify"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Admin - Create Operator (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Salvataggio ID e Email per i test successivi\", function () {",
+							"    pm.collectionVariables.set(\"last_operator_id\", jsonData.user_id);",
+							"    // L'email inviata viene estratta dal body della request",
+							"    var reqBody = JSON.parse(pm.request.body.raw);",
+							"    pm.collectionVariables.set(\"last_operator_email\", reqBody.email);",
+							"    ",
+							"    pm.expect(jsonData).to.have.property('totp_provisioning_uri');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}",
+						"description": "Simula il passaggio del Gateway"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"operatore_{{$timestamp}}@test.com\",\n    \"campus_ids\": [\"{{$guid}}\"]\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/admin/operators",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"admin",
+						"operators"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Admin - Create Operator (Duplicate Error)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 409 per utente duplicato\", function () {",
+							"    pm.response.to.have.status(409);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.include(\"già presente\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"{{last_operator_email}}\",\n    \"campus_ids\": []\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/admin/operators",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"admin",
+						"operators"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "7. Admin - Get Operators",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"La risposta è un array con almeno un operatore\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an(\"array\");",
+							"    pm.expect(jsonData.length).to.be.above(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/admin/operators",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"admin",
+						"operators"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "8. Admin - Update Operator (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"updated\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"campus_ids\": [\"{{$guid}}\", \"{{$guid}}\"]\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/admin/operators/{{last_operator_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"admin",
+						"operators",
+						"{{last_operator_id}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:5000",
+			"type": "string"
+		},
+		{
+			"key": "last_operator_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "last_operator_email",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
