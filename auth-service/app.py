@@ -101,12 +101,24 @@ def publish_audit_event(action, actor_id):
     Pubblica un evento asincrono sul Message Broker (RabbitMQ) sfruttando 
     la libreria centralizzata 'shared_utils'.
     """
-    mq_manager.publish_event(
-        exchange_name='system_events',
-        action=action,
-        actor_id=actor_id,
-        service_name='auth-service'
-    )
+    try:
+        # Se actor_id è già un oggetto UUID, prendiamo la sua stringa, altrimenti lo convertiamo
+        if actor_id:
+            clean_actor_id = str(actor_id) if isinstance(actor_id, uuid.UUID) else str(uuid.UUID(str(actor_id)))
+        else:
+            clean_actor_id = None
+    except (ValueError, TypeError):
+        clean_actor_id = None
+
+    try:
+        mq_manager.publish_event(
+            exchange_name='system_events',
+            action=action,
+            actor_id=clean_actor_id,
+            service_name='auth-service'
+        )
+    except Exception as e:
+        print(f"[AUTH SERVICE] Errore non bloccante pubblicazione evento audit: {str(e)}")
 
 def error_response(message, status_code):
     """
