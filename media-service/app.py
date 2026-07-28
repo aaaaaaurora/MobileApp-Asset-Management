@@ -117,6 +117,13 @@ def initialize_infrastructure():
         db.session.rollback()
     finally:
         app._infrastructure_initialized = True
+        
+    # Inizializzazione MinIO Bucket con gestione difensiva
+        try:
+            if not minio_client.bucket_exists(MEDIA_BUCKET):
+                minio_client.make_bucket(MEDIA_BUCKET)
+        except Exception as minio_init_err:
+            print(f"[MEDIA SERVICE] Avviso: Impossibile connettersi a MinIO all'avvio: {minio_init_err}")
 
 # ==========================================
 # ENDPOINT INFRASTRUTTURALE
