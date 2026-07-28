@@ -8,7 +8,9 @@ import uuid
 from unittest.mock import patch
 from sqlalchemy import text
 
-# Importa l'app e i modelli dal tuo file principale (assunto come app.py)
+os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/auth_db')
+
+# Importa l'app e i modelli dal tuo file principale 
 from app import app, db, AppUser, Role, RoleType, UserCampus, UserCategory
 
 # ============================================================================

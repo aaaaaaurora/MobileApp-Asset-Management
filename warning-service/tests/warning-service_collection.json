@@ -1,7 +1,324 @@
 {
-    "info": {
-      "name": "Dummy Collection",
-      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-    },
-    "item": []
-  }
+	"info": {
+		"name": "Warning Service Collection (Isolated)",
+		"description": "Test E2E per il Warning Service eseguiti in totale isolamento (senza Asset Service).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Status is healthy\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"healthy\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Create Warning (Missing Desc)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 400 per descrizione mancante prima del check esterno\", function () {",
+							"    pm.response.to.have.status(400);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.include(\"obbligatoria\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "GUEST"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"asset_id\": \"{{mock_asset_id}}\",\n    \"descrizione\": \"\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/warnings",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"warnings"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Create Warning (Isolated - Asset Service Offline)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404 (Asset irraggiungibile)\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"pm.test(\"Verifica errore di isolamento\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.include('non esiste o non raggiungibile');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "GUEST"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"asset_id\": \"{{mock_asset_id}}\",\n    \"descrizione\": \"Segnalazione di test.\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/warnings",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"warnings"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Get Warnings (Operator View - Empty DB)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"La risposta è un array vuoto (poiché la creazione è stata bloccata)\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an(\"array\").that.is.empty;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					},
+					{
+						"key": "X-Campus-Ids",
+						"value": "{{mock_campus_id}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/warnings?status=aperta",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"warnings"
+					],
+					"query": [
+						{
+							"key": "status",
+							"value": "aperta"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Resolve Warning (Isolated - Not Found Error)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Restituisce 404 perché il ticket non è mai stato creato\", function () {",
+							"    pm.response.to.have.status(404);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.include(\"Segnalazione non trovata\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					},
+					{
+						"key": "X-Campus-Ids",
+						"value": "{{mock_campus_id}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"nota_intervento\": \"Tentativo di chiusura su db vuoto.\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/warnings/{{$guid}}/resolve",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"warnings",
+						"{{$guid}}",
+						"resolve"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Create Direct Maintenance (Isolated - Asset Service Offline)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404 (Asset irraggiungibile)\", function () {",
+							"    pm.response.to.have.status(404);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.error).to.include('non esiste o non raggiungibile');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-User-Id",
+						"value": "{{$guid}}"
+					},
+					{
+						"key": "X-User-Role",
+						"value": "OPERATORE"
+					},
+					{
+						"key": "X-Campus-Ids",
+						"value": "{{mock_campus_id}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"asset_id\": \"{{mock_asset_id}}\",\n    \"nota_intervento\": \"Ispezione semestrale regolare.\",\n    \"tipo_intervento\": \"preventiva\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/maintenances",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"maintenances"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:5000",
+			"type": "string"
+		},
+		{
+			"key": "mock_asset_id",
+			"value": "123e4567-e89b-12d3-a456-426614174000",
+			"type": "string"
+		},
+		{
+			"key": "mock_campus_id",
+			"value": "987e6543-e21b-34d5-c678-426614174999",
+			"type": "string"
+		}
+	]
+}

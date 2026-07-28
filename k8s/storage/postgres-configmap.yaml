@@ -91,13 +91,16 @@ data:
     FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
     -- ==========================================
-    -- 3. WARNING SERVICE DATABASE
+    -- WARNING SERVICE DATABASE
     -- ==========================================
     \c warning_db;
     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+    -- ENUM per lo stato della segnalazione e per il tipo di intervento
     CREATE TYPE warning_status AS ENUM ('aperta', 'chiusa');
+    CREATE TYPE maintenance_type AS ENUM ('preventiva', 'correttiva');
 
+    -- Funzione per aggiornamento timestamp (preservata)
     CREATE OR REPLACE FUNCTION update_modified_column()
     RETURNS TRIGGER AS $$
     BEGIN
@@ -106,22 +109,34 @@ data:
     END;
     $$ language 'plpgsql';
 
+    -- Tabella 1: Segnalazioni Pubbliche
     CREATE TABLE warning (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      asset_id UUID NOT NULL,
-      reporter_id UUID,
-      resolver_id UUID,
+      asset_id UUID NOT NULL,       -- Soft link a MongoDB (Asset Service)
+      campus_id UUID NOT NULL,      -- Denormalizzato per filtro rapido
+      reporter_id UUID NOT NULL,    -- Soft link a PostgreSQL (Auth Service)
       description TEXT NOT NULL,
-      note_intervention TEXT,
       status warning_status DEFAULT 'aperta',
-      resolved_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- Trigger applicato solo alla tabella modificabile (warning)
     CREATE TRIGGER set_warning_updated_at
     BEFORE UPDATE ON warning
     FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+    -- Tabella 2: Interventi di Manutenzione (Append-Only)
+    CREATE TABLE maintenance_intervention (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      asset_id UUID NOT NULL,
+      campus_id UUID NOT NULL,
+      operator_id UUID NOT NULL,
+      warning_id UUID REFERENCES warning(id), -- NULL se intervento preventivo
+      intervention_type maintenance_type NOT NULL,
+      technical_note TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
 
     -- ==========================================
     -- 4. LOG SERVICE DATABASE
