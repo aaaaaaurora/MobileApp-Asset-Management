@@ -92,7 +92,7 @@ pipeline {
                 }
 
                 // --- FRONTEND WEB (React + Nginx) ---
-                /*stage('Frontend Web') {
+                stage('Frontend Web') {
                     when { changeset "frontend/**" }
                     steps {
                         script {
@@ -115,7 +115,7 @@ pipeline {
                             }
                         }
                     }
-                }*/
+                }
             }
         }
 
