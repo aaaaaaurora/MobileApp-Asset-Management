@@ -72,7 +72,7 @@ pipeline {
                 }
                 stage('Media Service') {
                     when { changeset "media-service/**" }
-                    steps { processPostgresService('media-service', 'media-service-img', 'media-deployment') }
+                    steps { processPostgresService('media-service', 'media-service-img', 'media-deployment',true) }
                 }
                 stage('Log Service') {
                     when { changeset "log-service/**" }
@@ -132,7 +132,7 @@ pipeline {
 // ============================================================================
 // FUNZIONE 1: LOGICA PER MICROSERVIZI RELAZIONALI (POSTGRESQL 15)
 // ============================================================================
-def processPostgresService(serviceDir, imageName, k8sDeployName) {
+def processPostgresService(serviceDir, imageName, k8sDeployName, useMinio = false) {
     stage("${serviceDir} - Test Unitari") {
         dir(serviceDir) {
             script {
@@ -147,7 +147,6 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
                     docker.image('python:3.9').inside("--link ${c.id}:db -u 0:0") {
                         sh 'pip install -r requirements.txt'
                         withEnv(['DATABASE_URL=postgresql://test_user:test_pass@db:5432/test_db', 'PYTHONPATH=.:..' , 'PYTHONDONTWRITEBYTECODE=1']) {
-                            // Esegue pytest. Se fallisce con codice 5 (zero test), non blocca la pipeline. Se i test falliscono per errori veri (codice 1), la blocca.
                             sh 'pytest tests/test_unit.py -p no:cacheprovider || [ $? -eq 5 ]'
                         }
                     }
@@ -172,23 +171,39 @@ def processPostgresService(serviceDir, imageName, k8sDeployName) {
                     sh 'while ! pg_isready -h db -U test; do sleep 1; done'
                 }
 
-                docker.image("${DOCKER_USER}/${imageName}:${BUILD_NUMBER}").withRun("--link ${dbContainer.id}:db -e DATABASE_URL=postgresql://test:test@db:5432/integration_db -e JWT_SECRET=test-secret") { appContainer ->
-                    sleep 5
-                    sh "docker inspect -f '{{.State.Running}}' ${appContainer.id} | grep true || (docker logs ${appContainer.id} && exit 1)"
-                    sh "docker exec ${appContainer.id} python -c \"import sys; from app import app, db; print('Init DB...'); app.app_context().push(); db.create_all(); print('DB OK')\" || echo '⚠️ DB Init skipped or failed'"
+                def runIntegrationTest = { minioLinkArgs, extraEnv ->
+                    docker.image("${DOCKER_USER}/${imageName}:${BUILD_NUMBER}").withRun("--link ${dbContainer.id}:db ${minioLinkArgs} -e DATABASE_URL=postgresql://test:test@db:5432/integration_db -e JWT_SECRET=test-secret ${extraEnv}") { appContainer ->
+                        sleep 5
+                        sh "docker inspect -f '{{.State.Running}}' ${appContainer.id} | grep true || (docker logs ${appContainer.id} && exit 1)"
+                        sh "docker exec ${appContainer.id} python -c \"import sys; from app import app, db; print('Init DB...'); app.app_context().push(); db.create_all(); print('DB OK')\" || echo '⚠️ DB Init skipped or failed'"
 
-                    dir(serviceDir) {
-                        def setupScript = "tests/setup_tests.sh"
-                        if (fileExists(setupScript)) {
-                            sh "chmod +x ${setupScript} && sh ${setupScript}"
-                        }
-                        def collection = sh(script: "find . -name '*_collection.json' | head -n 1", returnStdout: true).trim()
-                        if (collection) {
-                            docker.image('postman/newman').inside("--link ${appContainer.id}:app --entrypoint=''") {
-                                sh "newman run ${collection} --reporters cli --env-var base_url=http://app:5000"
+                        dir(serviceDir) {
+                            def setupScript = "tests/setup_tests.sh"
+                            if (fileExists(setupScript)) {
+                                sh "chmod +x ${setupScript} && sh ${setupScript}"
+                            }
+                            def collection = sh(script: "find . -name '*_collection.json' | head -n 1", returnStdout: true).trim()
+                            if (collection) {
+                                docker.image('postman/newman').inside("--link ${appContainer.id}:app --entrypoint=''") {
+                                    sh "newman run ${collection} --reporters cli --working-dir . --env-var base_url=http://app:5000"
+                                }
                             }
                         }
                     }
+                }
+
+                if (useMinio) {
+                    // Avvia MinIO reale solo se richiesto (Media Service)[cite: 2]
+                    docker.image('minio/minio:latest').withRun('--name minio-integration -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin', 'server /data') { minioContainer ->
+
+                        echo "Attendo 10 secondi che MinIO sia completamente operativo..."
+                        sh 'sleep 10'
+                        
+                        runIntegrationTest("--link ${minioContainer.id}:minio", "-e MINIO_ENDPOINT=minio:9000 -e MINIO_ACCESS_KEY=minioadmin -e MINIO_SECRET_KEY=minioadmin -e USE_MOCK_STORAGE=false")
+                    }
+                } else {
+                    // Esecuzione standard senza MinIO per gli altri servizi[cite: 2]
+                    runIntegrationTest("", "")
                 }
             }
         }
