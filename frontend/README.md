@@ -18,7 +18,6 @@ control panels. It's built on:
 - React 19
 - TypeScript
 - Tailwind CSS v4
-
 ### Quick Links
 
 - [✨ Visit Website](https://tailadmin.com)
