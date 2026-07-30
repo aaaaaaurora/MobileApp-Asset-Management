@@ -20,6 +20,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  
+  // ========================================================
+  // --- LOGICA REALE (COMMENTATA TEMPORANEAMENTE) ---
+  // ========================================================
+  /*
   const [token, setToken] = useState<string | null>(localStorage.getItem('jwt_token'));
   const [user, setUser] = useState<User | null>(null);
 
@@ -46,9 +51,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = (newToken: string) => setToken(newToken);
   const logout = () => setToken(null);
+  */
+
+
+  // ========================================================
+  // --- LOGICA MOCKATA (PER TESTARE FRONTEND E SIDEBAR) ---
+  // ========================================================
+  
+  // Token fittizio
+  const [token, setToken] = useState<string | null>('mock-jwt-token-12345');
+  
+  // Utente fittizio. 
+  // ⬇️ CAMBIA 'AMMINISTRATORE' IN 'OPERATORE' O 'UTENTE' PER TESTARE I VARI MENU
+  const [user, setUser] = useState<User | null>({
+    id: 'admin-mock-123',
+    role: 'AMMINISTRATORE', 
+    campus_ids: ['Fisciano'],
+    category_id: null,
+  });
+
+  // Funzioni svuotate per il mock
+  const login = (newToken: string) => console.log("Login chiamato con token:", newToken);
+  const logout = () => console.log("Logout chiamato");
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    // isAuthenticated è forzato a 'true'
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: true }}>
       {children}
     </AuthContext.Provider>
   );

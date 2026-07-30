@@ -1,111 +1,70 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router";
-
-// Assume these icons are imported from an icon library
-import {
-  BoxCubeIcon,
-  CalenderIcon,
-  ChevronDownIcon,
-  GridIcon,
-  HorizontaLDots,
-  ListIcon,
-  PageIcon,
-  PieChartIcon,
-  PlugInIcon,
-  TableIcon,
-  UserCircleIcon,
-} from "../icons";
+import { Link, useLocation } from "react-router-dom";
+import { ChevronDownIcon, HorizontaLDots } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
+import { useAuth } from "../context/AuthContext";
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  subItems?: { name: string; path: string }[];
 };
 
-const navItems: NavItem[] = [
-  {
-    icon: <GridIcon />,
-    name: "Dashboard",
-    subItems: [{ name: "Ecommerce", path: "/", pro: false }],
-  },
-  {
-    icon: <CalenderIcon />,
-    name: "Calendar",
-    path: "/calendar",
-  },
-  {
-    icon: <UserCircleIcon />,
-    name: "User Profile",
-    path: "/profile",
-  },
-  {
-    name: "Forms",
-    icon: <ListIcon />,
-    subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
-  },
-  {
-    name: "Tables",
-    icon: <TableIcon />,
-    subItems: [{ name: "Basic Tables", path: "/basic-tables", pro: false }],
-  },
-  {
-    name: "Pages",
-    icon: <PageIcon />,
-    subItems: [
-      { name: "Blank Page", path: "/blank", pro: false },
-      { name: "404 Error", path: "/error-404", pro: false },
-    ],
-  },
-];
+// Icona condivisa per la mappa
+const MapIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+  </svg>
+);
 
-const othersItems: NavItem[] = [
-  {
-    icon: <PieChartIcon />,
-    name: "Charts",
-    subItems: [
-      { name: "Line Chart", path: "/line-chart", pro: false },
-      { name: "Bar Chart", path: "/bar-chart", pro: false },
-    ],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "UI Elements",
-    subItems: [
-      { name: "Alerts", path: "/alerts", pro: false },
-      { name: "Avatar", path: "/avatars", pro: false },
-      { name: "Badge", path: "/badge", pro: false },
-      { name: "Buttons", path: "/buttons", pro: false },
-      { name: "Images", path: "/images", pro: false },
-      { name: "Videos", path: "/videos", pro: false },
-    ],
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Authentication",
-    subItems: [
-      { name: "Sign In", path: "/signin", pro: false },
-      { name: "Sign Up", path: "/signup", pro: false },
-    ],
-  },
-];
+// 2. Funzione che genera il menu in base al ruolo
+const getNavItemsByRole = (role?: string): NavItem[] => {
+  // La Mappa è comune a tutti, la mettiamo come base
+  const baseMenu: NavItem[] = [
+    { icon: MapIcon, name: "Mappa Campus", path: "/map" }
+  ];
+
+  switch (role) {
+    case "AMMINISTRATORE":
+      return [
+        ...baseMenu,
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Statistiche", path: "/admin/stats" },
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Gestione Operatori", path: "/admin/operators" }
+      ];
+    case "OPERATORE":
+      return [
+        ...baseMenu,
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Ticket Segnalazioni", path: "/operator/tickets" }
+      ];
+    case "UTENTE":
+    default:
+      return [
+        ...baseMenu,
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Invia Segnalazione", path: "/user/report" }
+      ];
+  }
+};
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
+  
+  // 3. Recupera l'utente loggato
+  const { user } = useAuth();
+  
+  // 4. Genera i bottoni dinamicamente
+  const navItems = getNavItemsByRole(user?.role);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
     index: number;
   } | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
+  
+  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // const isActive = (path: string) => location.pathname === path;
   const isActive = useCallback(
     (path: string) => location.pathname === path,
     [location.pathname]
@@ -113,8 +72,9 @@ const AppSidebar: React.FC = () => {
 
   useEffect(() => {
     let submenuMatched = false;
-    ["main", "others"].forEach((menuType) => {
-      const items = menuType === "main" ? navItems : othersItems;
+    // Iteriamo solo su main dato che abbiamo rimosso others
+    ["main"].forEach((menuType) => {
+      const items = navItems; 
       items.forEach((nav, index) => {
         if (nav.subItems) {
           nav.subItems.forEach((subItem) => {
@@ -331,9 +291,12 @@ const AppSidebar: React.FC = () => {
           )}
         </Link>
       </div>
+      
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
         <nav className="mb-6">
           <div className="flex flex-col gap-4">
+            
+            {/* Sezione Menu Principale */}
             <div>
               <h2
                 className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
@@ -350,22 +313,9 @@ const AppSidebar: React.FC = () => {
               </h2>
               {renderMenuItems(navItems, "main")}
             </div>
-            <div className="">
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
-            </div>
+            
+            {/* La sezione "Others" è stata completamente rimossa per pulizia */}
+            
           </div>
         </nav>
         {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
