@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { jwtDecode } from 'jwt-decode';
+import { createContext, useContext, useState, ReactNode } from 'react';
+//import { jwtDecode } from 'jwt-decode';
 
 // Interfaccia basata sul payload del tuo backend app.py
 interface User {
@@ -59,11 +59,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ========================================================
   
   // Token fittizio
-  const [token, setToken] = useState<string | null>('mock-jwt-token-12345');
+  const [token] = useState<string | null>('mock-jwt-token-12345');
   
   // Utente fittizio. 
   // ⬇️ CAMBIA 'AMMINISTRATORE' IN 'OPERATORE' O 'UTENTE' PER TESTARE I VARI MENU
-  const [user, setUser] = useState<User | null>({
+  const [user] = useState<User | null>({
     id: 'admin-mock-123',
     role: 'AMMINISTRATORE', 
     campus_ids: ['Fisciano'],
