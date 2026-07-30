@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom"; 
+import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
@@ -144,8 +144,6 @@ export default function SignInForm() {
                       placeholder="123456" 
                       value={totpCode}
                       onChange={(e) => setTotpCode(e.target.value)}
-                      maxLength={6}
-                      required
                     />
                   </div>
                   <div>
