@@ -4,6 +4,7 @@ import jwt
 from unittest.mock import patch, MagicMock
 from app import app
 
+
 @pytest.fixture
 def client():
     """
