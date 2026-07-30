@@ -2,7 +2,6 @@ import os
 import jwt
 import requests
 from flask import Flask, request, jsonify, Response
-
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
 # ============================================================================

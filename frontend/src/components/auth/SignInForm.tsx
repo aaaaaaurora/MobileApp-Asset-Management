@@ -9,8 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function SignInForm() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  
-  // Stati per la gestione del flusso a due step
+
   const [step, setStep] = useState<1 | 2>(1);
   const [tempToken, setTempToken] = useState<string>("");
   const [totpCode, setTotpCode] = useState("");
