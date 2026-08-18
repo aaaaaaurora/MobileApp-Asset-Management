@@ -198,6 +198,41 @@ def auth_google():
         }
     }), 200
 
+@app.route('/auth/2fa/setup', methods=['POST'])
+def setup_2fa():
+    """
+    Fornisce l'URI per generare il QR Code da scansionare 
+    nell'app Microsoft/Google Authenticator.
+    """
+    data = request.get_json()
+    temp_token = data.get('temp_token')
+
+    if not temp_token:
+        return error_response("Token temporaneo mancante", 400)
+
+    try:
+        decoded_temp = jwt.decode(temp_token, app.config['JWT_SECRET'], algorithms=["HS256"])
+        user_id = decoded_temp['user_id']
+    except jwt.ExpiredSignatureError:
+        return error_response("EXPIRED_CODE", 401)
+    except jwt.InvalidTokenError:
+        return error_response("INVALID_CODE", 401)
+
+    user = db.session.get(AppUser, user_id)
+    if not user:
+        return error_response("Utente non trovato", 404)
+
+    # Genera l'URI standard per le app Authenticator
+    totp = pyotp.TOTP(user.totp_secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=user.email, 
+        issuer_name="Asset Management Campus"
+    )
+
+    return jsonify({
+        "qr_uri": provisioning_uri,
+        "manual_secret": user.totp_secret # Utile se la fotocamera non funziona
+    }), 200
 
 @app.route('/auth/2fa/verify', methods=['POST'])
 def verify_2fa():
@@ -249,7 +284,7 @@ def verify_2fa():
 
     jwt_payload = {
         "sub": str(user.id),
-        "role": role.name.value,  # Estrae la stringa dall'Enum
+        "role": role.name,  # Estrae la stringa dall'Enum
         "campus_ids": campus_ids,
         "category_id": category_id,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=8)
@@ -260,7 +295,7 @@ def verify_2fa():
 
     return jsonify({
         "token": final_token,
-        "role": role.name.value,
+        "role": role.name,
         "campus_ids": campus_ids,
         "category_id": category_id
     }), 200

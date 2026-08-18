@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
+import { QRCodeSVG } from "qrcode.react";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Button from "../ui/button/Button";
@@ -15,6 +16,33 @@ export default function SignInForm() {
   const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // State aggiuntivi per la 2FA (QR Code)
+  const [qrUri, setQrUri] = useState<string>("");
+  const [manualSecret, setManualSecret] = useState<string>("");
+
+  // Recupero dati QR Code quando l'utente entra nello Step 2
+  useEffect(() => {
+    if (step === 2 && tempToken) {
+      const fetchQrCode = async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/auth/2fa/setup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ temp_token: tempToken }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setQrUri(data.qr_uri);
+            setManualSecret(data.manual_secret);
+          }
+        } catch (err) {
+          console.error("Errore durante il recupero del QR Code:", err);
+        }
+      };
+      fetchQrCode();
+    }
+  }, [step, tempToken]);
 
   // 1. Funzione chiamata dal bottone Google
   const googleLogin = useGoogleLogin({
@@ -84,13 +112,13 @@ export default function SignInForm() {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {step === 1 
                 ? "Sign in using your Google account to access the dashboard." 
-                : "Enter the 6-digit code from your Authenticator app."}
+                : "Scan the QR code and enter the 6-digit code from Microsoft Authenticator."}
             </p>
           </div>
 
           {/* Messaggio di errore */}
           {error && (
-            <div className="mb-5 p-3 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-500/10 dark:text-red-400 rounded-lg">
+            <div className="p-3 mb-5 text-sm font-medium text-red-600 rounded-lg bg-red-50 dark:bg-red-500/10 dark:text-red-400">
               {error}
             </div>
           )}
@@ -102,7 +130,7 @@ export default function SignInForm() {
                 <button 
                   onClick={() => googleLogin()}
                   disabled={loading}
-                  className="inline-flex w-full items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center w-full gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg
                     width="20"
@@ -132,9 +160,24 @@ export default function SignInForm() {
                 </button>
               </div>
             ) : (
-              /* STEP 2: Form TOTP (Utilizza i componenti grafici del template originale) */
+              /* STEP 2: Form TOTP e QR Code */
               <form onSubmit={handleTOTPSubmit}>
                 <div className="space-y-6">
+                  
+                  {/* Rendering del QR Code se disponibile */}
+                  {qrUri && (
+                    <div className="flex flex-col items-center justify-center p-5 border border-gray-200 rounded-lg bg-gray-50 dark:bg-white/5 dark:border-gray-700">
+                      <div className="p-2 bg-white rounded-xl shadow-sm">
+                        <QRCodeSVG value={qrUri} size={160} />
+                      </div>
+                      {manualSecret && (
+                        <p className="mt-4 text-xs text-center text-gray-500 break-all dark:text-gray-400">
+                          Setup key (manual): <span className="font-mono font-medium text-gray-800 dark:text-gray-200">{manualSecret}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div>
                     <Label>
                       TOTP Code <span className="text-error-500">*</span>
