@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import threading
 from google.auth.transport import requests
 import logging
+import requests
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -82,18 +83,21 @@ class UserCategory(db.Model):
 # FUNZIONI DI UTILITA'
 # ============================================================================
 
-def verify_google_token(token):
+def verify_google_token(access_token):
     try:
-        # Usa il tuo GOOGLE_CLIENT_ID qui
-        idinfo = id_token.verify_oauth2_token(
-            token, 
-            requests.Request(), 
-            GOOGLE_CLIENT_ID
+        response = requests.get(
+            f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={access_token}"
         )
-        return idinfo
+        
+        if response.status_code == 200:
+            user_info = response.json()
+            return user_info 
+        else:
+            logging.error(f"Access Token rifiutato da Google: {response.text}")
+            return None
+            
     except Exception as e:
-        # QUESTA È LA RIGA MAGICA CHE CI DIRÀ TUTTO
-        logging.error(f"ERRORE GOOGLE OAUTH REALE: {str(e)}")
+        logging.error(f"ERRORE REALE: {str(e)}")
         return None
 
 def publish_audit_event(action, actor_id):
