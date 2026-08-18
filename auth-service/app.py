@@ -492,6 +492,7 @@ def start_consumer_thread():
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
+start_consumer_thread()
 
 if __name__ == '__main__':
     # Avvia il processo in background per ascoltare gli eventi RabbitMQ 

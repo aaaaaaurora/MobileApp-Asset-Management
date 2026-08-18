@@ -493,6 +493,8 @@ def create_maintenance():
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
+start_consumer_thread()
+
 if __name__ == '__main__':
     # Avvia il processo in background per ascoltare gli eventi RabbitMQ 
     start_consumer_thread()
