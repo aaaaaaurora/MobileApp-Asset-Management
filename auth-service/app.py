@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
+import logging
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -81,18 +82,17 @@ class UserCategory(db.Model):
 # ============================================================================
 
 def verify_google_token(token):
-    """
-    Validazione REALE del token OAuth tramite le API di Google.
-    """
-    if not token or token == "invalid":
-        return None
-        
     try:
-        # Verifica crittografica della firma di Google e dell'audience (Client ID)
-        idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+        # Usa il tuo GOOGLE_CLIENT_ID qui
+        idinfo = id_token.verify_oauth2_token(
+            token, 
+            requests.Request(), 
+            GOOGLE_CLIENT_ID
+        )
         return idinfo
-    except ValueError:
-        # Token non valido, scaduto o audience non corrispondente
+    except Exception as e:
+        # QUESTA È LA RIGA MAGICA CHE CI DIRÀ TUTTO
+        logging.error(f"ERRORE GOOGLE OAUTH REALE: {str(e)}")
         return None
 
 def publish_audit_event(action, actor_id):
