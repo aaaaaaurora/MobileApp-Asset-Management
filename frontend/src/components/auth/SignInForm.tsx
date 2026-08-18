@@ -91,7 +91,7 @@ export default function SignInForm() {
 
       // Salva il JWT definitivo e reindirizza alla dashboard protetta
       login(data.token);
-      navigate("/");
+      navigate("/map");
     } catch (err: any) {
       setError(err.message);
     } finally {
