@@ -1,10 +1,13 @@
 import os
 import jwt
 import requests
+from flask_cors import CORS
 from flask import Flask, request, jsonify, Response
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
 # ============================================================================
+CORS(app)
+
 app = Flask(__name__)
 
 # Configurazione della chiave segreta per la validazione del JWT
@@ -118,4 +121,3 @@ def gateway_proxy(service_name, path):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-    
