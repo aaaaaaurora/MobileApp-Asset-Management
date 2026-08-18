@@ -6,10 +6,9 @@ from flask import Flask, request, jsonify, Response
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
 # ============================================================================
-CORS(app)
 
 app = Flask(__name__)
-
+CORS(app)
 # Configurazione della chiave segreta per la validazione del JWT
 app.config['JWT_SECRET'] = os.getenv('JWT_SECRET', 'super-secret-key-fallback')
 
