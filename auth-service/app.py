@@ -284,7 +284,7 @@ def verify_2fa():
 
     jwt_payload = {
         "sub": str(user.id),
-        "role": role.name,  # Estrae la stringa dall'Enum
+        "role": role.name.value,  # Estrae la stringa dall'Enum
         "campus_ids": campus_ids,
         "category_id": category_id,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=8)
@@ -295,7 +295,7 @@ def verify_2fa():
 
     return jsonify({
         "token": final_token,
-        "role": role.name,
+        "role": role.name.value,
         "campus_ids": campus_ids,
         "category_id": category_id
     }), 200
