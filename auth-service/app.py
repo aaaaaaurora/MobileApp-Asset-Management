@@ -29,7 +29,7 @@ app.config['JWT_SECRET'] = os.getenv('JWT_SECRET', 'super-secret-key-fallback')
 RABBITMQ_URL = os.getenv('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq-service:5672/')
 TOTP_ISSUER_NAME = os.getenv('TOTP_ISSUER_NAME', 'Campus_Management')
 # Aggiunta Client ID di Google
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', 'il-tuo-client-id-google.apps.googleusercontent.com')
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '644506126338-fvtr7mf0jpa9dusa58g8ilt0e9d2ftsr.apps.googleusercontent.com')
 
 db = SQLAlchemy(app)
 
