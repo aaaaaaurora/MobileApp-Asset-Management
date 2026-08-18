@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
+from google.auth.transport import requests
 import logging
 
 # Import della libreria centralizzata per RabbitMQ
