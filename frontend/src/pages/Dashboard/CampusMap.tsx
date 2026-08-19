@@ -2,10 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
-import * as maplibregl from 'maplibre-gl';
-
-// Forziamo TypeScript a spegnere qualsiasi controllo e ad azzerare il worker
-(maplibregl as any).workerCount = 0;
 
 export default function CampusMap() {
   const mapRef = useRef(null);
@@ -22,6 +18,7 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
 
+  // 1. Geolocalizzazione Utente
   useEffect(() => {
     if (user?.role === 'UTENTE' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -34,6 +31,7 @@ export default function CampusMap() {
     }
   }, [user]);
 
+  // 2. Fetch Campus per Operatore/Amministratore
   useEffect(() => {
     if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
       const fetchCampuses = async () => {
@@ -50,6 +48,7 @@ export default function CampusMap() {
             }
           }
         ];
+
         setCampuses(mockCampuses);
         if (mockCampuses.length > 0) {
           setSelectedCampus(mockCampuses[0].id);
@@ -93,6 +92,10 @@ export default function CampusMap() {
           interactive={true}
           dragPan={true}
           scrollZoom={true}
+          // AGGIUNGI QUESTO: Dice a MapLibre di usare un transform generico ed evita i conflitti col worker esterno su Vite
+          transformRequest={(url) => {
+            return { url };
+          }}
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData}>
