@@ -4,9 +4,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 import * as maplibregl from 'maplibre-gl';
 
-// Soluzione Definitiva: Puntiamo al worker copiato in locale nella cartella public
 if (typeof window !== 'undefined') {
-  (maplibregl as any).workerUrl = '/maplibre-gl-worker.js';
+  (maplibregl as any).workerUrl = '/maplibre-gl-worker.mjs';
 }
 
 export default function CampusMap() {
