@@ -2,16 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
-import * as maplibregl from 'maplibre-gl';
-
-// SOLUZIONE DEFINITIVA VITE:
-// Importiamo il worker come modulo nativo di Vite. 
-// Verrà compilato localmente ed eviterà qualsiasi blocco di rete o HTTPS.
-import MaplibreWorker from 'maplibre-gl/dist/maplibre-gl-worker?worker';
-
-if (typeof window !== 'undefined') {
-  (maplibregl as any).workerClass = MaplibreWorker;
-}
 
 export default function CampusMap() {
   const mapRef = useRef(null);
