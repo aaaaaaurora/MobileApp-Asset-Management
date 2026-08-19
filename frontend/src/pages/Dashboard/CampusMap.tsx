@@ -3,12 +3,6 @@ import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 
-import * as maplibregl from 'maplibre-gl'; 
-import MaplibreWorker from 'maplibre-gl/dist/maplibre-gl-worker?worker';
-
-// Forziamo TypeScript a ignorare il controllo di tipo su workerClass
-(maplibregl as any).workerClass = MaplibreWorker;
-
 export default function CampusMap() {
   const mapRef = useRef(null);
   const { user } = useAuth();
@@ -41,7 +35,6 @@ export default function CampusMap() {
   useEffect(() => {
     if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
       const fetchCampuses = async () => {
-        // Mock momentaneo: qui andrà la chiamata al tuo GeoZone Service
         const mockCampuses = [
           {
             id: 'c0000000-0000-0000-0000-000000000001',
@@ -95,7 +88,6 @@ export default function CampusMap() {
           {...viewState}
           onMove={evt => setViewState(evt.viewState)}
           style={{ width: '100%', height: '100%' }}
-          // URL originale concordato
           mapStyle="https://tiles.openfreemap.org/styles/liberty"
           interactive={true}
           dragPan={true}
