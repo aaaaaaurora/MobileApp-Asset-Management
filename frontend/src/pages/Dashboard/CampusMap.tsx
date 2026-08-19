@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
+import * as maplibregl from 'maplibre-gl';
+
+if (typeof window !== 'undefined') {
+  (maplibregl as any).setWorkerUrl(
+    'https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl-worker.js'
+  );
+}
 
 export default function CampusMap() {
   const mapRef = useRef(null);
@@ -92,10 +99,6 @@ export default function CampusMap() {
           interactive={true}
           dragPan={true}
           scrollZoom={true}
-          // AGGIUNGI QUESTO: Dice a MapLibre di usare un transform generico ed evita i conflitti col worker esterno su Vite
-          transformRequest={(url) => {
-            return { url };
-          }}
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData}>
