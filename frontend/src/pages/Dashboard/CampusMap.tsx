@@ -2,6 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
+import * as maplibregl from 'maplibre-gl';
+
+// Ignora l'errore di TypeScript sul ?url di Vite
+// @ts-ignore
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.js?url';
+
+if (typeof window !== 'undefined') {
+  (maplibregl as any).setWorkerUrl(workerUrl);
+}
 
 export default function CampusMap() {
   const mapRef = useRef(null);
