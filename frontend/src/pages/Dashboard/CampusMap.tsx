@@ -1,42 +1,132 @@
-import { useRef } from 'react';
-import Map from 'react-map-gl/maplibre';
+import { useState, useEffect, useRef } from 'react';
+import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { useAuth } from '../../context/AuthContext'; 
 
 export default function CampusMap() {
   const mapRef = useRef(null);
-  //const { user } = useAuth();
+  const { user } = useAuth();
 
-    // Più avanti nel rendering della mappa:
-    //{user?.role === 'AMMINISTRATORE' && <AllAssetsMarkers data={assets} />}
-    //{user?.role === 'UTENTE' && <ClickToReportTool />}
+  // Stato per la vista della mappa
+  const [viewState, setViewState] = useState({
+    longitude: 14.7900,
+    latitude: 40.7700,
+    zoom: 15,
+    pitch: 45,
+    bearing: 0
+  });
+
+  // Stati per la gestione dei campus
+  const [campuses, setCampuses] = useState<any[]>([]);
+  const [selectedCampus, setSelectedCampus] = useState<string>('');
+
+  // 1. EFFETTO PER L'UTENTE BASE: Geolocalizzazione automatica
+  useEffect(() => {
+    if (user?.role === 'UTENTE' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        setViewState(prev => ({
+          ...prev,
+          longitude: position.coords.longitude,
+          latitude: position.coords.latitude,
+        }));
+      });
+    }
+  }, [user]);
+
+  // 2. EFFETTO PER OPERATORE/ADMIN: Recupero dei Campus assegnati
+  useEffect(() => {
+    if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
+      const fetchCampuses = async () => {
+        // TODO: Questa è la chiamata al tuo futuro GeoZone Service!
+        // Sostituisci con la vera fetch: es. GET /api/geo/campuses?ids=${user.campus_ids.join(',')}
+        
+        // Dati MOCK temporanei per farti testare il selettore e il poligono
+        const mockCampuses = [
+          {
+            id: 'c0000000-0000-0000-0000-000000000001',
+            name: 'Campus di Fisciano',
+            geojson: {
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[14.787, 40.775], [14.798, 40.775], [14.798, 40.768], [14.787, 40.768], [14.787, 40.775]]]
+              }
+            }
+          }
+        ];
+
+        setCampuses(mockCampuses);
+        if (mockCampuses.length > 0) {
+          setSelectedCampus(mockCampuses[0].id);
+        }
+      };
+
+      fetchCampuses();
+    }
+  }, [user]);
+
+  // Trova i dati GeoJSON del campus attualmente selezionato
+  const activeCampusData = campuses.find(c => c.id === selectedCampus)?.geojson;
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] w-full">
-      {/* Header della sezione Mappa */}
-      <div className="mb-4">
-        <h2 className="text-title-md2 font-semibold text-black dark:text-white">
+      {/* Header e Selettore Campus */}
+      <div className="flex flex-row items-center justify-between mb-4">
+        <h2 className="font-semibold text-title-md2 text-black dark:text-white">
           Mappa del Campus
         </h2>
+        
+        {/* Mostra la tendina solo se l'utente ha il ruolo corretto e ha più di 1 campus */}
+        {(user?.role === 'OPERATORE' || user?.role === 'AMMINISTRATORE') && campuses.length > 0 && (
+          <select 
+            value={selectedCampus}
+            onChange={(e) => setSelectedCampus(e.target.value)}
+            className="px-4 py-2 bg-white border rounded-lg shadow-sm border-stroke text-black dark:bg-boxdark dark:border-strokedark dark:text-white"
+          >
+            {campuses.map(campus => (
+              <option key={campus.id} value={campus.id}>
+                {campus.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Contenitore della Mappa */}
-      <div className="flex-1 w-full rounded-xl border border-stroke shadow-default overflow-hidden dark:border-strokedark dark:bg-boxdark relative">
+      <div className="relative flex-1 w-full overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
         <Map
           ref={mapRef}
-          initialViewState={{
-            longitude: 14.7900, // Longitudine (es. Università di Salerno)
-            latitude: 40.7700,  // Latitudine
-            zoom: 15,
-            pitch: 45,          // Inclinazione per preparare l'effetto 3D
-            bearing: 0
-          }}
+          {...viewState}
+          onMove={evt => setViewState(evt.viewState)}
           style={{ width: '100%', height: '100%' }}
-          // Utilizziamo lo stile vettoriale di OpenFreeMap (Liberty)
-          mapStyle="https://tiles.openfreemap.org/styles/liberty"
+          // URL di base solido e gratuito per far apparire la mappa
+          mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
           interactive={true}
           dragPan={true}
           scrollZoom={true}
-        />
+        >
+          {/* Disegna il perimetro del campus se i dati sono disponibili */}
+          {activeCampusData && (
+            <Source id="campus-boundary" type="geojson" data={activeCampusData}>
+              <Layer 
+                id="campus-fill" 
+                type="fill" 
+                paint={{
+                  'fill-color': '#3C50E0', // Colore primario del tuo template
+                  'fill-opacity': 0.2
+                }} 
+              />
+              <Layer 
+                id="campus-outline" 
+                type="line" 
+                paint={{
+                  'line-color': '#3C50E0',
+                  'line-width': 2
+                }} 
+              />
+            </Source>
+          )}
+        </Map>
       </div>
     </div>
   );
