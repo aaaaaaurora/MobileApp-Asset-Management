@@ -4,18 +4,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 import * as maplibregl from 'maplibre-gl';
 
+if (typeof window !== 'undefined' && (maplibregl as any).setWorkerUrl) {
+  (maplibregl as any).setWorkerUrl('/maplibre-gl-worker.mjs');
+}
+
 export default function CampusMap() {
   const mapRef = useRef(null);
   const { user } = useAuth();
-
-  // Configuriamo il worker in modo sicuro all'interno del useEffect (lato client)
-  useEffect(() => {
-    try {
-      (maplibregl as any).workerUrl = '/maplibre-gl-worker.mjs';
-    } catch (e) {
-      console.error("Errore configurazione worker:", e);
-    }
-  }, []);
 
   const [viewState, setViewState] = useState({
     longitude: 14.7900,
