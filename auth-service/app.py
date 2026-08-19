@@ -12,7 +12,6 @@ from google.auth.transport import requests
 import logging
 import requests
 from shared_utils.messaging import RabbitMQManager
-
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -74,7 +73,6 @@ class UserCategory(db.Model):
     __tablename__ = 'user_category'
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('app_user.id'), primary_key=True)
     category_id = db.Column(db.String(24), primary_key=True) # Soft link all'Asset Service
-
 
 # ============================================================================
 # FUNZIONI DI UTILITA'
