@@ -2,7 +2,6 @@ import { useRef } from 'react';
 import Map from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-
 export default function CampusMap() {
   const mapRef = useRef(null);
   //const { user } = useAuth();

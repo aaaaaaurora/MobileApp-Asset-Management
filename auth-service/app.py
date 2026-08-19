@@ -11,11 +11,8 @@ import threading
 from google.auth.transport import requests
 import logging
 import requests
-
-# Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
 
-# Nuovi import necessari per la validazione reale del token Google
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 

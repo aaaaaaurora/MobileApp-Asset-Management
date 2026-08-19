@@ -61,7 +61,6 @@ data:
       category_id VARCHAR(24) NOT NULL,
       PRIMARY KEY (user_id, category_id)
     );
-
     -- ==========================================
     -- 2. GEOZONE SERVICE DATABASE
     -- ==========================================
