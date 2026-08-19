@@ -3,6 +3,12 @@ import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 
+import * as maplibregl from 'maplibre-gl'; 
+import MaplibreWorker from 'maplibre-gl/dist/maplibre-gl-worker?worker';
+
+// Forziamo TypeScript a ignorare il controllo di tipo su workerClass
+(maplibregl as any).workerClass = MaplibreWorker;
+
 export default function CampusMap() {
   const mapRef = useRef(null);
   const { user } = useAuth();
