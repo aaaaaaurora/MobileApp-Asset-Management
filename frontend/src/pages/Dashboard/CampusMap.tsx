@@ -92,6 +92,7 @@ export default function CampusMap() {
         )}
       </div>
 
+
       {/* Contenitore della Mappa */}
       <div className="relative flex-1 w-full overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
         <Map
