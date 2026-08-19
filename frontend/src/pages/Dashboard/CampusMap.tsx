@@ -4,12 +4,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 import * as maplibregl from 'maplibre-gl';
 
-// Ignora l'errore di TypeScript sul ?url di Vite
-// @ts-ignore
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.js?url';
-
+// Soluzione Definitiva: Puntiamo al worker copiato in locale nella cartella public
 if (typeof window !== 'undefined') {
-  (maplibregl as any).setWorkerUrl(workerUrl);
+  (maplibregl as any).workerUrl = '/maplibre-gl-worker.js';
 }
 
 export default function CampusMap() {
