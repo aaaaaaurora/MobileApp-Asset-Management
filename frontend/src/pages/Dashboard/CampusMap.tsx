@@ -4,10 +4,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 import * as maplibregl from 'maplibre-gl';
 
+// SOLUZIONE DEFINITIVA VITE:
+// Importiamo il worker come modulo nativo di Vite. 
+// Verrà compilato localmente ed eviterà qualsiasi blocco di rete o HTTPS.
+import MaplibreWorker from 'maplibre-gl/dist/maplibre-gl-worker?worker';
+
 if (typeof window !== 'undefined') {
-  (maplibregl as any).setWorkerUrl(
-    'https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl-worker.js'
-  );
+  (maplibregl as any).workerClass = MaplibreWorker;
 }
 
 export default function CampusMap() {
