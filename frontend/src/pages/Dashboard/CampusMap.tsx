@@ -2,11 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
-import * as maplibregl from 'maplibre-gl';
-
-if (typeof window !== 'undefined' && (maplibregl as any).setWorkerUrl) {
-  (maplibregl as any).setWorkerUrl('/maplibre-gl-worker.js');
-}
 
 export default function CampusMap() {
   const mapRef = useRef(null);
@@ -23,6 +18,7 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
 
+  // 1. Geolocalizzazione Utente
   useEffect(() => {
     if (user?.role === 'UTENTE' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -35,6 +31,7 @@ export default function CampusMap() {
     }
   }, [user]);
 
+  // 2. Fetch Campus per Operatore/Amministratore
   useEffect(() => {
     if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
       const fetchCampuses = async () => {

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/maplibre-gl-worker.js && tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -23,7 +23,7 @@
     "clsx": "^2.1.1",
     "flatpickr": "^4.6.13",
     "jwt-decode": "^4.0.0",
-    "maplibre-gl": "^6.0.0",
+    "maplibre-gl": "3.6.2",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-apexcharts": "^1.7.0",
