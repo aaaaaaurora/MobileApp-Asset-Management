@@ -16,6 +16,7 @@ data:
     -- ==========================================
     \c auth_db;
     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
     -- Funzione per il trigger
     CREATE OR REPLACE FUNCTION update_modified_column()
