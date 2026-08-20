@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDownIcon, HorizontaLDots } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
-import SidebarWidget from "./SidebarWidget";
 import { useAuth } from "../context/AuthContext";
 
 type NavItem = {
@@ -263,33 +262,24 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link to="/">
-          {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <img
-                className="dark:hidden"
-                src="/images/logo/logo.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-              <img
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-            </>
-          ) : (
-            <img
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
-          )}
-        </Link>
+        <Link to="/map">
+        {isExpanded || isHovered || isMobileOpen ? (
+          <img
+            src="/images/logo/logo_unisa.png"
+            alt="Logo UNISA"
+            width={150}
+            className="object-contain" // Evita che il logo si deformi
+          />
+        ) : (
+          <img
+            src="/images/logo/logo_unisa.png"
+            alt="Logo UNISA Icona"
+            width={32}
+            height={32}
+            className="object-contain" // Mantiene le proporzioni anche da chiuso
+          />
+        )}
+      </Link>
       </div>
       
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
@@ -314,11 +304,8 @@ const AppSidebar: React.FC = () => {
               {renderMenuItems(navItems, "main")}
             </div>
             
-            {/* La sezione "Others" è stata completamente rimossa per pulizia */}
-            
           </div>
         </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
       </div>
     </aside>
   );
