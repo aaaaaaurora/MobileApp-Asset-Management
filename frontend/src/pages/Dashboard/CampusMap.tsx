@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function CampusMap() {
   const mapRef = useRef(null);
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [viewState, setViewState] = useState({
     longitude: 14.7900,
@@ -32,33 +32,49 @@ export default function CampusMap() {
   }, [user]);
 
   // 2. Fetch Campus per Operatore/Amministratore
-  useEffect(() => {
-    if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
-      const fetchCampuses = async () => {
-        const mockCampuses = [
-          {
-            id: 'c0000000-0000-0000-0000-000000000001',
-            name: 'Campus di Fisciano',
-            geojson: {
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [[[14.787, 40.775], [14.798, 40.775], [14.798, 40.768], [14.787, 40.768], [14.787, 40.775]]]
+    useEffect(() => {
+      if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
+        const fetchCampuses = async () => {
+          try {
+            // Utilizziamo l'URL del Gateway basandoci sulle variabili d'ambiente
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/geozones/campuses`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // Passiamo il JWT al Gateway
               }
+            });
+
+            if (!response.ok) {
+              throw new Error(`Errore HTTP: ${response.status}`);
             }
+
+            const realCampuses = await response.json();
+            setCampuses(realCampuses);
+            
+            if (realCampuses.length > 0) {
+              setSelectedCampus(realCampuses[0].id);
+            }
+          } catch (error) {
+            console.error("Errore nel recupero dei poligoni dal GeoZone Service tramite Gateway:", error);
           }
-        ];
+        };
+        
+        fetchCampuses();
+      }
+    }, [user]);
 
-        setCampuses(mockCampuses);
-        if (mockCampuses.length > 0) {
-          setSelectedCampus(mockCampuses[0].id);
-        }
-      };
-      fetchCampuses();
-    }
-  }, [user]);
-
-  const activeCampusData = campuses.find(c => c.id === selectedCampus)?.geojson;
+    // Estraiamo il campus selezionato e lo convertiamo in una valid Feature GeoJSON per MapLibre
+    const activeCampus = campuses.find(c => c.id === selectedCampus);
+    
+    const activeCampusData = activeCampus?.geometry ? {
+      type: 'Feature',
+      geometry: activeCampus.geometry,
+      properties: {
+        name: activeCampus.name,
+        description: activeCampus.description
+      }
+    } : null;
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] w-full">
