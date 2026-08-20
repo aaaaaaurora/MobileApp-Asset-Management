@@ -6,6 +6,7 @@ import CampusMap from "./pages/Dashboard/CampusMap";
 // Importa il buttafuori che protegge le rotte
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
+import CreateAsset from './pages/AssetPages/CreateAsset';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           {/* ROTTE OPERATORE */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute allowedRoles={['OPERATORE']} />}>
+            <CreateAsset />
           </Route>
 
           {/* ========================================== */}
