@@ -173,14 +173,21 @@ def get_campuses():
     try:
         # Interrogazione ottimizzata: estraiamo le colonne base e deleghiamo 
         # a PostGIS la trasformazione della geometria in GeoJSON (ST_AsGeoJSON).
-        campuses = db.session.query(
+        # Sostituisci il blocco campuses = db.session.query(...).all() con:
+        query = db.session.query(
             Campus.id,
             Campus.name,
             Campus.description,
             func.ST_AsGeoJSON(Campus.geom).label('geometry_geojson'),
             Campus.created_at,
             Campus.updated_at
-        ).all()
+        )
+
+        # Se l'utente è un OPERATORE/AMMINISTRATORE, filtriamo per la lista di ID fornita dal Gateway
+        if auth.get('role') == 'OPERATORE' or auth.get('role') == 'AMMINISTRATORE' and auth.get('campus_ids'):
+            query = query.filter(func.cast(Campus.id, db.String).in_(auth.get('campus_ids')))
+
+        campuses = query.all()
 
         results = []
         for c in campuses:
@@ -188,7 +195,6 @@ def get_campuses():
                 "id": str(c.id),
                 "name": c.name,
                 "description": c.description,
-                # ST_AsGeoJSON restituisce una stringa; la parsiamo per inviare un JSON strutturato
                 "geometry": json.loads(c.geometry_geojson) if c.geometry_geojson else None,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None
