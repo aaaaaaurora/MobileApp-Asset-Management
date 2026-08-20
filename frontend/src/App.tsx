@@ -35,7 +35,9 @@ export default function App() {
           {/* ROTTE OPERATORE */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute allowedRoles={['OPERATORE']} />}>
-            <CreateAsset />
+            <Route element={<AppLayout />}>
+              <Route path="/assets/new" element={<CreateAsset />} />
+            </Route>
           </Route>
 
           {/* ========================================== */}
