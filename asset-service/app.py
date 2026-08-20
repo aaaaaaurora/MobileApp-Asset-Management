@@ -558,9 +558,22 @@ def create_asset():
     user_role = auth.get('role')
     user_campuses = auth.get('campus_ids', [])
 
-    # Solo Operatori e Amministratori possono censire asset
-    if user_role not in ['OPERATORE', 'AMMINISTRATORE']:
-        return error_response("Non hai i permessi per censire un asset", 403)
+    auth = get_auth_context()
+    user_role = auth.get('role')
+    # Supponiamo di aver aggiornato get_auth_context() per estrarre il client
+    client_type = auth.get('client_type') 
+
+    # 1. L'Amministratore NON può creare asset
+    if user_role == 'AMMINISTRATORE':
+        return error_response("Gli amministratori non possono censire fisicamente gli asset.", 403)
+
+    # 2. Solo gli Operatori possono procedere
+    if user_role != 'OPERATORE':
+        return error_response("Non hai i permessi per censire un asset.", 403)
+
+    # 3. L'Operatore deve OBBLIGATORIAMENTE usare l'app mobile
+    if client_type != 'mobile':
+        return error_response("Il censimento degli asset è consentito solo tramite l'App Mobile.", 403)
 
     data = request.get_json()
     if not data:
