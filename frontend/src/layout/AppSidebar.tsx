@@ -262,13 +262,13 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link to="/map">
+      <Link to="/map" className="flex items-center justify-center w-full py-4">
         {isExpanded || isHovered || isMobileOpen ? (
           <img
             src="/images/logo/logo_unisa.png"
             alt="Logo UNISA"
-            width={150}
-            className="object-contain" // Evita che il logo si deformi
+            width={80}
+            className="block mx-auto object-contain" 
           />
         ) : (
           <img
@@ -276,7 +276,7 @@ const AppSidebar: React.FC = () => {
             alt="Logo UNISA Icona"
             width={32}
             height={32}
-            className="object-contain" // Mantiene le proporzioni anche da chiuso
+            className="block mx-auto object-contain"
           />
         )}
       </Link>
