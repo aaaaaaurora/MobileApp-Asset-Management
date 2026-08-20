@@ -37,7 +37,7 @@ export default function CampusMap() {
         const fetchCampuses = async () => {
           try {
             // Utilizziamo l'URL del Gateway basandoci sulle variabili d'ambiente
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/geozones/campuses`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/campuses`, {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
