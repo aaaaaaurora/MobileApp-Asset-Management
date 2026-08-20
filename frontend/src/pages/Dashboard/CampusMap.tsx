@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import Map, { Source, Layer } from 'react-map-gl/maplibre';
+import Map, { Source, Layer, MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 
 export default function CampusMap() {
-  const mapRef = useRef(null);
+  const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
 
   const [viewState, setViewState] = useState({
@@ -75,6 +75,27 @@ export default function CampusMap() {
         description: activeCampus.description
       }
     } : null;
+
+  // 3. Effetto "FlyTo": Centra la mappa quando cambia il campus selezionato
+    useEffect(() => {
+      const activeCampus = campuses.find(c => c.id === selectedCampus);
+      
+      if (activeCampus?.geometry?.coordinates && mapRef.current) {
+        // Estraiamo i vertici del poligono (primo anello)
+        const ring = activeCampus.geometry.coordinates[0];
+        
+        // Calcoliamo il centroide (media aritmetica di Latitudine e Longitudine)
+        const avgLng = ring.reduce((sum: number, p: number[]) => sum + p[0], 0) / ring.length;
+        const avgLat = ring.reduce((sum: number, p: number[]) => sum + p[1], 0) / ring.length;
+
+        // Facciamo "volare" la mappa sulle nuove coordinate
+        mapRef.current?.flyTo({
+          center: [avgLng, avgLat],
+          zoom: 15,
+          duration: 1500 // Durata dell'animazione in millisecondi (1.5 secondi)
+        });
+      }
+    }, [selectedCampus, campuses]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] w-full">
