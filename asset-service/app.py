@@ -46,7 +46,8 @@ def get_auth_context():
     return {
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
-        'campus_ids': campus_ids
+        'campus_ids': campus_ids,
+        'client_type': request.headers.get('X-Client-Type', 'web').lower()
     }
 
 
