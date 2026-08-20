@@ -50,6 +50,7 @@ def get_auth_context():
         'client_type': request.headers.get('X-Client-Type', 'web').lower()
     }
 
+
 def serialize_mongo_doc(doc):
     """
     Converte ricorsivamente gli ObjectId di MongoDB in stringhe per la risposta JSON.

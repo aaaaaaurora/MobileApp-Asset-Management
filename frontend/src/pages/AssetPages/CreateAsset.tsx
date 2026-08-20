@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import PageMeta from '../../components/common/PageMeta';
 import PageBreadcrumb from '../../components/common/PageBreadCrumb';
-import { useAuth } from '../../context/AuthContext'; // Decommenta quando unisci l'Auth
+//import { useAuth } from '../../context/AuthContext'; // Decommenta quando unisci l'Auth
 
 // Mock del Database Dinamico (MongoDB) per la Categoria "Albero"
 const MOCK_CATEGORY = {
