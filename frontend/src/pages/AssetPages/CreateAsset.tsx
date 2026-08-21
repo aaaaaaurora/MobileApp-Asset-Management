@@ -98,7 +98,7 @@ const CreateAsset: React.FC = () => {
         try {
           // Creiamo un array di chiamate API in parallelo per tutti i campus assegnati all'operatore
           const validationPromises = campusList.map(async (campusId: string) => {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/geozones/verify-location`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
