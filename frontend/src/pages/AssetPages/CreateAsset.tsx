@@ -302,7 +302,7 @@ const CreateAsset: React.FC = () => {
                       <button 
                         onClick={captureLocation}
                         disabled={!!loading}
-                        className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-70"
+                        className="flex w-full justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-blue-700 disabled:opacity-70"
                       >
                         {loading === 'Acquisizione e validazione GPS...' ? 'Validazione su PostGIS...' : 'Ottieni Posizione e Valida'}
                       </button>
@@ -326,7 +326,11 @@ const CreateAsset: React.FC = () => {
                     )}
                   </div>
 
-                  <button disabled={!location || !photoFile} onClick={() => setStep(2)} className="mt-6 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50">
+                  <button 
+                    disabled={!location || !photoFile} 
+                    onClick={() => setStep(2)} 
+                    className="mt-6 flex w-full justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
                     Avanti
                   </button>
                 </div>
@@ -357,7 +361,11 @@ const CreateAsset: React.FC = () => {
                     <button onClick={() => setStep(1)} className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
                       Indietro
                     </button>
-                    <button onClick={triggerAIAnalysis} disabled={!!loading || !selectedCategory} className="flex w-2/3 justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50">
+                    <button 
+                      onClick={triggerAIAnalysis} 
+                      disabled={!!loading || !selectedCategory} 
+                      className="flex w-2/3 justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
                       {loading ? loading : 'Carica Immagine e Analizza'}
                     </button>
                   </div>
@@ -418,7 +426,7 @@ const CreateAsset: React.FC = () => {
                     <button onClick={() => setStep(2)} className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
                       Indietro
                     </button>
-                    <button onClick={submitAsset} disabled={!!loading} className="flex w-2/3 justify-center rounded bg-success p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50">
+                    <button onClick={submitAsset} disabled={!!loading} className="flex w-2/3 justify-center rounded bg-meta-3 p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50">
                       {loading ? 'Salvataggio...' : 'Conferma e Salva'}
                     </button>
                   </div>
