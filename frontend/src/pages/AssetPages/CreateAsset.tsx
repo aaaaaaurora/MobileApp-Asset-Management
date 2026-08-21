@@ -18,7 +18,7 @@ interface Category {
 }
 
 const CreateAsset: React.FC = () => {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
 
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState<string | null>(null);
@@ -30,6 +30,7 @@ const CreateAsset: React.FC = () => {
 
   // Stati Dati Asset
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [matchedCampusId, setMatchedCampusId] = useState<string | null>(null); // NUOVO: salva in quale campus ci troviamo
   
   // Stati Media e IA
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -41,9 +42,6 @@ const CreateAsset: React.FC = () => {
   const [metadata, setMetadata] = useState<Record<string, any>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Hardcoded per test - in futuro potrebbe essere selezionato da una tendina
-  const DEFAULT_CAMPUS_ID = '11111111-1111-1111-1111-111111111111';
 
   // ==========================================
   // INIZIALIZZAZIONE: Categorie
@@ -73,7 +71,7 @@ const CreateAsset: React.FC = () => {
   }, [token]);
 
   // ==========================================
-  // US 3-1: GPS e Validazione Geozone (PostGIS)
+  // US 3-1: GPS e Validazione Geozone Multi-Campus
   // ==========================================
   const captureLocation = () => {
     setLoading('Acquisizione e validazione GPS...');
@@ -89,37 +87,53 @@ const CreateAsset: React.FC = () => {
       async (position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
+        const campusList = user?.campus_ids || [];
+
+        if (campusList.length === 0) {
+          setError('Nessun campus assegnato al tuo profilo.');
+          setLoading(null);
+          return;
+        }
         
         try {
-          // Validazione spaziale server-side tramite Gateway -> Geozone Service
-          const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              campusId: DEFAULT_CAMPUS_ID,
-              latitudine: lat,
-              longitudine: lng
-            })
+          // Creiamo un array di chiamate API in parallelo per tutti i campus assegnati all'operatore
+          const validationPromises = campusList.map(async (campusId: string) => {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ campusId, latitudine: lat, longitudine: lng })
+            });
+            if (!res.ok) throw new Error(`Errore API per il campus ${campusId}`);
+            const data = await res.json();
+            return { campusId, isInside: data.is_inside };
           });
 
-          if (!res.ok) throw new Error("Errore di rete durante la validazione del perimetro.");
+          // Aspettiamo che tutti i controlli PostGIS finiscano
+          const results = await Promise.allSettled(validationPromises);
           
-          const data = await res.json();
-          
-          if (data.is_inside) {
+          // Cerchiamo se c'è ALMENO UN campus in cui l'utente si trova
+          const validResult = results.find(
+            (r) => r.status === 'fulfilled' && r.value.isInside
+          );
+
+          if (validResult && validResult.status === 'fulfilled') {
+            // MATCH TROVATO: siamo dentro un campus!
             setLocation({ lat, lng });
+            setMatchedCampusId(validResult.value.campusId);
           } else {
-            setError("Coordinate fuori perimetro! Ti trovi all'esterno del campus selezionato.");
-            // Ai fini del test in locale scommenta la riga sotto se vuoi procedere lo stesso
-            // setLocation({ lat, lng }); 
+            // NESSUN MATCH
+            setError("Coordinate fuori perimetro! Ti trovi all'esterno di tutti i campus a te assegnati.");
+            //setLocation({ lat, lng }); 
+            //setMatchedCampusId(campusList[0]);
           }
         } catch (err: any) {
           console.warn("Geozone check fallito, bypass temporaneo per test:", err);
           setError(`Impossibile validare il perimetro: ${err.message}. (Bypass attivo)`);
-          setLocation({ lat, lng }); // Fallback: permette di procedere se il servizio geozone è offline
+          setLocation({ lat, lng }); 
+          setMatchedCampusId(campusList[0]);
         } finally {
           setLoading(null);
         }
@@ -138,8 +152,8 @@ const CreateAsset: React.FC = () => {
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPhotoFile(file); // Salviamo il file reale per l'upload
-      setPhotoPreview(URL.createObjectURL(file)); // Salviamo l'URL per la UI
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
     }
   };
 
@@ -153,13 +167,12 @@ const CreateAsset: React.FC = () => {
     setLoading('Upload in corso...');
 
     try {
-      // 1. Upload dell'immagine (FormData)
       const formData = new FormData();
       formData.append('images', photoFile);
 
       const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/media/api/images/upload`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }, // Nessun Content-Type (lo fa il browser)
+        headers: { 'Authorization': `Bearer ${token}` }, 
         body: formData
       });
 
@@ -172,7 +185,6 @@ const CreateAsset: React.FC = () => {
       const uploadedMediaId = uploadData.uploaded[0].media_id;
       setMediaId(uploadedMediaId);
 
-      // 2. Chiamata all'Intelligenza Artificiale
       setLoading('Analisi Computer Vision in corso...');
       const analyzeRes = await fetch(`${import.meta.env.VITE_API_URL}/media/api/images/${uploadedMediaId}/analyze`, {
         method: 'POST',
@@ -184,7 +196,6 @@ const CreateAsset: React.FC = () => {
       if (analyzeData.status === "success" || analyzeData.status === "degraded") {
         setAiSuggestions(analyzeData.suggestions);
         
-        // Auto-compilazione dinamica (se la categoria prevede un campo testuale "tipologia")
         if (analyzeData.suggestions?.suggested_title) {
           setMetadata(prev => ({ 
             ...prev, 
@@ -215,8 +226,8 @@ const CreateAsset: React.FC = () => {
     try {
       const payload = {
         category_id: selectedCategory,
-        campus_id: DEFAULT_CAMPUS_ID,
-        media_id: mediaId, // Passiamo l'ID dell'immagine appena caricata
+        campus_id: matchedCampusId, // ORA USA IL CAMPUS RILEVATO DAL GPS!
+        media_id: mediaId, 
         geometry: { type: 'Point', coordinates: [location?.lng, location?.lat] },
         metadata: metadata
       };
@@ -237,7 +248,6 @@ const CreateAsset: React.FC = () => {
 
       alert('Asset e Media salvati con successo in Database e Storage!');
       
-      // Reset Form
       setStep(1);
       setLocation(null);
       setPhotoFile(null);
@@ -247,6 +257,7 @@ const CreateAsset: React.FC = () => {
       setMetadata({});
       setSelectedCategory('');
       setSelectedCategoryObj(null);
+      setMatchedCampusId(null);
     } catch (err: any) {
       setError(err.message || 'Errore imprevisto durante il salvataggio.');
     } finally {
@@ -285,7 +296,7 @@ const CreateAsset: React.FC = () => {
                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">1. Posizione GPS e Validazione Campus</label>
                     {location ? (
                       <div className="w-full rounded border border-success bg-success/10 py-3 px-4 text-success font-medium">
-                        ✓ Coordinate validate: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                        ✓ Coordinate acquisite: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                       </div>
                     ) : (
                       <button 
@@ -357,7 +368,6 @@ const CreateAsset: React.FC = () => {
               {step === 3 && (
                 <div className="space-y-6">
                   
-                  {/* Visualizzazione Intelligente Suggerimenti IA */}
                   {aiSuggestions && (
                     <div className="rounded border-l-4 border-primary bg-primary/5 p-4 dark:bg-meta-4">
                       <h5 className="font-semibold text-primary mb-2 flex items-center gap-2">
