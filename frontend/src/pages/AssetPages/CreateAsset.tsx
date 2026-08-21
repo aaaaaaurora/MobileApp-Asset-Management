@@ -1,123 +1,254 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import PageMeta from '../../components/common/PageMeta';
 import PageBreadcrumb from '../../components/common/PageBreadCrumb';
-//import { useAuth } from '../../context/AuthContext'; // Decommenta quando unisci l'Auth
+import { useAuth } from '../../context/AuthContext'; 
 
+interface Attribute {
+  name: string;
+  type: string;
+  required: boolean;
+  options?: string[];
+  status: string;
+}
 
-// Mock del Database Dinamico (MongoDB) per la Categoria "Albero"
-const MOCK_CATEGORY = {
-  id: 'cat-albero-001',
-  name: 'Albero / Verde Pubblico',
-  attributes: [
-    { name: 'tipologia', label: 'Tipologia Specie', type: 'string', required: true },
-    { name: 'altezza', label: 'Altezza stimata (metri)', type: 'number', required: true },
-    { name: 'stato_salute', label: 'Stato di Salute', type: 'enum', options: ['Ottimo', 'Buono', 'Sofferente', 'Malato'], required: true }
-  ]
-};
+interface Category {
+  _id: string;
+  name: string;
+  attributes: Attribute[];
+}
 
 const CreateAsset: React.FC = () => {
-  // const { user } = useAuth();
+  const { token } = useAuth();
+
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Dati dell'Asset
+  // Stati per le Categorie
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryObj, setSelectedCategoryObj] = useState<Category | null>(null);
+
+  // Stati Dati Asset
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  
+  // Stati Media e IA
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [mediaId, setMediaId] = useState<string | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<any>(null);
+
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [metadata, setMetadata] = useState<Record<string, any>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Hardcoded per test - in futuro potrebbe essere selezionato da una tendina
+  const DEFAULT_CAMPUS_ID = '11111111-1111-1111-1111-111111111111';
+
   // ==========================================
-  // US 3-1: Acquisizione GPS
+  // INIZIALIZZAZIONE: Categorie
+  // ==========================================
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/categories`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error('Errore nel recupero delle categorie');
+        
+        const data = await response.json();
+        setCategories(data);
+      } catch (err) {
+        console.error("Errore fetch categorie:", err);
+        setError("Impossibile caricare le categorie dal server.");
+      }
+    };
+
+    if (token) fetchCategories();
+  }, [token]);
+
+  // ==========================================
+  // US 3-1: GPS e Validazione Geozone (PostGIS)
   // ==========================================
   const captureLocation = () => {
-    setLoading('Acquisizione coordinate GPS in corso...');
+    setLoading('Acquisizione e validazione GPS...');
     setError(null);
+    
     if (!navigator.geolocation) {
       setError('Geolocalizzazione non supportata dal browser.');
       setLoading(null);
       return;
     }
+
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-        setLoading(null);
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        try {
+          // Validazione spaziale server-side tramite Gateway -> Geozone Service
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              campusId: DEFAULT_CAMPUS_ID,
+              latitudine: lat,
+              longitudine: lng
+            })
+          });
+
+          if (!res.ok) throw new Error("Errore di rete durante la validazione del perimetro.");
+          
+          const data = await res.json();
+          
+          if (data.is_inside) {
+            setLocation({ lat, lng });
+          } else {
+            setError("Coordinate fuori perimetro! Ti trovi all'esterno del campus selezionato.");
+            // Ai fini del test in locale scommenta la riga sotto se vuoi procedere lo stesso
+            // setLocation({ lat, lng }); 
+          }
+        } catch (err: any) {
+          console.warn("Geozone check fallito, bypass temporaneo per test:", err);
+          setError(`Impossibile validare il perimetro: ${err.message}. (Bypass attivo)`);
+          setLocation({ lat, lng }); // Fallback: permette di procedere se il servizio geozone è offline
+        } finally {
+          setLoading(null);
+        }
       },
       (err) => {
         setError(`Errore GPS: ${err.message}. Controlla i permessi.`);
         setLoading(null);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000 }
     );
   };
 
   // ==========================================
-  // US 3-2: Fotocamera / Immagine
+  // US 3-2: Capture Immagine (Salvataggio in RAM)
   // ==========================================
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setPhotoPreview(imageUrl);
+      setPhotoFile(file); // Salviamo il file reale per l'upload
+      setPhotoPreview(URL.createObjectURL(file)); // Salviamo l'URL per la UI
     }
   };
 
   // ==========================================
-  // US 3-3: Selezione Categoria e CV (AI)
+  // US 3-2 & 3-3: Upload su MinIO e Analisi Vision
   // ==========================================
-  const triggerAIAnalysis = () => {
-    if (!selectedCategory) {
-      setError("Seleziona una categoria per procedere.");
-      return;
-    }
+  const triggerAIAnalysis = async () => {
+    if (!selectedCategory || !photoFile) return;
     
     setError(null);
-    setLoading('Analisi Computer Vision in corso...');
+    setLoading('Upload in corso...');
 
-    // Simulazione chiamata REST al servizio AI
-    setTimeout(() => {
-      setMetadata({
-        tipologia: 'Pinus Pinea (Pino Domestico)',
-        altezza: 14.5,
-        stato_salute: 'Buono'
+    try {
+      // 1. Upload dell'immagine (FormData)
+      const formData = new FormData();
+      formData.append('images', photoFile);
+
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/media/api/images/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }, // Nessun Content-Type (lo fa il browser)
+        body: formData
       });
-      setLoading(null);
+
+      const uploadData = await uploadRes.json();
+      
+      if (!uploadRes.ok || uploadData.errors?.length > 0) {
+        throw new Error(uploadData.errors?.[0]?.error || "Errore durante l'upload su MinIO.");
+      }
+
+      const uploadedMediaId = uploadData.uploaded[0].media_id;
+      setMediaId(uploadedMediaId);
+
+      // 2. Chiamata all'Intelligenza Artificiale
+      setLoading('Analisi Computer Vision in corso...');
+      const analyzeRes = await fetch(`${import.meta.env.VITE_API_URL}/media/api/images/${uploadedMediaId}/analyze`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const analyzeData = await analyzeRes.json();
+
+      if (analyzeData.status === "success" || analyzeData.status === "degraded") {
+        setAiSuggestions(analyzeData.suggestions);
+        
+        // Auto-compilazione dinamica (se la categoria prevede un campo testuale "tipologia")
+        if (analyzeData.suggestions?.suggested_title) {
+          setMetadata(prev => ({ 
+            ...prev, 
+            tipologia: prev.tipologia || analyzeData.suggestions.suggested_title 
+          }));
+        }
+      }
+
       setStep(3);
-    }, 2500);
+    } catch (err: any) {
+      setError(`Errore Processo Media/IA: ${err.message}`);
+    } finally {
+      setLoading(null);
+    }
   };
 
-  // ==========================================
-  // US 3-4: Revisione e Salvataggio
-  // ==========================================
   const handleMetadataChange = (key: string, value: any) => {
     setMetadata(prev => ({ ...prev, [key]: value }));
   };
 
+  // ==========================================
+  // US 3-4: Salvataggio Finale su Asset DB
+  // ==========================================
   const submitAsset = async () => {
     setLoading('Salvataggio asset in corso...');
+    setError(null);
+    
     try {
       const payload = {
-        category_id: MOCK_CATEGORY.id,
-        campus_id: '11111111-1111-1111-1111-111111111111', 
+        category_id: selectedCategory,
+        campus_id: DEFAULT_CAMPUS_ID,
+        media_id: mediaId, // Passiamo l'ID dell'immagine appena caricata
         geometry: { type: 'Point', coordinates: [location?.lng, location?.lat] },
         metadata: metadata
       };
 
-      console.log('Payload inviato:', payload);
-      
-      // await fetch('...', { ... })
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
 
-      alert('Asset censito con successo!');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante il salvataggio sul server');
+      }
+
+      alert('Asset e Media salvati con successo in Database e Storage!');
       
+      // Reset Form
       setStep(1);
       setLocation(null);
+      setPhotoFile(null);
       setPhotoPreview(null);
+      setMediaId(null);
+      setAiSuggestions(null);
       setMetadata({});
       setSelectedCategory('');
-    } catch (err) {
-      setError('Errore durante il salvataggio.');
+      setSelectedCategoryObj(null);
+    } catch (err: any) {
+      setError(err.message || 'Errore imprevisto durante il salvataggio.');
     } finally {
       setLoading(null);
     }
@@ -125,186 +256,159 @@ const CreateAsset: React.FC = () => {
 
   return (
     <>
-      <PageMeta
-        title="Nuovo Asset | Asset Management UNISA"
-        description="Piattaforma di censimento asset tramite dispositivo mobile."
-      />
+      <PageMeta title="Nuovo Asset | Asset Management UNISA" description='' />
       <PageBreadcrumb pageTitle="Censimento Nuovo Asset" />
 
       <div className="grid grid-cols-1 gap-9">
         <div className="flex flex-col gap-9">
-          {/* Card Wrapper in stile Tailadmin */}
           <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
             <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark flex justify-between items-center">
-              <h3 className="font-medium text-black dark:text-white">
-                Fase {step} di 3
-              </h3>
-              {/* Progress Bar */}
+              <h3 className="font-medium text-black dark:text-white">Fase {step} di 3</h3>
               <div className="flex gap-2">
                 {[1, 2, 3].map((i) => (
-                  <div 
-                    key={i} 
-                    className={`h-2 w-8 rounded-full ${step >= i ? 'bg-primary' : 'bg-stroke dark:bg-strokedark'}`}
-                  ></div>
+                  <div key={i} className={`h-2 w-8 rounded-full ${step >= i ? 'bg-primary' : 'bg-stroke dark:bg-strokedark'}`}></div>
                 ))}
               </div>
             </div>
 
             <div className="p-6.5">
               {error && (
-                <div className="mb-6 flex w-full border-l-6 border-danger bg-danger/20 px-7 py-3 shadow-md dark:bg-[#1B1B24] dark:shadow-none">
-                  <p className="text-danger">{error}</p>
+                <div className="mb-6 flex w-full border-l-6 border-danger bg-danger/20 px-7 py-3 shadow-md">
+                  <p className="text-danger font-medium">{error}</p>
                 </div>
               )}
 
-              {/* STEP 1 */}
+              {/* STEP 1: Acquisizione Posizione e Foto */}
               {step === 1 && (
                 <div className="space-y-6">
                   <div>
-                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                      1. Posizione GPS (US 3-1)
-                    </label>
+                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">1. Posizione GPS e Validazione Campus</label>
                     {location ? (
-                      <div className="w-full rounded border border-success bg-success/10 py-3 px-4 text-success">
-                        Coordinate acquisite: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                      <div className="w-full rounded border border-success bg-success/10 py-3 px-4 text-success font-medium">
+                        ✓ Coordinate validate: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                       </div>
                     ) : (
                       <button 
                         onClick={captureLocation}
-                        className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90"
+                        disabled={!!loading}
+                        className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-70"
                       >
-                        {loading === 'Acquisizione coordinate GPS in corso...' ? 'Acquisizione...' : 'Ottieni Posizione Attuale'}
+                        {loading === 'Acquisizione e validazione GPS...' ? 'Validazione su PostGIS...' : 'Ottieni Posizione e Valida'}
                       </button>
                     )}
                   </div>
 
                   <div>
-                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                      2. Foto dell'Asset (US 3-2)
-                    </label>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      capture="environment" 
-                      ref={fileInputRef} 
-                      onChange={handlePhotoCapture} 
-                      className="hidden" 
-                    />
+                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">2. Foto dell'Asset</label>
+                    <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handlePhotoCapture} className="hidden" />
                     {photoPreview ? (
                       <div className="mt-2">
-                        <img src={photoPreview} alt="Anteprima" className="w-full h-48 object-cover rounded-md border border-stroke dark:border-strokedark mb-3" />
-                        <button 
-                          onClick={() => fileInputRef.current?.click()} 
-                          className="text-primary hover:underline text-sm font-medium"
-                        >
+                        <img src={photoPreview} alt="Anteprima" className="w-full h-48 object-cover rounded-md border border-stroke mb-3" />
+                        <button onClick={() => fileInputRef.current?.click()} className="text-primary hover:underline text-sm font-medium">
                           Scatta un'altra foto
                         </button>
                       </div>
                     ) : (
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex w-full justify-center rounded border border-primary text-primary p-3 font-medium hover:bg-primary/10 transition"
-                      >
+                      <button onClick={() => fileInputRef.current?.click()} className="flex w-full justify-center rounded border border-primary text-primary p-3 font-medium hover:bg-primary/10">
                         Apri Fotocamera
                       </button>
                     )}
                   </div>
 
-                  <button 
-                    disabled={!location || !photoPreview} 
-                    onClick={() => setStep(2)} 
-                    className="mt-6 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                  <button disabled={!location || !photoFile} onClick={() => setStep(2)} className="mt-6 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50">
                     Avanti
                   </button>
                 </div>
               )}
 
-              {/* STEP 2 */}
+              {/* STEP 2: Categoria e Upload */}
               {step === 2 && (
                 <div className="space-y-6">
                   <div>
-                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                      Seleziona Categoria (US 3-3)
-                    </label>
-                    <div className="relative z-20 bg-transparent dark:bg-form-input">
-                      <select 
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:text-white"
-                      >
-                        <option value="" disabled className="text-body dark:text-bodydark">Seleziona...</option>
-                        <option value={MOCK_CATEGORY.id} className="text-body dark:text-bodydark">{MOCK_CATEGORY.name}</option>
-                      </select>
-                    </div>
+                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">Seleziona Categoria</label>
+                    <select 
+                      value={selectedCategory}
+                      onChange={(e) => {
+                        const catId = e.target.value;
+                        setSelectedCategory(catId);
+                        setSelectedCategoryObj(categories.find(c => c._id === catId) || null);
+                      }}
+                      className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-primary dark:border-form-strokedark dark:text-white"
+                    >
+                      <option value="" disabled>Seleziona...</option>
+                      {categories.map((cat) => (
+                        <option key={cat._id} value={cat._id}>{cat.name}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="flex gap-4 mt-6">
-                    <button 
-                      onClick={() => setStep(1)} 
-                      className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
-                    >
+                    <button onClick={() => setStep(1)} className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
                       Indietro
                     </button>
-                    <button 
-                      onClick={triggerAIAnalysis} 
-                      disabled={!!loading || !selectedCategory}
-                      className="flex w-2/3 justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50"
-                    >
-                      {loading ? 'Analisi in corso...' : '🤖 Analizza con IA'}
+                    <button onClick={triggerAIAnalysis} disabled={!!loading || !selectedCategory} className="flex w-2/3 justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90 disabled:opacity-50">
+                      {loading ? loading : 'Carica Immagine e Analizza'}
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* STEP 3 */}
+              {/* STEP 3: Form Dinamico e AI */}
               {step === 3 && (
                 <div className="space-y-6">
+                  
+                  {/* Visualizzazione Intelligente Suggerimenti IA */}
+                  {aiSuggestions && (
+                    <div className="rounded border-l-4 border-primary bg-primary/5 p-4 dark:bg-meta-4">
+                      <h5 className="font-semibold text-primary mb-2 flex items-center gap-2">
+                        <span>🧠</span> Analisi Cloud Vision Completata
+                      </h5>
+                      <p className="text-sm text-black dark:text-white mb-1">
+                        <strong>Rilevamento primario:</strong> {aiSuggestions.suggested_title} 
+                        <span className="text-xs text-body ml-2">(Affidabilità: {(aiSuggestions.confidence_score * 100).toFixed(0)}%)</span>
+                      </p>
+                      <p className="text-sm text-black dark:text-white">
+                        <strong>Tag estratti:</strong> {aiSuggestions.tags.join(', ')}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="mb-5">
-                    <h4 className="text-lg font-semibold text-black dark:text-white">Revisione Dati (US 3-4)</h4>
-                    <p className="text-sm text-body dark:text-bodydark">Modifica i campi estratti dall'IA prima di confermare.</p>
+                    <h4 className="text-lg font-semibold text-black dark:text-white">Revisione Dati</h4>
+                    <p className="text-sm text-body dark:text-bodydark">Categoria: <span className="font-bold">{selectedCategoryObj?.name}</span></p>
                   </div>
 
-                  {MOCK_CATEGORY.attributes.map((attr) => (
+                  {selectedCategoryObj?.attributes.map((attr) => (
                     <div key={attr.name} className="mb-4">
-                      <label className="mb-2.5 block font-medium text-black dark:text-white">
-                        {attr.label} {attr.required && <span className="text-meta-1">*</span>}
+                      <label className="mb-2.5 block font-medium text-black dark:text-white capitalize">
+                        {attr.name.replace('_', ' ')} {attr.required && <span className="text-meta-1">*</span>}
                       </label>
                       
                       {attr.type === 'enum' ? (
-                        <div className="relative z-20 bg-transparent dark:bg-form-input">
-                          <select 
-                            value={metadata[attr.name] || ''} 
-                            onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                            className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:text-white"
-                          >
-                            <option value="">Seleziona...</option>
-                            {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        </div>
+                        <select 
+                          value={metadata[attr.name] || ''} 
+                          onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
+                          className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-primary dark:border-form-strokedark dark:text-white"
+                        >
+                          <option value="">Seleziona...</option>
+                          {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
                       ) : (
                         <input 
                           type={attr.type === 'number' ? 'number' : 'text'}
                           value={metadata[attr.name] || ''}
                           onChange={(e) => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                          className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                          className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 outline-none focus:border-primary dark:border-form-strokedark dark:text-white"
                         />
                       )}
                     </div>
                   ))}
 
                   <div className="flex gap-4 mt-6">
-                    <button 
-                      onClick={() => setStep(2)} 
-                      className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
-                    >
+                    <button onClick={() => setStep(2)} className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
                       Indietro
                     </button>
-                    <button 
-                      onClick={submitAsset} 
-                      disabled={!!loading}
-                      className="flex w-2/3 justify-center rounded bg-success p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
-                    >
+                    <button onClick={submitAsset} disabled={!!loading} className="flex w-2/3 justify-center rounded bg-success p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50">
                       {loading ? 'Salvataggio...' : 'Conferma e Salva'}
                     </button>
                   </div>
