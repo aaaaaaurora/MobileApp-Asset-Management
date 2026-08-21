@@ -34,7 +34,6 @@ mq_manager = RabbitMQManager()
 # ============================================================================
 # FUNZIONI DI UTILITA' E MIDDLEWARE 
 # ============================================================================
-
 def get_auth_context():
     """
     Estrae le informazioni di sicurezza propagate dall'API Gateway.
