@@ -320,7 +320,10 @@ const CreateAsset: React.FC = () => {
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => fileInputRef.current?.click()} className="flex w-full justify-center rounded border border-primary text-primary p-3 font-medium hover:bg-primary/10">
+                      <button 
+                        onClick={() => fileInputRef.current?.click()} 
+                        className="flex w-full justify-center rounded border border-blue-600 text-blue-600 p-3 font-medium hover:bg-blue-50"
+                      >
                         Apri Fotocamera
                       </button>
                     )}
