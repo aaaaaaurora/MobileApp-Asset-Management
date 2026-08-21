@@ -95,7 +95,6 @@ def health_check():
 # ============================================================================
 # ENDPOINT: Creazione Categoria 
 # ============================================================================
-
 @app.route('/api/categories', methods=['POST'])
 def create_category():
     """
