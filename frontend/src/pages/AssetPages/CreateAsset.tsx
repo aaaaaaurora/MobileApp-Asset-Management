@@ -98,7 +98,7 @@ const CreateAsset: React.FC = () => {
         try {
           // Creiamo un array di chiamate API in parallelo per tutti i campus assegnati all'operatore
           const validationPromises = campusList.map(async (campusId: string) => {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/geozones/verify-location`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -170,7 +170,7 @@ const CreateAsset: React.FC = () => {
       const formData = new FormData();
       formData.append('images', photoFile);
 
-      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/media/api/images/upload`, {
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }, 
         body: formData
@@ -186,7 +186,7 @@ const CreateAsset: React.FC = () => {
       setMediaId(uploadedMediaId);
 
       setLoading('Analisi Computer Vision in corso...');
-      const analyzeRes = await fetch(`${import.meta.env.VITE_API_URL}/media/api/images/${uploadedMediaId}/analyze`, {
+      const analyzeRes = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${uploadedMediaId}/analyze`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
