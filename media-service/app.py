@@ -23,9 +23,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # Configurazione MinIO (Object Storage)
-MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'minio:9000')
-MINIO_ACCESS_KEY = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
-MINIO_SECRET_KEY = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+MINIO_ENDPOINT = os.getenv('MINIO_ENDPOINT', 'minio')
+MINIO_ACCESS_KEY = os.getenv('MINIO_ACCESS_KEY', 'admin_minio')
+MINIO_SECRET_KEY = os.getenv('MINIO_SECRET_KEY', 'password_super_sicura')
 MEDIA_BUCKET = os.getenv('MEDIA_BUCKET', 'media-bucket')
 
 minio_client = Minio(

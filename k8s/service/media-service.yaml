@@ -40,20 +40,23 @@ spec:
               key: jwt-secret
 
         # 3. CONFIGURAZIONE OBJECT STORAGE (MinIO / S3)
-        - name: S3_ENDPOINT
-          value: "http://minio-service:9000"
-        - name: S3_ACCESS_KEY
+        - name: MINIO_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: minio-endpoint
+        - name: MINIO_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: app-secrets
               key: minio-root-user
-        - name: S3_SECRET_KEY
+        - name: MINIO_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: app-secrets
               key: minio-root-password
-        - name: S3_BUCKET_NAME
-          value: "campus-media-bucket"
+        - name: MEDIA_BUCKET
+          value: "media-bucket"
 
 ---
 apiVersion: v1
