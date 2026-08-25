@@ -24,6 +24,7 @@
     "flatpickr": "^4.6.13",
     "jwt-decode": "^4.0.0",
     "maplibre-gl": "^6.0.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-apexcharts": "^1.7.0",
     "react-dnd": "^16.0.1",

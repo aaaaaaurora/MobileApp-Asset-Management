@@ -5,23 +5,25 @@ import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
 import { useAuth } from "../context/AuthContext";
 
+// 🟢 NUOVO: Importiamo il nostro modale
+import WarningFormModal from "../components/guest/WarningFormModal";
+
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
+  action?: () => void; // 🟢 NUOVO: Aggiunta proprietà per le voci di menu che aprono modali
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-// Icona condivisa per la mappa
 const MapIcon = (
   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
   </svg>
 );
 
-// 2. Funzione che genera il menu in base al ruolo
-const getNavItemsByRole = (role?: string): NavItem[] => {
-  // La Mappa è comune a tutti, la mettiamo come base
+// 🟢 NUOVO: Passiamo la funzione per aprire il modale come argomento
+const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem[] => {
   const baseMenu: NavItem[] = [
     { icon: MapIcon, name: "Mappa Campus", path: "/map" }
   ];
@@ -42,7 +44,12 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
     default:
       return [
         ...baseMenu,
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Invia Segnalazione", path: "/user/report" }
+        { 
+          icon: <HorizontaLDots className="w-5 h-5" />, 
+          name: "Invia Segnalazione", 
+          // 🟢 NUOVO: Rimosso il 'path' e inserita l'azione
+          action: openReportModal 
+        }
       ];
   }
 };
@@ -50,12 +57,14 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
-  
-  // 3. Recupera l'utente loggato
   const { user } = useAuth();
   
-  // 4. Genera i bottoni dinamicamente
-  const navItems = getNavItemsByRole(user?.role);
+  // 🟢 NUOVO: Stato per controllare il modale e ID fittizio per il test
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const TEST_ASSET_ID = "60d5ec49c1234567890abcde"; // Simula un ID reale
+
+  // 🟢 NUOVO: Passiamo la funzione che cambia lo stato al generatore del menu
+  const navItems = getNavItemsByRole(user?.role, () => setIsReportModalOpen(true));
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -72,7 +81,6 @@ const AppSidebar: React.FC = () => {
 
   useEffect(() => {
     let submenuMatched = false;
-    // Iteriamo solo su main dato che abbiamo rimosso others
     ["main"].forEach((menuType) => {
       const items = navItems; 
       items.forEach((nav, index) => {
@@ -161,7 +169,8 @@ const AppSidebar: React.FC = () => {
               )}
             </button>
           ) : (
-            nav.path && (
+            // 🟢 NUOVO: Gestione del tasto che esegue un'azione invece di un link
+            nav.path ? (
               <Link
                 to={nav.path}
                 className={`menu-item group ${
@@ -181,8 +190,21 @@ const AppSidebar: React.FC = () => {
                   <span className="menu-item-text">{nav.name}</span>
                 )}
               </Link>
-            )
+            ) : nav.action ? (
+              <button
+                onClick={nav.action}
+                className="menu-item group menu-item-inactive w-full text-left cursor-pointer"
+              >
+                <span className="menu-item-icon-size menu-item-icon-inactive">
+                  {nav.icon}
+                </span>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <span className="menu-item-text">{nav.name}</span>
+                )}
+              </button>
+            ) : null
           )}
+          {/* Sottomenu (rimasto invariato) */}
           {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
             <div
               ref={(el) => {
@@ -208,30 +230,6 @@ const AppSidebar: React.FC = () => {
                       }`}
                     >
                       {subItem.name}
-                      <span className="flex items-center gap-1 ml-auto">
-                        {subItem.new && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? "menu-dropdown-badge-active"
-                                : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge`}
-                          >
-                            new
-                          </span>
-                        )}
-                        {subItem.pro && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? "menu-dropdown-badge-active"
-                                : "menu-dropdown-badge-inactive"
-                            } menu-dropdown-badge`}
-                          >
-                            pro
-                          </span>
-                        )}
-                      </span>
                     </Link>
                   </li>
                 ))}
@@ -244,83 +242,87 @@ const AppSidebar: React.FC = () => {
   );
 
   return (
-    <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-        ${
-          isExpanded || isMobileOpen
-            ? "w-[290px]"
-            : isHovered
-            ? "w-[290px]"
-            : "w-[90px]"
-        }
-        ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-        lg:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div
-        className={`py-8 flex ${
-          !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
-        }`}
+    <>
+      <aside
+        className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+          ${
+            isExpanded || isMobileOpen
+              ? "w-[290px]"
+              : isHovered
+              ? "w-[290px]"
+              : "w-[90px]"
+          }
+          ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0`}
+        onMouseEnter={() => !isExpanded && setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
-        <Link to="/">
-          {isExpanded || isHovered || isMobileOpen ? (
-            <>
+        <div
+          className={`py-8 flex ${
+            !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+          }`}
+        >
+          <Link to="/">
+            {isExpanded || isHovered || isMobileOpen ? (
+              <>
+                <img
+                  className="dark:hidden"
+                  src="/images/logo/logo.svg"
+                  alt="Logo"
+                  width={150}
+                  height={40}
+                />
+                <img
+                  className="hidden dark:block"
+                  src="/images/logo/logo-dark.svg"
+                  alt="Logo"
+                  width={150}
+                  height={40}
+                />
+              </>
+            ) : (
               <img
-                className="dark:hidden"
-                src="/images/logo/logo.svg"
+                src="/images/logo/logo-icon.svg"
                 alt="Logo"
-                width={150}
-                height={40}
+                width={32}
+                height={32}
               />
-              <img
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-            </>
-          ) : (
-            <img
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
-          )}
-        </Link>
-      </div>
-      
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
-          <div className="flex flex-col gap-4">
-            
-            {/* Sezione Menu Principale */}
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
-                ) : (
-                  <HorizontaLDots className="size-6" />
-                )}
-              </h2>
-              {renderMenuItems(navItems, "main")}
+            )}
+          </Link>
+        </div>
+        
+        <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
+          <nav className="mb-6">
+            <div className="flex flex-col gap-4">
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "lg:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Menu"
+                  ) : (
+                    <HorizontaLDots className="size-6" />
+                  )}
+                </h2>
+                {renderMenuItems(navItems, "main")}
+              </div>
             </div>
-            
-            {/* La sezione "Others" è stata completamente rimossa per pulizia */}
-            
-          </div>
-        </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
-      </div>
-    </aside>
+          </nav>
+          {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
+        </div>
+      </aside>
+
+      {/* 🟢 NUOVO: Il nostro modale viene montato qui, in ascolto dello stato isReportModalOpen */}
+      <WarningFormModal 
+        isOpen={isReportModalOpen} 
+        onClose={() => setIsReportModalOpen(false)} 
+        assetId={TEST_ASSET_ID} 
+      />
+    </>
   );
 };
 

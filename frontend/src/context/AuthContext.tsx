@@ -1,10 +1,9 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
-//import { jwtDecode } from 'jwt-decode';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { jwtDecode } from 'jwt-decode';
 
-// Interfaccia basata sul payload del tuo backend app.py
 interface User {
-  id: string;          // Mappato dal 'sub' del JWT
-  role: string;        // 'GUEST', 'OPERATORE', 'AMMINISTRATORE'
+  id: string;
+  role: string;
   campus_ids: string[];
   category_id: string | null;
 }
@@ -20,28 +19,28 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  
-  // ========================================================
-  // --- LOGICA REALE (COMMENTATA TEMPORANEAMENTE) ---
-  // ========================================================
-  /*
+  // Inizializza lo stato leggendo il localStorage (mantiene l'utente loggato al refresh della pagina)
   const [token, setToken] = useState<string | null>(localStorage.getItem('jwt_token'));
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (token) {
       try {
+        // Decodifica il token per estrarre le info dell'utente
         const decoded: any = jwtDecode(token);
+        
         setUser({
           id: decoded.sub,
           role: decoded.role,
           campus_ids: decoded.campus_ids || [],
           category_id: decoded.category_id || null,
         });
+        
+        // Salva il token nel browser
         localStorage.setItem('jwt_token', token);
       } catch (error) {
-        console.error("Token non valido", error);
-        logout();
+        console.error("Token non valido o scaduto", error);
+        logout(); // Se il token è manomesso, butta fuori l'utente
       }
     } else {
       setUser(null);
@@ -49,34 +48,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [token]);
 
+  // Funzioni esposte dal contesto
   const login = (newToken: string) => setToken(newToken);
   const logout = () => setToken(null);
-  */
 
-
-  // ========================================================
-  // --- LOGICA MOCKATA (PER TESTARE FRONTEND E SIDEBAR) ---
-  // ========================================================
-  
-  // Token fittizio
-  const [token] = useState<string | null>('mock-jwt-token-12345');
-  
-  // Utente fittizio. 
-  // ⬇️ CAMBIA 'AMMINISTRATORE' IN 'OPERATORE' O 'UTENTE' PER TESTARE I VARI MENU
-  const [user] = useState<User | null>({
-    id: 'admin-mock-123',
-    role: 'AMMINISTRATORE', 
-    campus_ids: ['Fisciano'],
-    category_id: null,
-  });
-
-  // Funzioni svuotate per il mock
-  const login = (newToken: string) => console.log("Login chiamato con token:", newToken);
-  const logout = () => console.log("Logout chiamato");
+  // L'utente è autenticato solo se abbiamo sia il token che i dati decodificati
+  const isAuthenticated = !!token && !!user;
 
   return (
-    // isAuthenticated è forzato a 'true'
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: true }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );
