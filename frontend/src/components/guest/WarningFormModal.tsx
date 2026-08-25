@@ -26,7 +26,7 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
 
     try {
       // La rotta punta al servizio passando tramite l'API Gateway
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/warnings`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/warning/warnings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
