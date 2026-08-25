@@ -46,7 +46,7 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
         throw new Error(data.error || "Si è verificato un errore durante l'invio della segnalazione.");
       }
 
-      // Se arriva qui, il backend ha risposto con 201 Created
+      // Se arriva qui, il backend ha risposto con 201 Created 
       setSuccess(true);
       
       // Resetta il form e chiude il modale dopo 2 secondi

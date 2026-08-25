@@ -12,7 +12,7 @@ type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  action?: () => void; // 🟢 NUOVO: Aggiunta proprietà per le voci di menu che aprono modali
+  action?: () => void; // 🟢 NUOVO: Aggiunta proprietà per le voci di menu che aprono modali 
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
