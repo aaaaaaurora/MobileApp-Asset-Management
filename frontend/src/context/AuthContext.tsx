@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
-//import { jwtDecode } from 'jwt-decode';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 // Interfaccia basata sul payload del tuo backend app.py
 interface User {
@@ -19,29 +18,42 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Funzione sicura per decodificare il JWT senza librerie esterne (evita crash di jwt-decode)
+const decodeJWT = (token: string) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error("Errore nella decodifica del token", error);
+    return null;
+  }
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
-  // ========================================================
-  // --- LOGICA REALE (COMMENTATA TEMPORANEAMENTE) ---
-  // ========================================================
-  /*
+  // Inizializza il token dal localStorage se presente
   const [token, setToken] = useState<string | null>(localStorage.getItem('jwt_token'));
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (token) {
-      try {
-        const decoded: any = jwtDecode(token);
+      const decoded = decodeJWT(token);
+      if (decoded) {
         setUser({
           id: decoded.sub,
-          role: decoded.role,
+          role: decoded.role || 'UTENTE',
           campus_ids: decoded.campus_ids || [],
           category_id: decoded.category_id || null,
         });
         localStorage.setItem('jwt_token', token);
-      } catch (error) {
-        console.error("Token non valido", error);
-        logout();
+      } else {
+        // Token corrotto, puliamo tutto
+        setToken(null);
+        localStorage.removeItem('jwt_token');
       }
     } else {
       setUser(null);
@@ -49,34 +61,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [token]);
 
-  const login = (newToken: string) => setToken(newToken);
-  const logout = () => setToken(null);
-  */
-
-
-  // ========================================================
-  // --- LOGICA MOCKATA (PER TESTARE FRONTEND E SIDEBAR) ---
-  // ========================================================
+  const login = (newToken: string) => {
+    setToken(newToken);
+  };
   
-  // Token fittizio
-  const [token] = useState<string | null>('mock-jwt-token-12345');
-  
-  // Utente fittizio. 
-  // ⬇️ CAMBIA 'AMMINISTRATORE' IN 'OPERATORE' O 'UTENTE' PER TESTARE I VARI MENU
-  const [user] = useState<User | null>({
-    id: 'admin-mock-123',
-    role: 'AMMINISTRATORE', 
-    campus_ids: ['Fisciano'],
-    category_id: null,
-  });
-
-  // Funzioni svuotate per il mock
-  const login = (newToken: string) => console.log("Login chiamato con token:", newToken);
-  const logout = () => console.log("Logout chiamato");
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('jwt_token');
+  };
 
   return (
-    // isAuthenticated è forzato a 'true'
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: true }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      login, 
+      logout, 
+      isAuthenticated: !!token // È true solo se possiedi una chiave valida
+    }}>
       {children}
     </AuthContext.Provider>
   );
