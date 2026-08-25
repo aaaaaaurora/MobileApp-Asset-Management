@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = (newToken: string) => setToken(newToken);
   const logout = () => setToken(null);
 
-  // L'utente è autenticato solo se abbiamo sia il token che i dati decodificati 
+  // L'utente è autenticato solo se abbiamo sia il token che i dati decodificati
   const isAuthenticated = !!token && !!user;
 
   return (

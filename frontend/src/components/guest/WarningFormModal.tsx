@@ -41,7 +41,7 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
 
       const data = await res.json();
 
-      // Gestione degli errori restituiti dal backend (es. 404 cache miss, 400 payload errato)
+      // Gestione degli errori restituiti dal backend (es. 404 cache miss, 400 payload errato) 
       if (!res.ok) {
         throw new Error(data.error || "Si è verificato un errore durante l'invio della segnalazione.");
       }
