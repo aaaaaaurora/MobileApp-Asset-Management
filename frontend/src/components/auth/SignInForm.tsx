@@ -145,7 +145,7 @@ export default function SignInForm() {
                   {totpUri && (
                     <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 mb-4">
                       <p className="mb-3 text-sm font-medium text-center text-gray-700 dark:text-gray-300">
-                        Nuovo account! Scansiona questo QR Code con Google Authenticator per configurare il tuo accesso.
+                        Nuovo account! Scansiona questo QR Code con Microsoft Authenticator per configurare il tuo accesso.
                       </p>
                       <div className="p-3 bg-white rounded-lg shadow-sm">
                         <QRCodeSVG value={totpUri} size={160} />
