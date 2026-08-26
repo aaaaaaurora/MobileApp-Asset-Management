@@ -5,14 +5,13 @@ import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
 import { useAuth } from "../context/AuthContext";
 
-// 🟢 NUOVO: Importiamo il nostro modale
 import WarningFormModal from "../components/guest/WarningFormModal";
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  action?: () => void; // 🟢 NUOVO: Aggiunta proprietà per le voci di menu che aprono modali
+  action?: () => void; 
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
@@ -22,7 +21,6 @@ const MapIcon = (
   </svg>
 );
 
-// 🟢 NUOVO: Passiamo la funzione per aprire il modale come argomento
 const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem[] => {
   const baseMenu: NavItem[] = [
     { icon: MapIcon, name: "Mappa Campus", path: "/map" }
@@ -32,8 +30,12 @@ const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem
     case "AMMINISTRATORE":
       return [
         ...baseMenu,
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Statistiche", path: "/admin/stats" },
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Gestione Operatori", path: "/admin/operators" }
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Dashboard", path: "/dashboard" },
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Gestione Operatori", path: "/admin/operators" },
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Gestione Categorie", path: "/admin/categories" },
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Registrazione Campus", path: "/admin/campus/new" },
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Lista Asset", path: "/admin/assets" },
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Storico Operazioni", path: "/admin/history" }
       ];
     case "OPERATORE":
       return [
@@ -47,7 +49,6 @@ const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem
         { 
           icon: <HorizontaLDots className="w-5 h-5" />, 
           name: "Invia Segnalazione", 
-          // 🟢 NUOVO: Rimosso il 'path' e inserita l'azione
           action: openReportModal 
         }
       ];
@@ -63,7 +64,6 @@ const AppSidebar: React.FC = () => {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const TEST_ASSET_ID = "60d5ec49c1234567890abcde"; // Simula un ID reale
 
-  // 🟢 NUOVO: Passiamo la funzione che cambia lo stato al generatore del menu
   const navItems = getNavItemsByRole(user?.role, () => setIsReportModalOpen(true));
 
   const [openSubmenu, setOpenSubmenu] = useState<{
@@ -169,7 +169,7 @@ const AppSidebar: React.FC = () => {
               )}
             </button>
           ) : (
-            // 🟢 NUOVO: Gestione del tasto che esegue un'azione invece di un link
+            
             nav.path ? (
               <Link
                 to={nav.path}
@@ -316,7 +316,6 @@ const AppSidebar: React.FC = () => {
         </div>
       </aside>
 
-      {/* 🟢 NUOVO: Il nostro modale viene montato qui, in ascolto dello stato isReportModalOpen */}
       <WarningFormModal 
         isOpen={isReportModalOpen} 
         onClose={() => setIsReportModalOpen(false)} 
