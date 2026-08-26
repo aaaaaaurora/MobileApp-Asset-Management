@@ -191,6 +191,7 @@ export default function OperatorsManagement() {
       <OperatorsTable 
         operators={operators} 
         categories={categories} 
+        campuses={campuses} 
         isLoading={isLoading} 
         onEditClick={handleOpenEdit} 
       />
