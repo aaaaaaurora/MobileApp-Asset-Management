@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CategoryAttribute } from "../../pages/Admin/CategoriesManagement";
+import { CategoryAttribute } from "../../pages/Dashboard/CategoriesManagement";
 
 interface Props {
   isOpen: boolean;
@@ -37,8 +37,11 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
-      {/* Contenitore a larghezza e altezza controllata, non sborderà mai */}
-      <div className="w-full max-w-md flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700" style={{ maxHeight: '85vh' }}>
+      {/* 
+        ALTEZZA FISSA: h-[460px].
+        Il modale ora è solido e compatto, non cambierà mai dimensione. 
+      */}
+      <div className="w-full max-w-md h-[460px] flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         
         {/* HEADER FISSO */}
         <div className="flex-none px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
@@ -50,7 +53,7 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
           </button>
         </div>
 
-        {/* BODY SCROLLABILE */}
+        {/* BODY SCROLLABILE INTERNAMENTE */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900">
           <form id="attrForm" onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -69,15 +72,16 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
               </select>
             </div>
 
-            {/* SEZIONE ENUM */}
+            {/* SEZIONE ENUM CON SCROLLBAR DEDICATA PER I TAGS */}
             {attrData.type === 'enum' && (
-              <div className="p-4 bg-white rounded-md border border-slate-200 dark:bg-slate-800 dark:border-slate-700 shadow-sm">
+              <div className="p-4 bg-white rounded-md border border-slate-200 dark:bg-slate-800 dark:border-slate-700 shadow-sm animate-fade-in-up">
                 <label className="mb-2 block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Opzioni Tendina</label>
                 <div className="flex gap-2 mb-3">
                   <input type="text" value={optionInput} onChange={e => setOptionInput(e.target.value)} onKeyDown={e => { if(e.key === 'Enter'){ e.preventDefault(); addOption(); } }} placeholder="Scrivi e premi Invio..." className="flex-1 rounded-md border border-slate-300 py-1.5 px-3 text-sm focus:border-blue-500 outline-none dark:bg-slate-700 dark:border-slate-600 dark:text-white transition-colors" />
                   <button type="button" onClick={addOption} className="px-3 py-1.5 bg-slate-800 text-white text-sm font-semibold rounded-md hover:bg-slate-700 transition-colors">Aggiungi</button>
                 </div>
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                {/* Scrollbar limitata per i tag (max-h-24) */}
+                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1">
                   {attrData.options.map((opt, i) => (
                     <span key={i} className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-md border border-blue-200">
                       {opt} 

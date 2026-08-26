@@ -15,7 +15,7 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
         <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
           
           {/* INTESTAZIONE SCURA - FORTE CONTRASTO */}
-          <thead className="bg-slate-800 text-white dark:bg-slate-400">
+          <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 dark:bg-slate-700 dark:text-white dark:border-slate-600">
             <tr>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Email Operatore</th>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Categoria Assegnata</th>
@@ -38,7 +38,7 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
               </tr>
             ) : (
               operators.map((op, index) => {
-                const catName = categories.find((c) => c.id === op.category_id)?.name || "Nessuna specifica";
+                const catName = categories.find((c: any) => String(c.id) === String(op.category_id) || String(c._id) === String(op.category_id))?.name || "Nessuna specifica";
                 
                 return (
                   <tr 
