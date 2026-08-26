@@ -4,7 +4,6 @@ import { useAuth } from "../../context/AuthContext";
 import OperatorsTable from "../../components/admin/OperatorsTable";
 import OperatorModal from "../../components/admin/OperatorModal";
 
-// --- ESPORTAZIONE DELLE INTERFACCE ---
 export interface Operator {
   id: string;
   email: string;
@@ -34,24 +33,19 @@ export interface OperatorFormData {
 export default function OperatorsManagement() {
   const { token } = useAuth();
 
-  // Stati dei dati
   const [operators, setOperators] = useState<Operator[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Stati del Modale
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentOperatorId, setCurrentOperatorId] = useState<string | null>(null);
   const [modalError, setModalError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Stato iniziale per il form del modale
   const emptyForm: OperatorFormData = { email: "", category_id: "", campus_ids: [] };
   const [formData, setFormData] = useState<OperatorFormData>(emptyForm);
-
-  // Messaggio globale di successo (opzionale, per dare un feedback visivo)
   const [successMessage, setSuccessMessage] = useState("");
 
   const fetchData = async () => {
@@ -60,7 +54,6 @@ export default function OperatorsManagement() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Chiamate parallele per ottimizzare i tempi di caricamento
       const [opsRes, catRes, campusRes] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL || ''}/auth/admin/operators`, { headers }),
         fetch(`/api/categories`, { headers }).catch(() => ({ ok: false, json: () => [] })),
@@ -69,7 +62,6 @@ export default function OperatorsManagement() {
 
       if (opsRes.ok) setOperators(await opsRes.json());
       
-      // Dati di fallback per permetterti di testare l'interfaccia se gli altri endpoint non esistono ancora
       setCategories(catRes.ok ? await catRes.json() : [
         { id: "cat-1", name: "Informatica e IT" },
         { id: "cat-2", name: "Manutenzione Edile" }
@@ -90,7 +82,6 @@ export default function OperatorsManagement() {
     fetchData();
   }, [token]);
 
-  // Gestori apertura/chiusura modale
   const handleOpenCreate = () => {
     setIsEditing(false);
     setCurrentOperatorId(null);
@@ -111,7 +102,6 @@ export default function OperatorsManagement() {
     setIsModalOpen(true);
   };
 
-  // Logica di salvataggio (invocata dal Componente Modale)
   const handleModalSubmit = async (submittedData: OperatorFormData) => {
     setModalError("");
     setIsSubmitting(true);
@@ -127,7 +117,6 @@ export default function OperatorsManagement() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        // Se in modifica, inviamo solo categorie e campus (backend ignora la mail)
         body: JSON.stringify(isEditing 
           ? { category_id: submittedData.category_id, campus_ids: submittedData.campus_ids }
           : submittedData
@@ -140,13 +129,11 @@ export default function OperatorsManagement() {
         throw new Error(data.error || "Errore sconosciuto durante il salvataggio.");
       }
 
-      // Successo! Ricarichiamo la lista e chiudiamo
       await fetchData();
       setIsModalOpen(false);
       
-      // Mostriamo un feedback all'utente
       setSuccessMessage(isEditing ? "Permessi aggiornati con successo!" : "Profilo Operatore creato. Ora può accedere tramite Google.");
-      setTimeout(() => setSuccessMessage(""), 5000); // Rimuove l'avviso dopo 5 secondi
+      setTimeout(() => setSuccessMessage(""), 5000); 
 
     } catch (err: any) {
       setModalError(err.message);
@@ -163,40 +150,42 @@ export default function OperatorsManagement() {
       />
 
       {/* HEADER DELLA PAGINA */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-black dark:text-white">
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
             Gestione Operatori
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Configura le autorizzazioni e i perimetri geografici del personale tecnico.
           </p>
         </div>
+        
+        {/* TASTO FORZATO BLU SCURO PER MASSIMO CONTRASTO */}
         <button
           onClick={handleOpenCreate}
-          className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-center font-medium text-white hover:bg-opacity-90 transition-all shadow-sm"
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
         >
-          + Nuovo Operatore
+          <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Nuovo Operatore
         </button>
       </div>
 
-      {/* FEEDBACK GLOBALE (Successo) */}
       {successMessage && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-green-700 dark:border-green-900 dark:bg-green-500/10 dark:text-green-400">
-          <p className="font-medium">{successMessage}</p>
+        <div className="mb-6 rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-4 text-emerald-800 shadow-sm">
+          <p className="font-semibold">{successMessage}</p>
         </div>
       )}
 
-      {/* COMPONENTE TABELLA */}
       <OperatorsTable 
         operators={operators} 
         categories={categories} 
-        campuses={campuses} 
+        campuses={campuses}
         isLoading={isLoading} 
         onEditClick={handleOpenEdit} 
       />
 
-      {/* COMPONENTE MODALE */}
       <OperatorModal
         isOpen={isModalOpen}
         isEditing={isEditing}

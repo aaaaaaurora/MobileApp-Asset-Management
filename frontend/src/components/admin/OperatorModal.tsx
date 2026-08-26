@@ -51,27 +51,25 @@ export default function OperatorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-99999 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-lg flex flex-col max-h-[90vh] rounded-xl bg-white shadow-default dark:bg-boxdark">
+    <div className="fixed inset-0 z-99999 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-opacity">
+      <div className="w-full max-w-lg flex flex-col max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden dark:bg-slate-800">
         
-        {/* HEADER MODALE */}
-        <div className="px-6 py-5 border-b border-stroke dark:border-strokedark">
-          <h3 className="text-xl font-bold text-black dark:text-white">
-            {isEditing ? "Modifica Permessi Operatore" : "Registrazione Nuovo Operatore"}
+        <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+          <h3 className="text-xl font-extrabold text-slate-800 dark:text-white">
+            {isEditing ? "Modifica Permessi" : "Registrazione Nuovo Operatore"}
           </h3>
         </div>
 
-        {/* CORPO SCORREVOLE */}
         <div className="overflow-y-auto p-6 flex-1">
           <form id="operatorForm" onSubmit={handleFormSubmit}>
             {error && (
-              <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-500/10 dark:text-red-400">
+              <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
                 {error}
               </div>
             )}
 
             <div className="mb-5">
-              <label className="mb-2 block text-sm font-semibold text-black dark:text-white">
+              <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">
                 Indirizzo Email (Account SSO)
               </label>
               <input
@@ -81,65 +79,47 @@ export default function OperatorModal({
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="es. operatore@unisa.it"
-                className="w-full rounded-lg border border-stroke bg-gray-50 py-3 px-4 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-not-allowed disabled:bg-gray-200 dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary dark:disabled:bg-meta-4"
+                className="w-full rounded-lg border border-slate-300 bg-white py-3 px-4 text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
               />
-              {!isEditing && (
-                <p className="mt-1.5 text-xs text-gray-500">
-                  L'utente accederà tramite Google. Non serve impostare una password.
-                </p>
-              )}
             </div>
 
             <div className="mb-5">
-              <label className="mb-2 block text-sm font-semibold text-black dark:text-white">
+              <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">
                 Categoria di Competenza
               </label>
-              <div className="relative z-20 bg-transparent">
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="relative z-20 w-full appearance-none rounded-lg border border-stroke bg-transparent py-3 px-4 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                >
-                  <option value="">-- Nessuna Categoria --</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-                <span className="absolute top-1/2 right-4 z-10 -translate-y-1/2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </span>
-              </div>
+              <select
+                value={formData.category_id}
+                onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 bg-white py-3 px-4 text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">-- Nessuna Categoria --</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="mb-2">
-              <label className="mb-2 block text-sm font-semibold text-black dark:text-white">
+              <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">
                 Campus Assegnati
               </label>
-              <p className="mb-3 text-xs text-gray-500">
-                Seleziona i perimetri geografici di competenza.
+              <p className="mb-3 text-xs font-medium text-slate-500">
+                Seleziona i perimetri geografici. Se lasci tutto vuoto, l'Operatore non vedrà nulla.
               </p>
               
-              <div className="flex flex-col gap-2 rounded-lg border border-stroke bg-gray-50 p-4 dark:border-form-strokedark dark:bg-meta-4/30">
+              <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 max-h-48 overflow-y-auto">
                 {campuses.length === 0 ? (
-                  <span className="text-sm italic text-gray-500">Nessun campus configurato nel sistema.</span>
+                  <span className="text-sm italic text-slate-500 p-2">Nessun campus configurato nel sistema.</span>
                 ) : (
                   campuses.map((campus) => (
-                    <label key={campus.id} className="flex cursor-pointer items-center gap-3 py-1">
-                      <div className="relative flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={formData.campus_ids.includes(campus.id)}
-                          onChange={() => handleCampusToggle(campus.id)}
-                          className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-stroke bg-white checked:border-primary checked:bg-primary dark:border-strokedark dark:bg-boxdark"
-                        />
-                        {/* Custom SVG Checkmark */}
-                        <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-black dark:text-white select-none">
+                    <label key={campus.id} className="flex cursor-pointer items-center gap-3 py-2 px-3 hover:bg-white rounded-md transition-colors border border-transparent hover:border-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={formData.campus_ids.includes(campus.id)}
+                        onChange={() => handleCampusToggle(campus.id)}
+                        className="h-5 w-5 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-bold text-slate-700">
                         {campus.name}
                       </span>
                     </label>
@@ -150,23 +130,24 @@ export default function OperatorModal({
           </form>
         </div>
 
-        {/* FOOTER MODALE CON BOTTONI FISSI */}
-        <div className="px-6 py-4 border-t border-stroke dark:border-strokedark bg-gray-50 dark:bg-boxdark rounded-b-xl flex justify-end gap-3">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 dark:bg-slate-900 dark:border-slate-700 flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="rounded-lg border border-stroke bg-white px-6 py-2.5 font-medium text-black shadow-sm transition-all hover:bg-gray-100 dark:border-strokedark dark:bg-meta-4 dark:text-white dark:hover:bg-opacity-90"
+            className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus:ring-2 focus:ring-slate-200"
           >
             Annulla
           </button>
+          
+          {/* TASTO SALVA BENE IN VISTA */}
           <button
             type="submit"
             form="operatorForm"
             disabled={isSubmitting}
-            className="rounded-lg bg-primary px-6 py-2.5 font-medium text-white shadow-sm transition-all hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-60"
           >
-            {isSubmitting ? "Salvataggio..." : isEditing ? "Aggiorna Permessi" : "Crea Operatore"}
+            {isSubmitting ? "Salvataggio..." : isEditing ? "Aggiorna Permessi" : "Salva Operatore"}
           </button>
         </div>
 
