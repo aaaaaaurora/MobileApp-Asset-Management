@@ -95,13 +95,12 @@ def verify_google_token(access_token):
         response = requests.get(google_api_url)
         
         if response.status_code != 200:
-            print(f"❌ ERRORE GOOGLE API: {response.text}", flush=True)
+            print(f"ERRORE GOOGLE API: {response.text}", flush=True)
             return None
             
         idinfo = response.json()
         
         # L'API restituisce un dizionario con 'sub' (Google ID), 'email', 'given_name', 'family_name'
-        # Esattamente quello che si aspetta il resto del tuo codice backend!
         return idinfo
         
     except Exception as e:

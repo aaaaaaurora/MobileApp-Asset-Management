@@ -86,10 +86,20 @@ def test_health_check(client):
     assert response.status_code == 200
     assert response.json['status'] == 'healthy'
 
-def test_auth_google_success(client, mock_google_verify):
+@patch('app.verify_google_token')
+def test_auth_google_success(mock_verify, client):
     """
     Verifica il login con Google e l'Auto-Provisioning di un utente GUEST.
     """
+    # Configuriamo il "finto" Google: quando il backend chiama verify_google_token,
+    # restituisce questi dati invece di fare una vera chiamata su internet.
+    mock_verify.return_value = {
+        "sub": "1234567890_test_user",
+        "email": "mario.rossi@studenti.unisa.it",
+        "given_name": "Mario",
+        "family_name": "Rossi"
+    }
+
     payload = {"google_id_token": "dummy_google_token"}
     response = client.post('/auth/google', json=payload)
     
