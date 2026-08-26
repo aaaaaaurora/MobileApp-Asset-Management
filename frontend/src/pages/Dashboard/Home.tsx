@@ -12,47 +12,76 @@ import RecentLogsTable from "../../components/dashboard/RecentLogsTable";
 
 // Funzione euristica per determinare il genere dal nome italiano
 const getGreeting = (name?: string) => {
-  if (!name) return 'Benvenuto/a'; // Fallback di sicurezza
+  if (!name) return 'Benvenuto/a'; 
   
   const lowerName = name.trim().toLowerCase();
   
-  // Eccezioni di nomi maschili italiani molto comuni che finiscono in 'a'
   const maleExceptions = ['andrea', 'luca', 'mattia', 'nicola', 'enea', 'elia', 'battista'];
   
   if (maleExceptions.includes(lowerName)) {
     return 'Benvenuto';
   }
   
-  // Regola d'oro: se finisce con la 'a', è femminile
   if (lowerName.endsWith('a')) {
     return 'Benvenuta';
   }
   
-  // Tutti gli altri casi (nomi in o, e, i, o stranieri consonantici)
   return 'Benvenuto';
 };
+
+// Interfaccia essenziale per i Campus
+interface Campus {
+  id: string;
+  name: string;
+}
 
 export default function Home() {
   const { token, user } = useAuth();
   
   // STATI DEL FILTRO
   const [selectedCampus, setSelectedCampus] = useState<string>(""); 
-  const [dynamicAttr, setDynamicAttr] = useState<string>("status"); // Default attributo
+  const [dynamicAttr, setDynamicAttr] = useState<string>("status"); 
   
-  // STATI DEI DATI
+  // Stato per memorizzare i campus reali provenienti dal database
+  const [availableCampuses, setAvailableCampuses] = useState<Campus[]>([]);
+  
+  // STATI DEI DATI DELLA DASHBOARD
   const [metrics, setMetrics] = useState<any>(null);
   const [charts, setCharts] = useState<any>(null);
   const [recentLogs, setRecentLogs] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Esegue la chiamata al backend ogni volta che cambia il Token, il Campus o l'Attributo Dinamico
+  // EFFETTO 1: Scarica la lista dei campus UNA SOLA VOLTA al caricamento
+  useEffect(() => {
+    const fetchCampuses = async () => {
+      if (!token) return;
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${baseUrl}/api/geozones/campuses`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableCampuses(data);
+        }
+      } catch (error) {
+        console.error("Errore nel recupero della lista campus:", error);
+      }
+    };
+
+    fetchCampuses();
+  }, [token]);
+
+  // EFFETTO 2: Scarica i dati della Dashboard ogni volta che cambia il Filtro
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!token) return; // Sicurezza per la rotta non protetta
+      if (!token) return; 
 
       try {
         setIsLoading(true);
         const headers = { Authorization: `Bearer ${token}` };
+        const baseUrl = import.meta.env.VITE_API_URL || '';
 
         // Costruiamo i parametri per l'URL dinamicamente
         const baseParams = new URLSearchParams();
@@ -64,18 +93,18 @@ export default function Home() {
         const logParams = new URLSearchParams(baseParams.toString());
         logParams.append('limit', '5');
 
-        // Facciamo le 3 chiamate API in parallelo
+        // Facciamo le chiamate API usando il baseUrl per passare dal Gateway
         const [metricsRes, chartsRes, logsRes] = await Promise.all([
-          fetch(`/api/dashboard/metrics?${baseParams.toString()}`, { headers }),
-          fetch(`/api/dashboard/charts?${chartParams.toString()}`, { headers }),
-          fetch(`/api/logs?${logParams.toString()}`, { headers })
+          fetch(`${baseUrl}/api/dashboard/metrics?${baseParams.toString()}`, { headers }),
+          fetch(`${baseUrl}/api/dashboard/charts?${chartParams.toString()}`, { headers }),
+          fetch(`${baseUrl}/api/logs?${logParams.toString()}`, { headers })
         ]);
 
         if (metricsRes.ok) setMetrics(await metricsRes.json());
         if (chartsRes.ok) setCharts(await chartsRes.json());
         if (logsRes.ok) {
           const logsData = await logsRes.json();
-          setRecentLogs(logsData.logs); // Estraiamo l'array dei log dalla paginazione
+          setRecentLogs(logsData.logs); 
         }
       } catch (error) {
         console.error("Errore nel caricamento della dashboard:", error);
@@ -98,7 +127,6 @@ export default function Home() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-black dark:text-white">
-            {/* Richiama la funzione per 'Benvenuto' o 'Benvenuta' */}
             {getGreeting(user?.first_name)}, {user?.first_name || 'Amministratore'}!
           </h2>
           <p className="text-sm text-gray-500">
@@ -106,7 +134,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* IL SELETTORE TERRITORIALE (Filtro per Campus) */}
+        {/* IL SELETTORE TERRITORIALE DINAMICO */}
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-black dark:text-white">Filtro Campus:</label>
           <select
@@ -115,9 +143,12 @@ export default function Home() {
             className="rounded-lg border border-stroke bg-white py-2 px-4 outline-none focus:border-primary dark:border-strokedark dark:bg-boxdark"
           >
             <option value="">🌍 Tutti i Campus (Aggregata)</option>
-            {/* IN FUTURO: Questi <option> potranno essere generati dinamicamente chiamando un'API dei Campus */}
-            <option value="campus_fisciano">Campus Fisciano</option>
-            <option value="campus_baronissi">Campus Baronissi</option>
+            {/* Mappiamo dinamicamente i campus presi dal database */}
+            {availableCampuses.map((campus) => (
+              <option key={campus.id} value={campus.id}>
+                {campus.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -143,7 +174,6 @@ export default function Home() {
           </div>
 
           {/* RIGA 3: Barre Campus (6 col) + Grafico Dinamico Attributi (6 col) */}
-          {/* Mostra il grafico dei campus solo se siamo in vista aggregata (Tutti i Campus) */}
           {selectedCampus === "" && (
             <div className="col-span-12 xl:col-span-6">
               <CampusDistributionChart distributionData={metrics?.distributions?.by_campus} />

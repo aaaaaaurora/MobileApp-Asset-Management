@@ -15,7 +15,7 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
         <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
           
           {/* INTESTAZIONE SCURA - FORTE CONTRASTO */}
-          <thead className="bg-slate-800 text-white dark:bg-slate-900">
+          <thead className="bg-slate-800 text-white dark:bg-slate-400">
             <tr>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Email Operatore</th>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Categoria Assegnata</th>

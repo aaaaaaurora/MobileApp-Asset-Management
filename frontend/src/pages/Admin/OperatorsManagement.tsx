@@ -22,6 +22,8 @@ export interface Category {
 export interface Campus {
   id: string;
   name: string;
+  // Non ci serve tipizzare la geometria o i metadati qui, 
+  // ci bastano ID e nome per la selezione nel modale
 }
 
 export interface OperatorFormData {
@@ -53,23 +55,34 @@ export default function OperatorsManagement() {
     setIsLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
+      const baseUrl = import.meta.env.VITE_API_URL || '';
 
       const [opsRes, catRes, campusRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL || ''}/auth/admin/operators`, { headers }),
-        fetch(`/api/categories`, { headers }).catch(() => ({ ok: false, json: () => [] })),
-        fetch(`/api/campus`, { headers }).catch(() => ({ ok: false, json: () => [] }))
+        // Rotta per gli Operatori (Auth Service)
+        fetch(`${baseUrl}/auth/admin/operators`, { headers }),
+        
+        // Rotta per le Categorie (Da allineare quando avremo l'Asset Service pronto)
+        fetch(`${baseUrl}/api/asset/categories`, { headers }).catch(() => ({ ok: false, json: () => [] })),
+        
+        // 🔥 ROTTA AGGIORNATA PER I CAMPUS (GeoZone Service)
+        fetch(`${baseUrl}/api/geozones/campuses`, { headers }).catch(() => ({ ok: false, json: () => [] }))
       ]);
 
       if (opsRes.ok) setOperators(await opsRes.json());
       
-      setCategories(catRes.ok ? await catRes.json() : [
-        { id: "cat-1", name: "Informatica e IT" },
-        { id: "cat-2", name: "Manutenzione Edile" }
-      ]);
-      setCampuses(campusRes.ok ? await campusRes.json() : [
-        { id: "campus_fisciano", name: "Campus Fisciano" },
-        { id: "campus_baronissi", name: "Campus Baronissi" }
-      ]);
+      // Gestione Categorie
+      if (catRes.ok) {
+        setCategories(await catRes.json());
+      } else {
+        setCategories([]); 
+      }
+      
+      // Gestione Campus: il tuo backend restituisce un array di oggetti [{"id": "...", "name": "...", "geometry": ...}]
+      if (campusRes.ok) {
+        setCampuses(await campusRes.json());
+      } else {
+        setCampuses([]); 
+      }
 
     } catch (error) {
       console.error("Errore nel caricamento dei dati:", error);
@@ -149,7 +162,6 @@ export default function OperatorsManagement() {
         description="Amministrazione profili tecnici e assegnazione campus/categorie."
       />
 
-      {/* HEADER DELLA PAGINA */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
@@ -160,7 +172,6 @@ export default function OperatorsManagement() {
           </p>
         </div>
         
-        {/* TASTO FORZATO BLU SCURO PER MASSIMO CONTRASTO */}
         <button
           onClick={handleOpenCreate}
           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
