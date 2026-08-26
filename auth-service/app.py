@@ -79,20 +79,33 @@ class UserCategory(db.Model):
 # ============================================================================
 # FUNZIONI DI UTILITA'
 # ============================================================================
-def verify_google_token(token):
+import requests # Assicurati che questa libreria sia importata in cima al file
+
+def verify_google_token(access_token):
     """
-    Validazione REALE del token OAuth tramite le API di Google.
+    Validazione del token tramite chiamata diretta all'API userinfo di Google.
+    Compatibile con l'access_token generato dai bottoni React personalizzati.
     """
-    if not token or token == "invalid":
+    if not access_token or access_token == "invalid":
         return None
         
     try:
-        # Verifica crittografica della firma di Google e dell'audience (Client ID)
-        idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+        # Chiediamo a Google i dati dell'utente usando l'access token
+        google_api_url = f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={access_token}"
+        response = requests.get(google_api_url)
+        
+        if response.status_code != 200:
+            print(f"❌ ERRORE GOOGLE API: {response.text}", flush=True)
+            return None
+            
+        idinfo = response.json()
+        
+        # L'API restituisce un dizionario con 'sub' (Google ID), 'email', 'given_name', 'family_name'
+        # Esattamente quello che si aspetta il resto del tuo codice backend!
         return idinfo
-    except ValueError as e:
-        # STAMPIAMO L'ERRORE VERO NEI LOG!
-        print(f"ERRORE CRITICO GOOGLE TOKEN: {e}", flush=True)
+        
+    except Exception as e:
+        print(f"ERRORE CRITICO VERIFICA TOKEN: {e}", flush=True)
         return None
 
 def publish_audit_event(action, actor_id):
