@@ -1,23 +1,74 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronDownIcon, HorizontaLDots } from "../icons";
+import { ChevronDownIcon } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
-import SidebarWidget from "./SidebarWidget";
 import { useAuth } from "../context/AuthContext";
 
+// 🟢 Importiamo il nostro modale MODIFICARE QUANDO CI SARANNO GLI ASSET SULLA MAPPA 
 import WarningFormModal from "../components/guest/WarningFormModal";
 
 type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  action?: () => void; 
+  action?: () => void;
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
+// ==========================================
+// 🎨 DEFINIZIONE ICONE SVG VETTORIALI
+// ==========================================
 const MapIcon = (
   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+  </svg>
+);
+
+const DashboardIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 13h6c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v8c0 .55.45 1 1 1zm0 8h6c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm10 0h6c.55 0 1-.45 1-1v-8c0-.55-.45-1-1-1h-6c-.55 0-1 .45-1 1v8c0 .55.45 1 1 1zM13 4v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1h-6c-.55 0-1 .45-1 1z" />
+  </svg>
+);
+
+const UsersIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+  </svg>
+);
+
+const CategoryIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z" />
+  </svg>
+);
+
+const CampusIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17 11V3H7v4H3v14h18V11h-4zm-8-6h4v14H9V5zm-4 6h2v2H5v-2zm0 4h2v2H5v-2zm0 4h2v2H5v-2zm12 0h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2v-2h2v2z" />
+  </svg>
+);
+
+const AssetIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" />
+  </svg>
+);
+
+const HistoryIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+  </svg>
+);
+
+const TicketIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22 10V6c0-1.11-.9-2-2-2H4c-1.1 0-1.99.89-1.99 2v4c1.1 0 1.99.9 1.99 2s-.89 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2s.9-2 2-2zm-2 7.16c-1.27-.72-2-2.11-2-3.66s.73-2.94 2-3.66V6H4v3.84c1.27.72 2 2.11 2 3.66s-.73 2.94-2 3.66V18h16v-1.84zM13 13h2v-2h-2v2zm-4 0h2v-2H9v2z" />
+  </svg>
+);
+
+const WarningIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
   </svg>
 );
 
@@ -30,24 +81,24 @@ const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem
     case "AMMINISTRATORE":
       return [
         ...baseMenu,
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Dashboard", path: "/dashboard" },
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Gestione Operatori", path: "/admin/operators" },
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Gestione Categorie", path: "/admin/categories" },
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Registrazione Campus", path: "/admin/campus/new" },
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Lista Asset", path: "/admin/assets" },
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Storico Operazioni", path: "/admin/history" }
+        { icon: DashboardIcon, name: "Dashboard", path: "/dashboard" },
+        { icon: UsersIcon, name: "Gestione Operatori", path: "/admin/operators" },
+        { icon: CategoryIcon, name: "Gestione Categorie Asset", path: "/admin/categories" },
+        { icon: CampusIcon, name: "Registrazione Campus", path: "/admin/campus/new" },
+        { icon: AssetIcon, name: "Lista Asset", path: "/admin/assets" },
+        { icon: HistoryIcon, name: "Storico Operazioni", path: "/admin/history" }
       ];
     case "OPERATORE":
       return [
         ...baseMenu,
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Ticket Segnalazioni", path: "/operator/tickets" }
+        { icon: TicketIcon, name: "Ticket Segnalazioni", path: "/operator/tickets" }
       ];
     case "UTENTE":
     default:
       return [
         ...baseMenu,
         { 
-          icon: <HorizontaLDots className="w-5 h-5" />, 
+          icon: WarningIcon, 
           name: "Invia Segnalazione", 
           action: openReportModal 
         }
@@ -60,7 +111,6 @@ const AppSidebar: React.FC = () => {
   const location = useLocation();
   const { user } = useAuth();
   
-  // 🟢 NUOVO: Stato per controllare il modale e ID fittizio per il test
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const TEST_ASSET_ID = "60d5ec49c1234567890abcde"; // Simula un ID reale
 
@@ -204,7 +254,6 @@ const AppSidebar: React.FC = () => {
               </button>
             ) : null
           )}
-          {/* Sottomenu (rimasto invariato) */}
           {nav.subItems && (isExpanded || isHovered || isMobileOpen) && (
             <div
               ref={(el) => {
@@ -295,6 +344,7 @@ const AppSidebar: React.FC = () => {
           <nav className="mb-6">
             <div className="flex flex-col gap-4">
               <div>
+                
                 <h2
                   className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
                     !isExpanded && !isHovered
@@ -302,17 +352,12 @@ const AppSidebar: React.FC = () => {
                       : "justify-start"
                   }`}
                 >
-                  {isExpanded || isHovered || isMobileOpen ? (
-                    "Menu"
-                  ) : (
-                    <HorizontaLDots className="size-6" />
-                  )}
                 </h2>
                 {renderMenuItems(navItems, "main")}
               </div>
             </div>
           </nav>
-          {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
+          
         </div>
       </aside>
 

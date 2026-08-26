@@ -3,6 +3,7 @@ import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import CampusMap from "./pages/Dashboard/CampusMap";
 import Home from "./pages/Dashboard/Home"; 
+import OperatorsManagement from "./pages/Admin/OperatorsManagement"; 
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
@@ -30,6 +31,13 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['AMMINISTRATORE']} />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Home />} />
+              
+              <Route path="/admin/operators" element={<OperatorsManagement />} />
+              
+              {/* SPAZIO PER LE PROSSIME PAGINE:
+              <Route path="/admin/categories" element={<CategoriesManagement />} />
+              <Route path="/admin/campus/new" element={<NewCampus />} />
+              */}
             </Route>
           </Route>
 
