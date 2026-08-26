@@ -15,10 +15,9 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const { token } = useAuth();
   const baseUrl = import.meta.env.VITE_API_URL || '';
   
-  // STATI DATI E LAYOUT
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
-  const [creationStep, setCreationStep] = useState<1 | 2>(1); // WIZARD CREAZIONE
-  const [activeTab, setActiveTab] = useState<'general' | 'attributes'>('general'); // TABS MODIFICA
+  const [creationStep, setCreationStep] = useState<1 | 2>(1);
+  const [activeTab, setActiveTab] = useState<'general' | 'attributes'>('general');
   
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,7 +26,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const [catDesc, setCatDesc] = useState("");
   const [localAttributes, setLocalAttributes] = useState<CategoryAttribute[]>([]);
   
-  // MODALI SECONDARI
   const [attrFormOpen, setAttrFormOpen] = useState(false);
   const [editingAttr, setEditingAttr] = useState<CategoryAttribute | null>(null);
   const [conflictPrompt, setConflictPrompt] = useState<{isOpen: boolean, pendingAttr: CategoryAttribute | null}>({ isOpen: false, pendingAttr: null });
@@ -39,27 +37,30 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       setError("");
       setCurrentCategory(category);
       if (category) {
-        setCatName(category.name);
-        setCatDesc(category.description);
+        setCatName(category.name || "");
+        setCatDesc(category.description || "");
         setActiveTab('general');
       } else {
         setCatName("");
         setCatDesc("");
         setLocalAttributes([]);
-        setCreationStep(1); // Ripartiamo dal primo step nel Wizard
+        setCreationStep(1);
       }
     }
   }, [isOpen, category]);
 
   if (!isOpen) return null;
 
-  // Filtriamo gli attributi deprecati per non inquinare la vista
+  // Filtraggio rigoroso: non renderizziamo MAI attributi deprecati
   const visibleAttributes = (currentCategory ? currentCategory.attributes : localAttributes)
     .filter(attr => attr.status !== 'unavailable');
 
-  // ==========================================
-  // SYNC IN TEMPO REALE DOPO AGGIORNAMENTO ATTRIBUTO
-  // ==========================================
+  // Controllo Dinamico per abilitare/disabilitare "Aggiorna Info" (Confronto stringhe sicure)
+  const safeOriginalName = currentCategory?.name || "";
+  const safeOriginalDesc = currentCategory?.description || "";
+  const hasGeneralChanges = currentCategory && (catName !== safeOriginalName || catDesc !== safeOriginalDesc);
+
+  // Sync Veloce
   const refreshCurrentCategory = async () => {
     if (!currentCategory) return;
     try {
@@ -69,22 +70,16 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       if (res.ok) {
         const updatedCat = await res.json();
         setCurrentCategory(updatedCat);
-        onRefresh(); // Aggiorna anche la tabella di sfondo
+        onRefresh();
       }
     } catch (e) {
-      console.error("Errore refresh locale", e);
+      console.error(e);
     }
   };
 
   // ==========================================
-  // WIZARD CREAZIONE CATEGORIA
+  // SALVATAGGIO SEQUENZIALE SICURO (Previene il Timeout Backend)
   // ==========================================
-  const handleNextStep = () => {
-    if (!catName.trim()) return setError("Inserisci un nome per la categoria.");
-    setError("");
-    setCreationStep(2);
-  };
-
   const handleCreateFullCategory = async () => {
     if (localAttributes.length === 0) return setError("Aggiungi almeno un attributo.");
     setIsSubmitting(true);
@@ -98,12 +93,20 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       const catData = await catRes.json();
       if (!catRes.ok) throw new Error(catData.error || "Errore creazione categoria");
 
+      const newCatId = catData.category._id;
+
+      // Invio Sequenziale Sicuro per evitare Timeout di rete su Nginx/Flask
       for (const attr of localAttributes) {
-        await fetch(`${baseUrl}/asset/api/categories/${catData.category._id}/attributes`, {
+        const attrRes = await fetch(`${baseUrl}/asset/api/categories/${newCatId}/attributes`, {
           method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(attr),
         });
+        if (!attrRes.ok) {
+          const errBody = await attrRes.json();
+          throw new Error(errBody.error || `Errore salvataggio attributo: ${attr.name}`);
+        }
       }
+
       onRefresh();
       onClose();
     } catch (err: any) {
@@ -117,7 +120,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   // MODIFICHE CATEGORIA ESISTENTE
   // ==========================================
   const handleSaveGeneralEdits = async () => {
-    if (!currentCategory) return;
+    if (!currentCategory || !hasGeneralChanges) return;
     setIsSubmitting(true);
     try {
       const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
@@ -125,8 +128,9 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         body: JSON.stringify({ name: catName, description: catDesc }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Errore");
-      onRefresh();
-      setError("Info aggiornate con successo!");
+      
+      await refreshCurrentCategory();
+      setError("Informazioni aggiornate!");
       setTimeout(() => setError(""), 3000);
     } catch (err: any) {
       setError(err.message);
@@ -142,7 +146,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
         method: "DELETE", headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Errore eliminazione");
+      if (!res.ok) throw new Error((await res.json()).error || "Impossibile eliminare");
       setDeleteCategoryAlert(false);
       onRefresh();
       onClose();
@@ -153,12 +157,11 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   };
 
   // ==========================================
-  // SALVATAGGIO / MODIFICA ATTRIBUTO
+  // GESTIONE ATTRIBUTI E CONFLITTI
   // ==========================================
   const handleSaveAttribute = async (attrData: CategoryAttribute) => {
     setError("");
     if (!currentCategory) {
-      // WIZARD
       if (localAttributes.some(a => a.name.toLowerCase() === attrData.name.toLowerCase() && (!editingAttr || editingAttr.name !== a.name))) {
         return setError("Un attributo con questo nome esiste già.");
       }
@@ -167,25 +170,30 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         : [...localAttributes, attrData]);
       setAttrFormOpen(false);
     } else {
-      // EDIT DB
       setIsSubmitting(true);
       try {
         const isEdit = !!editingAttr;
         const url = isEdit ? `${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${editingAttr.name}` : `${baseUrl}/asset/api/categories/${currentCategory._id}/attributes`;
+        
         const res = await fetch(url, {
           method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(attrData),
         });
-        const data = await res.json();
         
-        if (res.status === 409 && data.error && data.error.includes("incompatibilità")) {
+        let data = {};
+        if (res.headers.get("content-type")?.includes("application/json")) {
+          data = await res.json();
+        }
+        
+        if (res.status === 409 && (data as any).error?.includes("incompatibilità")) {
           setConflictPrompt({ isOpen: true, pendingAttr: attrData });
           setAttrFormOpen(false);
-          return;
+          setIsSubmitting(false);
+          return; 
         }
-        if (!res.ok) throw new Error(data.error || "Errore nel salvataggio");
+        if (!res.ok) throw new Error((data as any).error || "Errore nel salvataggio");
         
         setAttrFormOpen(false);
-        await refreshCurrentCategory(); // Aggiornamento UI immediato
+        await refreshCurrentCategory();
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -234,91 +242,90 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
-        <div className="w-full max-w-2xl max-h-[85vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        {/* Modale ad ALTEZZA FISSA (75vh): Non cambierà mai dimensione sbattendo sull'header */}
+        <div className="w-full max-w-3xl flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700" style={{ height: '75vh', minHeight: '500px' }}>
           
-          {/* HEADER */}
+          {/* HEADER FISSO */}
           <div className="flex-none h-16 px-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white">
               {currentCategory ? `Gestione Categoria: ${currentCategory.name}` : "Nuova Categoria"}
             </h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-rose-500 transition-colors p-1">
+            <button onClick={onClose} className="text-slate-400 hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
 
-          {/* NAVIGAZIONE (WIZARD O TABS) */}
+          {/* NAVIGAZIONE FISSA */}
           <div className="flex-none px-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex gap-6 pt-2">
             {!currentCategory ? (
-              // STEP WIZARD
               <>
-                <div className={`pb-3 border-b-2 text-sm font-bold transition-colors ${creationStep === 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>1. Informazioni Base</div>
-                <div className={`pb-3 border-b-2 text-sm font-bold transition-colors ${creationStep === 2 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>2. Configura Attributi</div>
+                <div className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${creationStep === 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>1. Informazioni Base</div>
+                <div className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${creationStep === 2 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>2. Configura Attributi</div>
               </>
             ) : (
-              // TABS EDITING
               <>
-                <button onClick={() => setActiveTab('general')} className={`pb-3 border-b-2 text-sm font-bold transition-colors ${activeTab === 'general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>Info Generali</button>
-                <button onClick={() => setActiveTab('attributes')} className={`pb-3 border-b-2 text-sm font-bold transition-colors ${activeTab === 'attributes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>Metadati</button>
+                <button onClick={() => setActiveTab('general')} className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${activeTab === 'general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>Info Generali</button>
+                <button onClick={() => setActiveTab('attributes')} className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${activeTab === 'attributes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>Metadati</button>
               </>
             )}
           </div>
 
-          {/* CORPO SCROLLABILE */}
+          {/* AREA SCROLLABILE (Contenuto Interno) */}
           <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-800">
             {error && (
-              <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+              <div className="mb-5 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">
                 {error}
               </div>
             )}
 
-            {/* VISTA 1: INFORMAZIONI */}
+            {/* TAB INFORMAZIONI */}
             {(!currentCategory && creationStep === 1) || (currentCategory && activeTab === 'general') ? (
-              <div className="space-y-5">
+              <div className="max-w-2xl mx-auto space-y-5 mt-2">
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Nome Categoria</label>
-                  <input type="text" value={catName} onChange={e => setCatName(e.target.value)} placeholder="Es. Macchinari Pesanti" className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Nome Categoria</label>
+                  <input type="text" value={catName} onChange={e => setCatName(e.target.value)} placeholder="Es. Macchinari" className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Descrizione</label>
-                  <textarea rows={4} value={catDesc} onChange={e => setCatDesc(e.target.value)} placeholder="Dettagli..." className="w-full rounded-lg border border-slate-300 py-2.5 px-4 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Descrizione</label>
+                  <textarea rows={5} value={catDesc} onChange={e => setCatDesc(e.target.value)} placeholder="Dettagli..." className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
                 </div>
               </div>
             ) : null}
 
-            {/* VISTA 2: ATTRIBUTI */}
+            {/* TAB ATTRIBUTI */}
             {(!currentCategory && creationStep === 2) || (currentCategory && activeTab === 'attributes') ? (
-              <div>
+              <div className="max-w-3xl mx-auto">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold text-slate-800 dark:text-white">Lista Metadati</h4>
-                  <button onClick={() => { setEditingAttr(null); setAttrFormOpen(true); }} className="px-4 py-2 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                  <h4 className="font-semibold text-slate-800 dark:text-white">Lista Metadati</h4>
+                  <button onClick={() => { setEditingAttr(null); setAttrFormOpen(true); }} className="px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors">
                     + Aggiungi Attributo
                   </button>
                 </div>
                 
                 {visibleAttributes.length === 0 ? (
-                  <div className="text-center py-10 border border-dashed border-slate-300 rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
-                    <p className="text-sm font-semibold text-slate-500">Nessun attributo configurato.</p>
-                    {!currentCategory && <p className="text-xs text-rose-500 font-bold mt-1">Aggiungine almeno uno per proseguire.</p>}
+                  <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
+                    <p className="text-sm font-medium text-slate-500">Nessun metadato disponibile.</p>
+                    {!currentCategory && <p className="text-xs text-rose-500 font-semibold mt-1">Aggiungine almeno uno per completare la configurazione.</p>}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {visibleAttributes.map((attr) => (
-                      <div key={attr.name} className="flex items-center justify-between p-3.5 rounded-lg border bg-white border-slate-200 dark:bg-slate-700 dark:border-slate-600 shadow-sm">
+                      <div key={attr.name} className="flex items-center justify-between p-3.5 rounded-lg border bg-white border-slate-200 dark:bg-slate-700 dark:border-slate-600 shadow-sm transition-all hover:border-blue-200">
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm text-slate-800 dark:text-white">{attr.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-bold">{attr.type}</span>
-                            {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-bold">Obbligatorio</span>}
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-semibold">{attr.type}</span>
+                            {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-semibold">Obbligatorio</span>}
                           </div>
                           {attr.type === 'enum' && <p className="text-xs text-slate-400 mt-1 truncate max-w-md">[{attr.options.join(', ')}]</p>}
                         </div>
                         
                         <div className="flex items-center gap-3">
-                          <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800">Modifica</button>
+                          <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-semibold text-blue-600 hover:text-blue-800">Modifica</button>
                           {!currentCategory ? (
-                            <button onClick={() => setLocalAttributes(prev => prev.filter(a => a.name !== attr.name))} className="text-xs font-bold text-rose-600 hover:text-rose-800">Rimuovi</button>
+                            <button onClick={() => setLocalAttributes(prev => prev.filter(a => a.name !== attr.name))} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Rimuovi</button>
                           ) : (
-                            <button onClick={() => setDeprecateAlert({isOpen: true, attrName: attr.name, attrType: attr.type})} className="text-xs font-bold text-rose-600 hover:text-rose-800">Depreca</button>
+                            <button onClick={() => setDeprecateAlert({isOpen: true, attrName: attr.name, attrType: attr.type})} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Depreca</button>
                           )}
                         </div>
                       </div>
@@ -329,68 +336,58 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             ) : null}
           </div>
 
-          {/* FOOTER */}
+          {/* FOOTER FISSO & UNIFICATO */}
           <div className="flex-none h-16 px-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
             
-            {/* LATO SINISTRO (Pulsante Elimina o Indietro) */}
+            {/* LATO SINISTRO */}
             <div>
               {!currentCategory && creationStep === 2 ? (
-                <button onClick={() => setCreationStep(1)} className="px-5 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                <button onClick={() => setCreationStep(1)} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors">
                   ⬅ Indietro
                 </button>
               ) : currentCategory ? (
-                <button onClick={() => setDeleteCategoryAlert(true)} className="px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2">
+                <button onClick={() => setDeleteCategoryAlert(true)} className="px-4 py-2 text-sm font-medium text-rose-600 border border-rose-200 bg-white hover:bg-rose-50 rounded-md transition-colors flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   Elimina Categoria
                 </button>
-              ) : <div/>}
+              ) : null}
             </div>
 
-            {/* LATO DESTRO (Azioni Principali) */}
-            <div className="flex gap-3">
+            {/* LATO DESTRO */}
+            <div className="flex gap-2">
               {!currentCategory ? (
                  creationStep === 1 ? (
-                   <button onClick={handleNextStep} className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm transition-colors">
-                     Avanti ➔
-                   </button>
+                   <>
+                     <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Annulla</button>
+                     <button onClick={() => { if(!catName.trim()) setError("Nome obbligatorio"); else { setError(""); setCreationStep(2); } }} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 shadow-sm transition-colors">Avanti ➔</button>
+                   </>
                  ) : (
-                   <button onClick={handleCreateFullCategory} disabled={isSubmitting || localAttributes.length === 0} className="px-6 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 shadow-sm transition-colors">
+                   <button onClick={handleCreateFullCategory} disabled={isSubmitting || localAttributes.length === 0} className="px-5 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50 shadow-sm transition-colors">
                      {isSubmitting ? "Salvataggio..." : "Salva Categoria"}
                    </button>
                  )
               ) : (
                  <>
-                   <button onClick={onClose} className="px-5 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">Chiudi</button>
-                   {activeTab === 'general' && (
-                     <button onClick={handleSaveGeneralEdits} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm">
-                       Aggiorna Info
-                     </button>
-                   )}
+                   {/* FOOTER SEMPRE UGUALE IN EDITING (Sia in Info che in Metadati) */}
+                   <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Chiudi</button>
+                   <button onClick={handleSaveGeneralEdits} disabled={isSubmitting || !hasGeneralChanges} className={`px-5 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors ${hasGeneralChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed dark:bg-slate-600 dark:text-slate-400'}`}>
+                     {isSubmitting ? "Attendere..." : "Aggiorna Info"}
+                   </button>
                  </>
               )}
             </div>
-
           </div>
+
         </div>
       </div>
 
-      {/* POPUP SUB-MODALI */}
       <AttributeFormModal isOpen={attrFormOpen} initialData={editingAttr} onClose={() => setAttrFormOpen(false)} onSave={handleSaveAttribute} isSubmitting={isSubmitting} />
-
-      <ConfirmAlertModal 
-        isOpen={conflictPrompt.isOpen} title="Conflitto Dati Storici" confirmText="Depreca e Genera Nuovo" confirmColor="amber" onClose={() => setConflictPrompt({isOpen: false, pendingAttr: null})} onConfirm={handleResolveConflict} isSubmitting={isSubmitting}
-        message={<>Esistono già vecchi asset salvati con questo formato.<br/><br/>Vuoi <strong>deprecare</strong> il vecchio attributo (mantenendo lo storico intatto) e generarne automaticamente uno nuovo?</>}
-      />
-
-      <ConfirmAlertModal 
-        isOpen={!!deprecateAlert} title="Conferma Deprecazione" confirmText="Depreca Attributo" confirmColor="rose" onClose={() => setDeprecateAlert(null)} onConfirm={confirmDeprecate} isSubmitting={isSubmitting}
-        message={<>Sei sicuro di voler deprecare l'attributo?<br/>Non sarà più visibile nei form per i nuovi asset, ma rimarrà intatto per le reportistiche vecchie.</>}
-      />
-
-      <ConfirmAlertModal 
-        isOpen={deleteCategoryAlert} title="Elimina Categoria" confirmText="Sì, Elimina Definitivamente" confirmColor="rose" onClose={() => setDeleteCategoryAlert(false)} onConfirm={handleDeleteCategory} isSubmitting={isSubmitting}
-        message={<>Sei sicuro di voler eliminare l'intera categoria <strong>{currentCategory?.name}</strong> e tutti i suoi metadati?<br/><br/><em>Questa operazione è irreversibile.</em></>}
-      />
+      
+      <ConfirmAlertModal isOpen={conflictPrompt.isOpen} title="Conflitto Dati Storici" confirmText="Depreca e Genera Nuovo" confirmColor="amber" onClose={() => setConflictPrompt({isOpen: false, pendingAttr: null})} onConfirm={handleResolveConflict} isSubmitting={isSubmitting} message={<>Esistono già vecchi asset salvati con questo formato.<br/><br/>Vuoi <strong>deprecare</strong> il vecchio attributo (mantenendo lo storico intatto) e generarne automaticamente uno nuovo?</>} />
+      
+      <ConfirmAlertModal isOpen={!!deprecateAlert} title="Conferma Deprecazione" confirmText="Depreca Attributo" confirmColor="rose" onClose={() => setDeprecateAlert(null)} onConfirm={confirmDeprecate} isSubmitting={isSubmitting} message={<>Sei sicuro di voler deprecare l'attributo?<br/>Non sarà più visibile nei form per i nuovi asset, ma rimarrà intatto per lo storico.</>} />
+      
+      <ConfirmAlertModal isOpen={deleteCategoryAlert} title="Elimina Categoria" confirmText="Sì, Elimina Definitivamente" confirmColor="rose" onClose={() => setDeleteCategoryAlert(false)} onConfirm={handleDeleteCategory} isSubmitting={isSubmitting} message={<>Sei sicuro di voler eliminare l'intera categoria e tutti i suoi metadati?<br/><br/><em>Questa operazione è irreversibile.</em></>} />
     </>
   );
 }
