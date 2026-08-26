@@ -79,7 +79,6 @@ class UserCategory(db.Model):
 # ============================================================================
 # FUNZIONI DI UTILITA'
 # ============================================================================
-
 def verify_google_token(token):
     """
     Validazione REALE del token OAuth tramite le API di Google.
@@ -91,8 +90,9 @@ def verify_google_token(token):
         # Verifica crittografica della firma di Google e dell'audience (Client ID)
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
         return idinfo
-    except ValueError:
-        # Token non valido, scaduto o audience non corrispondente
+    except ValueError as e:
+        # STAMPIAMO L'ERRORE VERO NEI LOG!
+        print(f"ERRORE CRITICO GOOGLE TOKEN: {e}", flush=True)
         return None
 
 def publish_audit_event(action, actor_id):
