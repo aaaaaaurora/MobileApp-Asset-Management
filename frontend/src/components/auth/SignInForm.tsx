@@ -50,32 +50,39 @@ export default function SignInForm() {
     onError: () => setError("Autenticazione Google fallita"),
   });
 
-  // 2. Funzione per l'invio del codice TOTP
-  const handleTOTPSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+// 2. Funzione per l'invio del codice TOTP
+const handleTOTPSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/auth/2fa/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ temp_token: tempToken, totp_code: totpCode }),
-      });
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/auth/2fa/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ temp_token: tempToken, totp_code: totpCode }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Codice non valido");
+    if (!res.ok) throw new Error(data.error || "Codice non valido");
 
-      // Salva il JWT definitivo e reindirizza alla dashboard protetta 
-      login(data.token);
+    // Salva il JWT definitivo nel contesto
+    login(data.token);
+    
+    // Reindirizzamento dinamico in base al ruolo!
+    if (data.role === 'AMMINISTRATORE') {
+      navigate("/dashboard");
+    } else {
       navigate("/map");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  };
+    
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex flex-col flex-1">
