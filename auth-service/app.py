@@ -190,9 +190,17 @@ def auth_google():
         }), 200
 
     else:
-        # --- UTENTE ESISTENTE ---
+        # --- UTENTE ESISTENTE (Es. Operatore pre-registrato dall'Admin) ---
+        is_first_login = False
+        
+        # Se non ha il google_id, è il suo primissimo accesso!
         if not user.google_id:
+            is_first_login = True
             user.google_id = google_user_info.get('sub')
+            
+            # Salviamo Nome e Cognome estratti da Google
+            user.first_name = google_user_info.get('given_name', '')
+            user.last_name = google_user_info.get('family_name', '')
             db.session.commit()
     
         if not user.is_active:
@@ -208,13 +216,21 @@ def auth_google():
 
         publish_audit_event("GOOGLE_LOGIN_SUCCESS", user.id)
 
-        return jsonify({
+        # Costruiamo la risposta base
+        response_data = {
             "temp_token": temp_token,
             "user": {
                 "email": user.email,
-                "name": f"{user.first_name} {user.last_name}"
+                "name": f"{user.first_name or ''} {user.last_name or ''}".strip()
             }
-        }), 200
+        }
+
+        # Se è il primissimo accesso, inviamo il totp_uri per stampare il QR Code sul frontend
+        if is_first_login and user.totp_secret:
+            totp = pyotp.TOTP(user.totp_secret)
+            response_data["totp_uri"] = totp.provisioning_uri(name=user.email, issuer_name="Asset Management Unisa")
+
+        return jsonify(response_data), 200
 
 
 @app.route('/auth/2fa/verify', methods=['POST'])
