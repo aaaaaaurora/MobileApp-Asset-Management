@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CategoryAttribute } from "../../pages/Dashboard/CategoriesManagement";
+import { CategoryAttribute } from "../../pages/Admin/CategoriesManagement";
 
 interface Props {
   isOpen: boolean;
