@@ -4,6 +4,8 @@ import svgr from "vite-plugin-svgr";
 
 // https://vite.dev/config/
 export default defineConfig({
+  // AGGIUNGIAMO LA BASE RELATIVA PER KUBERNETES/NGINX
+  base: "./",
   plugins: [
     react(),
     svgr({

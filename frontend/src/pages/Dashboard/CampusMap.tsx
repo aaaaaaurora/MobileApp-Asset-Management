@@ -1,13 +1,7 @@
 import { useRef } from 'react';
 import Map from 'react-map-gl/maplibre';
-// 1. Importa l'istanza principale di maplibre
-import * as maplibregl from 'maplibre-gl';
-// 2. Importa il worker forzando Vite a gestirlo correttamente in produzione
-import MaplibreWorker from 'maplibre-gl/dist/maplibre-gl-csp-worker?worker'; 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-// 3. Sostituisce il file .mjs problematico con il worker sicuro di Vite
-(maplibregl as any).workerClass = MaplibreWorker;
 
 export default function CampusMap() {
   const mapRef = useRef(null);
@@ -30,8 +24,6 @@ export default function CampusMap() {
       <div className="flex-1 w-full rounded-xl border border-stroke shadow-default overflow-hidden dark:border-strokedark dark:bg-boxdark relative">
         <Map
           ref={mapRef}
-          // 4. Diciamo al componente Map di usare la nostra istanza "curata"
-          mapLib={maplibregl} 
           initialViewState={{
             longitude: 14.7900, // Longitudine (es. Università di Salerno)
             latitude: 40.7700,  // Latitudine
