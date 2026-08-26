@@ -4,14 +4,13 @@ import svgr from "vite-plugin-svgr";
 
 // https://vite.dev/config/
 export default defineConfig({
-  // AGGIUNGIAMO LA BASE RELATIVA PER KUBERNETES/NGINX
-  base: "./",
+  // IL SEGRETO E' QUI: Solo "/", niente puntino!
+  base: "/", 
   plugins: [
     react(),
     svgr({
       svgrOptions: {
         icon: true,
-        // This will transform your SVG to a React component
         exportType: "named",
         namedExport: "ReactComponent",
       },
