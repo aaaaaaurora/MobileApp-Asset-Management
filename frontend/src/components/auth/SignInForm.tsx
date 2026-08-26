@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
+// MODIFICA 1: Importazione della libreria per stampare il QR Code
+import { QRCodeSVG } from 'qrcode.react'; 
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Button from "../ui/button/Button";
@@ -12,6 +14,8 @@ export default function SignInForm() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [tempToken, setTempToken] = useState<string>("");
+  // MODIFICA 2: Aggiunta dello stato per salvare il link del QR Code
+  const [totpUri, setTotpUri] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,10 +34,12 @@ export default function SignInForm() {
         });
 
         const data = await res.json();
-        
+
         if (!res.ok) throw new Error(data.error || "Errore di login");
 
         setTempToken(data.temp_token);
+        // MODIFICA 3: Se il backend manda l'URI (nuovo utente), lo salviamo nello stato
+        setTotpUri(data.totp_uri || null);
         setStep(2); // Passa alla fase TOTP
       } catch (err: any) {
         setError(err.message);
@@ -73,7 +79,6 @@ export default function SignInForm() {
 
   return (
     <div className="flex flex-col flex-1">
-
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           {/* Intestazione dinamica */}
@@ -132,9 +137,22 @@ export default function SignInForm() {
                 </button>
               </div>
             ) : (
-              /* STEP 2: Form TOTP (Utilizza i componenti grafici del template originale) */
+              /* STEP 2: Form TOTP */
               <form onSubmit={handleTOTPSubmit}>
                 <div className="space-y-6">
+                  
+                  {/* MODIFICA 4: Stampa il QR code solo se il backend ha inviato l'URI (cioè per i nuovi utenti) */}
+                  {totpUri && (
+                    <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 mb-4">
+                      <p className="mb-3 text-sm font-medium text-center text-gray-700 dark:text-gray-300">
+                        Nuovo account! Scansiona questo QR Code con Google Authenticator per configurare il tuo accesso.
+                      </p>
+                      <div className="p-3 bg-white rounded-lg shadow-sm">
+                        <QRCodeSVG value={totpUri} size={160} />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <Label>
                       TOTP Code <span className="text-error-500">*</span>
