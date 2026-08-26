@@ -355,6 +355,42 @@ def add_category_attribute(category_id):
 
 
 # ============================================================================
+# ENDPOINT: Eliminazione Categoria
+# ============================================================================
+@app.route('/api/categories/<category_id>', methods=['DELETE'])
+def delete_category(category_id):
+    """
+    Elimina fisicamente una categoria. 
+    L'operazione è permessa solo agli Amministratori.
+    """
+    auth = get_auth_context()
+    
+    if auth.get('role') != 'AMMINISTRATORE':
+        return error_response("Accesso negato. Richiesto ruolo AMMINISTRATORE.", 403)
+
+    if not ObjectId.is_valid(category_id):
+        return error_response("ID categoria non valido", 400)
+
+    try:
+        # Verifica se la categoria è usata da qualche asset
+        assets_using_cat = assets_col.count_documents({"category_id": category_id})
+        if assets_using_cat > 0:
+            return error_response("Impossibile eliminare: ci sono asset associati a questa categoria. Elimina prima gli asset.", 409)
+
+        result = categories_col.delete_one({"_id": ObjectId(category_id)})
+        
+        if result.deleted_count == 0:
+            return error_response("Categoria non trovata", 404)
+
+        # Tracciabilità
+        publish_event("CATEGORY_DELETED", {"category_id": category_id})
+
+        return jsonify({"message": "Categoria eliminata con successo"}), 200
+
+    except Exception as e:
+        return error_response(f"Errore durante l'eliminazione: {str(e)}", 500)
+
+# ============================================================================
 # ENDPOINT: Modifica di un attributo dinamico di una categoria
 # ============================================================================
 
