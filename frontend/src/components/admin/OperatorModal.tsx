@@ -78,7 +78,7 @@ export default function OperatorModal({
                 disabled={isEditing}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="es. operatore@unisa.it"
+                placeholder="es. operatore@gmail.com"
                 className="w-full rounded-lg border border-slate-300 bg-white py-3 px-4 text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
