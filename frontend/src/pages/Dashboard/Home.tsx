@@ -57,7 +57,7 @@ export default function Home() {
       if (!token) return;
       try {
         const baseUrl = import.meta.env.VITE_API_URL || '';
-        const res = await fetch(`${baseUrl}/geozones/campuses`, {
+        const res = await fetch(`${baseUrl}/geozone/api/geozones/campuses`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -93,11 +93,10 @@ export default function Home() {
         const logParams = new URLSearchParams(baseParams.toString());
         logParams.append('limit', '5');
 
-        // Facciamo le chiamate API usando il baseUrl per passare dal Gateway
         const [metricsRes, chartsRes, logsRes] = await Promise.all([
-          fetch(`${baseUrl}/dashboard/metrics?${baseParams.toString()}`, { headers }),
-          fetch(`${baseUrl}/dashboard/charts?${chartParams.toString()}`, { headers }),
-          fetch(`${baseUrl}/logs?${logParams.toString()}`, { headers })
+          fetch(`${baseUrl}/log/api/dashboard/metrics?${baseParams.toString()}`, { headers }),
+          fetch(`${baseUrl}/log/api/dashboard/charts?${chartParams.toString()}`, { headers }),
+          fetch(`${baseUrl}/log/api/logs?${logParams.toString()}`, { headers })
         ]);
 
         if (metricsRes.ok) setMetrics(await metricsRes.json());

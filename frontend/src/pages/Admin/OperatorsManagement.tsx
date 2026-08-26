@@ -58,9 +58,9 @@ export default function OperatorsManagement() {
       const baseUrl = import.meta.env.VITE_API_URL || '';
 
       const [opsRes, catRes, campusRes] = await Promise.all([
-        fetch(`${baseUrl}/auth/admin/operators`, { headers }),
-        fetch(`${baseUrl}/asset/categories`, { headers }).catch(() => ({ ok: false, json: () => [] })),
-        fetch(`${baseUrl}/geozones/campuses`, { headers }).catch(() => ({ ok: false, json: () => [] }))
+        fetch(`${baseUrl}/auth/admin/operators`, { headers }),        
+        fetch(`${baseUrl}/asset/api/categories`, { headers }).catch(() => ({ ok: false, json: () => [] })),        
+        fetch(`${baseUrl}/geozone/api/geozones/campuses`, { headers }).catch(() => ({ ok: false, json: () => [] }))
       ]);
 
       if (opsRes.ok) setOperators(await opsRes.json());
