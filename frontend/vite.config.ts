@@ -14,7 +14,7 @@ export default defineConfig({
         namedExport: "ReactComponent",
       },
     }),
-  ]
+  ],
   optimizeDeps: {
     exclude: ['maplibre-gl']
   },
