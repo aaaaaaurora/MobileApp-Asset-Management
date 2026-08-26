@@ -4,8 +4,7 @@ import svgr from "vite-plugin-svgr";
 
 // https://vite.dev/config/
 export default defineConfig({
-  // IL SEGRETO E' QUI: Solo "/", niente puntino!
-  base: "/", 
+  base: "/",
   plugins: [
     react(),
     svgr({
@@ -15,8 +14,13 @@ export default defineConfig({
         namedExport: "ReactComponent",
       },
     }),
-  ],
+  ]
   optimizeDeps: {
     exclude: ['maplibre-gl']
+  },
+  // 🔥 IL FIX PER KUBERNETES/NGINX:
+  // Forza Vite a creare un file .js normale invece di .mjs
+  worker: {
+    format: "iife"
   }
 });
