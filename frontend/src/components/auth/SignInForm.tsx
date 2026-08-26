@@ -61,7 +61,7 @@ export default function SignInForm() {
 
       if (!res.ok) throw new Error(data.error || "Codice non valido");
 
-      // Salva il JWT definitivo e reindirizza alla dashboard protetta
+      // Salva il JWT definitivo e reindirizza alla dashboard protetta 
       login(data.token);
       navigate("/map");
     } catch (err: any) {
