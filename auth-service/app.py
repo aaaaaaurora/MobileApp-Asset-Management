@@ -161,49 +161,60 @@ def auth_google():
     # Ricerca dell'utente nel database tramite email
     user = AppUser.query.filter_by(email=email).first()
 
-    # Logica di Auto-Provisioning (solo per Utente Base)
     if not user:
-        guest_role = Role.query.filter_by(name=RoleType.GUEST).first()
-        if not guest_role:
-            return error_response("Configurazione di sistema mancante: Ruolo di base non trovato", 500)
-            
-        user = AppUser(
-            email=email,
-            google_id=google_user_info.get('sub'),
-            first_name=google_user_info.get('given_name'),
-            last_name=google_user_info.get('family_name'),
-            role_id=guest_role.id,
-            totp_secret=pyotp.random_base32()  # Predisposizione segreto 2FA
-        )
-        db.session.add(user)
-        db.session.commit()
+        # NON salviamo nel DB! Generiamo il segreto e impacchettiamo tutto nel token temporaneo.
+        totp_secret = pyotp.random_base32()
         
-        publish_audit_event("AUTO_PROVISIONING_GUEST", user.id)
+        temp_payload = {
+            "is_new_user": True,
+            "email": email,
+            "google_id": google_user_info.get('sub'),
+            "first_name": google_user_info.get('given_name'),
+            "last_name": google_user_info.get('family_name'),
+            "totp_secret": totp_secret,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=10) # 10 minuti per dare tempo di scansionare il QR
+        }
+        temp_token = jwt.encode(temp_payload, app.config['JWT_SECRET'], algorithm="HS256")
+        
+        # Generiamo il link per il QR Code
+        totp = pyotp.TOTP(totp_secret)
+        totp_uri = totp.provisioning_uri(name=email, issuer_name="Asset Management Unisa")
+
+        return jsonify({
+            "temp_token": temp_token,
+            "totp_uri": totp_uri, # Passiamo il link al frontend
+            "user": {
+                "email": email,
+                "name": f"{google_user_info.get('given_name')} {google_user_info.get('family_name')}"
+            }
+        }), 200
+
     else:
+        # --- UTENTE ESISTENTE ---
         if not user.google_id:
             user.google_id = google_user_info.get('sub')
             db.session.commit()
     
-    if not user.is_active:
-        publish_audit_event("DISABLED_ACCOUNT_LOGIN_ATTEMPT", user.id)
-        return error_response("Account disabilitato", 403)
+        if not user.is_active:
+            publish_audit_event("DISABLED_ACCOUNT_LOGIN_ATTEMPT", user.id)
+            return error_response("Account disabilitato", 403)
 
-    # Generazione Token Temporaneo in attesa della 2FA
-    temp_payload = {
-        "user_id": str(user.id),
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
-    }
-    temp_token = jwt.encode(temp_payload, app.config['JWT_SECRET'], algorithm="HS256")
-
-    publish_audit_event("GOOGLE_LOGIN_SUCCESS", user.id)
-
-    return jsonify({
-        "temp_token": temp_token,
-        "user": {
-            "email": user.email,
-            "name": f"{user.first_name} {user.last_name}"
+        # Generazione Token Temporaneo standard
+        temp_payload = {
+            "user_id": str(user.id),
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
         }
-    }), 200
+        temp_token = jwt.encode(temp_payload, app.config['JWT_SECRET'], algorithm="HS256")
+
+        publish_audit_event("GOOGLE_LOGIN_SUCCESS", user.id)
+
+        return jsonify({
+            "temp_token": temp_token,
+            "user": {
+                "email": user.email,
+                "name": f"{user.first_name} {user.last_name}"
+            }
+        }), 200
 
 
 @app.route('/auth/2fa/verify', methods=['POST'])
@@ -225,27 +236,60 @@ def verify_2fa():
     # Validazione del Token Temporaneo
     try:
         decoded_temp = jwt.decode(temp_token, app.config['JWT_SECRET'], algorithms=["HS256"])
-        user_id = decoded_temp['user_id']
     except jwt.ExpiredSignatureError:
         return error_response("EXPIRED_CODE", 401)
     except jwt.InvalidTokenError:
         return error_response("INVALID_CODE", 401)
 
-    user = db.session.get(AppUser, user_id)
-    if not user:
-        return error_response("Utente non trovato", 404)
+    # Capiamo se stiamo validando un utente nuovo o uno esistente
+    is_new_user = decoded_temp.get('is_new_user', False)
+
+    if is_new_user:
         
-    if not user.is_active:
-        publish_audit_event("DISABLED_ACCOUNT_2FA_ATTEMPT", user.id)
-        return error_response("Account disabilitato", 403)
+        totp_secret = decoded_temp.get('totp_secret')
+        totp = pyotp.TOTP(totp_secret)
+        
+        # Validazione del codice prima di toccare il DB
+        if not totp.verify(totp_code):
+            return error_response("INVALID_CODE", 401)
+            
+        # 1. Il codice è corretto! Ora possiamo creare l'utente nel Database
+        guest_role = Role.query.filter_by(name=RoleType.GUEST).first()
+        if not guest_role:
+            return error_response("Configurazione di sistema mancante: Ruolo di base non trovato", 500)
+            
+        user = AppUser(
+            email=decoded_temp.get('email'),
+            google_id=decoded_temp.get('google_id'),
+            first_name=decoded_temp.get('first_name'),
+            last_name=decoded_temp.get('last_name'),
+            role_id=guest_role.id,
+            totp_secret=totp_secret
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        publish_audit_event("AUTO_PROVISIONING_GUEST", user.id)
 
-    # Validazione del Codice TOTP
-    totp = pyotp.TOTP(user.totp_secret)
-    if not totp.verify(totp_code):
-        publish_audit_event("2FA_FAILED", user.id)
-        return error_response("INVALID_CODE", 401)
+    else:
+        # --- FLUSSO UTENTE ESISTENTE ---
+        user_id = decoded_temp.get('user_id')
+        user = db.session.get(AppUser, user_id)
+        
+        if not user:
+            return error_response("Utente non trovato", 404)
+            
+        if not user.is_active:
+            publish_audit_event("DISABLED_ACCOUNT_2FA_ATTEMPT", user.id)
+            return error_response("Account disabilitato", 403)
 
-    # Denormalizzazione e Costruzione Payload JWT
+        # Validazione del Codice TOTP
+        totp = pyotp.TOTP(user.totp_secret)
+        if not totp.verify(totp_code):
+            publish_audit_event("2FA_FAILED", user.id)
+            return error_response("INVALID_CODE", 401)
+
+    # --- CODICE IN COMUNE: Denormalizzazione e Costruzione Payload JWT ---
     role = db.session.get(Role, user.role_id)
     
     campus_links = UserCampus.query.filter_by(user_id=user.id).all()
@@ -271,7 +315,7 @@ def verify_2fa():
         "campus_ids": campus_ids,
         "category_id": category_id
     }), 200
-      
+
 # ===============================================================================
 # ENDPOINT per la creazione di un nuovo profilo Operatore (Amministratore)
 # ===============================================================================  
