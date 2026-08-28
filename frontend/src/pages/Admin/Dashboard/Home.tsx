@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import PageMeta from "../../components/common/PageMeta";
-import { useAuth } from "../../context/AuthContext";
+import PageMeta from "../../../components/common/PageMeta";
+import { useAuth } from "../../../context/AuthContext";
 
 // Componenti
-import AssetMetrics from "../../components/dashboard/AssetMetrics";
-import CategoryDistributionChart from "../../components/dashboard/CategoryDistributionChart";
-import TimeSeriesChart from "../../components/dashboard/TimeSeriesChart";
-import CampusDistributionChart from "../../components/dashboard/CampusDistributionChart";
-import DynamicAttributeChart from "../../components/dashboard/DynamicAttributeChart";
-import RecentLogsTable from "../../components/dashboard/RecentLogsTable";
+import AssetMetrics from "../../../components/dashboard/AssetMetrics";
+import CategoryDistributionChart from "../../../components/dashboard/CategoryDistributionChart";
+import TimeSeriesChart from "../../../components/dashboard/TimeSeriesChart";
+import CampusDistributionChart from "../../../components/dashboard/CampusDistributionChart";
+import DynamicAttributeChart from "../../../components/dashboard/DynamicAttributeChart";
+import RecentLogsTable from "../../../components/dashboard/RecentLogsTable";
 
 // Funzione euristica per determinare il genere dal nome italiano
 const getGreeting = (name?: string) => {
@@ -51,8 +51,6 @@ export default function Home() {
   const [recentLogs, setRecentLogs] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const displayFirstName = user?.first_name || (user?.name ? user.name.split(' ')[0] : '');
-  
   // EFFETTO 1: Scarica la lista dei campus UNA SOLA VOLTA al caricamento
   useEffect(() => {
     const fetchCampuses = async () => {
@@ -126,9 +124,9 @@ export default function Home() {
       
       {/* HEADER DELLA DASHBOARD CON FILTRO CAMPUS */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
+        <div>
           <h2 className="text-2xl font-bold text-black dark:text-white">
-            {getGreeting(displayFirstName)}, {displayFirstName || 'Amministratore'}!
+            {getGreeting(user?.first_name)}, {user?.first_name || 'Amministratore'}!
           </h2>
           <p className="text-sm text-gray-500">
             Visualizza lo stato di salute dei tuoi Campus.

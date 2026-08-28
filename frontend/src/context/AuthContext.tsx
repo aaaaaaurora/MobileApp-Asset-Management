@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 // Interfaccia basata sul payload del tuo backend app.py
-interface User {
+export interface User {
   id: string;          // Mappato dal 'sub' del JWT
   role: string;        // 'GUEST', 'OPERATORE', 'AMMINISTRATORE'
   campus_ids: string[];
   category_id: string | null;
+  email?: string;
   name?: string;
   first_name?: string;  
 }
@@ -20,7 +21,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Funzione sicura per decodificare il JWT senza librerie esterne (evita crash di jwt-decode)
+// Funzione sicura per decodificare il JWT senza librerie esterne
 const decodeJWT = (token: string) => {
   try {
     const base64Url = token.split('.')[1];
@@ -50,6 +51,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           role: decoded.role || 'UTENTE',
           campus_ids: decoded.campus_ids || [],
           category_id: decoded.category_id || null,
+          email: decoded.email,
+          name: decoded.name,
+          first_name: decoded.first_name,
         });
         localStorage.setItem('jwt_token', token);
       } else {
@@ -79,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       token, 
       login, 
       logout, 
-      isAuthenticated: !!token // È true solo se possiedi una chiave valida
+      isAuthenticated: !!token 
     }}>
       {children}
     </AuthContext.Provider>

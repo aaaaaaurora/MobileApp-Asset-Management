@@ -39,7 +39,8 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
             ) : (
               operators.map((op, index) => {
                 const catName = categories.find((c: any) => String(c.id) === String(op.category_id) || String(c._id) === String(op.category_id))?.name || "Nessuna specifica";
-                
+                const isFunctionallyActive = op.is_active && op.campus_ids.length > 0;
+
                 return (
                   <tr 
                     key={op.id} 
@@ -78,11 +79,11 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
                     
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold border ${
-                        op.is_active 
+                        isFunctionallyActive 
                           ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
                           : 'bg-rose-100 text-rose-800 border-rose-200'
                       }`}>
-                        {op.is_active ? 'Attivo' : 'Disabilitato'}
+                        {isFunctionallyActive ? 'Operativo' : 'Non operativo'}
                       </span>
                     </td>
                     

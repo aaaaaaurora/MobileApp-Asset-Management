@@ -6,6 +6,7 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 import dateutil.parser
 import threading
+import json
 
 # Import della libreria centralizzata per RabbitMQ
 from shared_utils.messaging import RabbitMQManager
@@ -1018,7 +1019,7 @@ def get_asset_history(asset_id):
     except Exception as e:
         return error_response(f"Errore durante il recupero dello storico: {str(e)}", 500)
     
-    
+   
 # ============================================================================
 # CONSUMER ASINCRONO PER PULIZIA DATI ORFANI
 # ============================================================================
