@@ -24,11 +24,13 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   
   const [catName, setCatName] = useState("");
   const [catDesc, setCatDesc] = useState("");
+  
+  // Utilizzato sia per creare da zero, sia come "Standby" per le modifiche in edit
   const [localAttributes, setLocalAttributes] = useState<CategoryAttribute[]>([]);
   
   const [attrFormOpen, setAttrFormOpen] = useState(false);
   const [editingAttr, setEditingAttr] = useState<CategoryAttribute | null>(null);
-  const [conflictPrompt, setConflictPrompt] = useState<{isOpen: boolean, pendingAttr: CategoryAttribute | null}>({ isOpen: false, pendingAttr: null });
+  const [conflictPrompt, setConflictPrompt] = useState<{isOpen: boolean, pendingAttr: CategoryAttribute | null, oldName?: string}>({ isOpen: false, pendingAttr: null });
   const [deprecateAlert, setDeprecateAlert] = useState<{isOpen: boolean, attrName: string, attrType: string} | null>(null);
   const [deleteCategoryAlert, setDeleteCategoryAlert] = useState(false);
 
@@ -39,6 +41,8 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       if (category) {
         setCatName(category.name || "");
         setCatDesc(category.description || "");
+        // In edit, carichiamo gli attributi in memoria aggiungendo un tag per ricordare il nome originale
+        setLocalAttributes(category.attributes.map(a => ({ ...a, _originalName: a.name })));
         setActiveTab('general');
       } else {
         setCatName("");
@@ -51,39 +55,45 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
 
   if (!isOpen) return null;
 
-  // Filtraggio rigoroso: non renderizziamo MAI attributi deprecati
-  const visibleAttributes = (currentCategory ? currentCategory.attributes : localAttributes)
-    .filter(attr => attr.status !== 'unavailable');
+  // Renderizziamo sempre gli attributi "in standby" nascondendo quelli deprecati
+  const visibleAttributes = localAttributes.filter(attr => attr.status !== 'unavailable');
 
-  // Controllo Dinamico per abilitare/disabilitare "Aggiorna Info" (Confronto stringhe sicure)
+  // ==========================================
+  // CONTROLLO MODIFICHE IN STANDBY PER ABILITARE IL TASTO
+  // ==========================================
   const safeOriginalName = currentCategory?.name || "";
   const safeOriginalDesc = currentCategory?.description || "";
-  const hasGeneralChanges = currentCategory && (catName !== safeOriginalName || catDesc !== safeOriginalDesc);
+  
+  const cleanAttr = (attr: any) => {
+    const { _originalName, ...rest } = attr;
+    return rest;
+  };
 
-  // Sync Veloce
+  const hasGeneralChanges = currentCategory && (catName !== safeOriginalName || catDesc !== safeOriginalDesc);
+  const hasAttributeChanges = currentCategory && (
+    JSON.stringify(localAttributes.map(cleanAttr)) !== JSON.stringify(currentCategory.attributes)
+  );
+  const hasChanges = hasGeneralChanges || hasAttributeChanges;
+
   const refreshCurrentCategory = async () => {
     if (!currentCategory) return;
     try {
-      const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const updatedCat = await res.json();
         setCurrentCategory(updatedCat);
+        setLocalAttributes(updatedCat.attributes.map((a: any) => ({ ...a, _originalName: a.name })));
         onRefresh();
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   // ==========================================
-  // SALVATAGGIO SEQUENZIALE SICURO (Previene il Timeout Backend)
+  // SALVATAGGIO CREAZIONE CATEGORIA
   // ==========================================
   const handleCreateFullCategory = async () => {
     if (localAttributes.length === 0) return setError("Aggiungi almeno un attributo.");
-    setIsSubmitting(true);
-    setError("");
+    setIsSubmitting(true); setError("");
 
     try {
       const catRes = await fetch(`${baseUrl}/asset/api/categories`, {
@@ -94,43 +104,70 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       if (!catRes.ok) throw new Error(catData.error || "Errore creazione categoria");
 
       const newCatId = catData.category._id;
-
-      // Invio Sequenziale Sicuro per evitare Timeout di rete su Nginx/Flask
       for (const attr of localAttributes) {
         const attrRes = await fetch(`${baseUrl}/asset/api/categories/${newCatId}/attributes`, {
           method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(attr),
+          body: JSON.stringify(cleanAttr(attr)),
         });
-        if (!attrRes.ok) {
-          const errBody = await attrRes.json();
-          throw new Error(errBody.error || `Errore salvataggio attributo: ${attr.name}`);
-        }
+        if (!attrRes.ok) throw new Error((await attrRes.json()).error || `Errore salvataggio ${attr.name}`);
       }
-
-      onRefresh();
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+      onRefresh(); onClose();
+    } catch (err: any) { setError(err.message); } finally { setIsSubmitting(false); }
   };
 
   // ==========================================
-  // MODIFICHE CATEGORIA ESISTENTE
+  // SALVATAGGIO IN MASSA DI TUTTE LE MODIFICHE (Il Nuovo "Aggiorna Info")
   // ==========================================
   const handleSaveGeneralEdits = async () => {
-    if (!currentCategory || !hasGeneralChanges) return;
-    setIsSubmitting(true);
+    if (!currentCategory || !hasChanges) return;
+    setIsSubmitting(true); setError("");
+    
     try {
-      const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: catName, description: catDesc }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || "Errore");
+      // 1. Salva Info Generali se modificate
+      if (hasGeneralChanges) {
+        const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name: catName, description: catDesc }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Errore aggiornamento info generali");
+      }
+
+      // 2. Salva le modifiche agli Attributi
+      if (hasAttributeChanges) {
+        for (const attr of localAttributes) {
+          const isNew = !(attr as any)._originalName;
+          const originalAttr = currentCategory.attributes.find(a => a.name === (attr as any)._originalName);
+          const cleanAttrData = cleanAttr(attr);
+
+          if (isNew) {
+            // Nuovissimo attributo
+            const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes`, {
+              method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(cleanAttrData),
+            });
+            if (!res.ok) throw new Error((await res.json()).error || `Errore salvataggio ${attr.name}`);
+          } else if (originalAttr && JSON.stringify(cleanAttrData) !== JSON.stringify(originalAttr)) {
+            // Attributo Esistente Modificato
+            const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${(attr as any)._originalName}`, {
+              method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(cleanAttrData),
+            });
+            
+            if (res.status === 409) {
+              const data = await res.json();
+              if (data.error?.includes("incompatibilità")) {
+                setConflictPrompt({ isOpen: true, pendingAttr: cleanAttrData, oldName: (attr as any)._originalName });
+                setIsSubmitting(false);
+                return; // Ferma il salvataggio massivo in attesa di risoluzione utente
+              }
+            }
+            if (!res.ok) throw new Error((await res.json()).error || `Errore aggiornamento ${attr.name}`);
+          }
+        }
+      }
       
       await refreshCurrentCategory();
-      setError("Informazioni aggiornate!");
+      setError("Tutte le modifiche sono state salvate!");
       setTimeout(() => setError(""), 3000);
     } catch (err: any) {
       setError(err.message);
@@ -139,75 +176,52 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     }
   };
 
+  // ==========================================
+  // AZIONI IN STANDBY (Modifiche Locali)
+  // ==========================================
+  const handleSaveAttribute = (attrData: CategoryAttribute) => {
+    setError("");
+    if (localAttributes.some(a => a.name.toLowerCase() === attrData.name.toLowerCase() && (!editingAttr || editingAttr.name !== a.name))) {
+      return setError("Un attributo con questo nome esiste già in memoria.");
+    }
+    
+    // Aggiorna lo stato locale senza chiamare il database
+    if (editingAttr) {
+      setLocalAttributes(prev => prev.map(a => a.name === editingAttr.name ? { ...attrData, _originalName: (a as any)._originalName } : a));
+    } else {
+      setLocalAttributes([...localAttributes, attrData]);
+    }
+    setAttrFormOpen(false);
+  };
+
+  const confirmDeprecate = () => {
+    if (deprecateAlert) {
+      // Imposta su unavailable solo nello stato locale
+      setLocalAttributes(prev => prev.map(a => a.name === deprecateAlert.attrName ? { ...a, status: 'unavailable' } : a));
+      setDeprecateAlert(null);
+    }
+  };
+
+  // ==========================================
+  // ELIMINAZIONE CATEGORIA E RISOLUZIONE CONFLITTO API
+  // ==========================================
   const handleDeleteCategory = async () => {
     if (!currentCategory) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
-        method: "DELETE", headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error((await res.json()).error || "Impossibile eliminare");
-      setDeleteCategoryAlert(false);
-      onRefresh();
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-      setIsSubmitting(false);
-    }
-  };
-
-  // ==========================================
-  // GESTIONE ATTRIBUTI E CONFLITTI
-  // ==========================================
-  const handleSaveAttribute = async (attrData: CategoryAttribute) => {
-    setError("");
-    if (!currentCategory) {
-      if (localAttributes.some(a => a.name.toLowerCase() === attrData.name.toLowerCase() && (!editingAttr || editingAttr.name !== a.name))) {
-        return setError("Un attributo con questo nome esiste già.");
-      }
-      setLocalAttributes(editingAttr 
-        ? localAttributes.map(a => a.name === editingAttr.name ? attrData : a) 
-        : [...localAttributes, attrData]);
-      setAttrFormOpen(false);
-    } else {
-      setIsSubmitting(true);
-      try {
-        const isEdit = !!editingAttr;
-        const url = isEdit ? `${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${editingAttr.name}` : `${baseUrl}/asset/api/categories/${currentCategory._id}/attributes`;
-        
-        const res = await fetch(url, {
-          method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(attrData),
-        });
-        
-        let data = {};
-        if (res.headers.get("content-type")?.includes("application/json")) {
-          data = await res.json();
-        }
-        
-        if (res.status === 409 && (data as any).error?.includes("incompatibilità")) {
-          setConflictPrompt({ isOpen: true, pendingAttr: attrData });
-          setAttrFormOpen(false);
-          setIsSubmitting(false);
-          return; 
-        }
-        if (!res.ok) throw new Error((data as any).error || "Errore nel salvataggio");
-        
-        setAttrFormOpen(false);
-        await refreshCurrentCategory();
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
+      setDeleteCategoryAlert(false); onRefresh(); onClose();
+    } catch (err: any) { setError(err.message); setIsSubmitting(false); }
   };
 
   const handleResolveConflict = async () => {
-    if (!currentCategory || !editingAttr || !conflictPrompt.pendingAttr) return;
+    if (!currentCategory || !conflictPrompt.pendingAttr) return;
     setIsSubmitting(true);
     try {
-      await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${editingAttr.name}`, {
-        method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: "unavailable", type: editingAttr.type }),
+      const oldName = conflictPrompt.oldName || conflictPrompt.pendingAttr.name;
+      await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${oldName}`, {
+        method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: "unavailable", type: conflictPrompt.pendingAttr.type }),
       });
       const newAttr = { ...conflictPrompt.pendingAttr, name: `${conflictPrompt.pendingAttr.name}_new` };
       await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes`, {
@@ -216,34 +230,14 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       
       setConflictPrompt({ isOpen: false, pendingAttr: null });
       await refreshCurrentCategory();
-    } catch(err: any) {
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const confirmDeprecate = async () => {
-    if (!currentCategory || !deprecateAlert) return;
-    setIsSubmitting(true);
-    try {
-      await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${deprecateAlert.attrName}`, {
-        method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: "unavailable", type: deprecateAlert.attrType }),
-      });
-      setDeprecateAlert(null);
-      await refreshCurrentCategory();
-    } catch(err: any) {
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch(err: any) { setError(err.message); } finally { setIsSubmitting(false); }
   };
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
-        {/* Modale ad ALTEZZA FISSA (75vh): Non cambierà mai dimensione sbattendo sull'header */}
-        <div className="w-full max-w-3xl flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700" style={{ height: '75vh', minHeight: '500px' }}>
+        {/* Modale più basso e stretto (max-w-2xl, h-[65vh]) */}
+        <div className="w-full max-w-2xl flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700" style={{ height: '65vh', minHeight: '450px' }}>
           
           {/* HEADER FISSO */}
           <div className="flex-none h-16 px-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800">
@@ -280,21 +274,21 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
 
             {/* TAB INFORMAZIONI */}
             {(!currentCategory && creationStep === 1) || (currentCategory && activeTab === 'general') ? (
-              <div className="max-w-2xl mx-auto space-y-5 mt-2">
+              <div className="max-w-xl mx-auto space-y-5 mt-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Nome Categoria</label>
                   <input type="text" value={catName} onChange={e => setCatName(e.target.value)} placeholder="Es. Macchinari" className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Descrizione</label>
-                  <textarea rows={5} value={catDesc} onChange={e => setCatDesc(e.target.value)} placeholder="Dettagli..." className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                  <textarea rows={4} value={catDesc} onChange={e => setCatDesc(e.target.value)} placeholder="Dettagli..." className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
                 </div>
               </div>
             ) : null}
 
             {/* TAB ATTRIBUTI */}
             {(!currentCategory && creationStep === 2) || (currentCategory && activeTab === 'attributes') ? (
-              <div className="max-w-3xl mx-auto">
+              <div className="max-w-2xl mx-auto">
                 <div className="flex justify-between items-center mb-4">
                   <h4 className="font-semibold text-slate-800 dark:text-white">Lista Metadati</h4>
                   <button onClick={() => { setEditingAttr(null); setAttrFormOpen(true); }} className="px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors">
@@ -303,7 +297,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                 </div>
                 
                 {visibleAttributes.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
+                  <div className="text-center py-10 border border-dashed border-slate-300 rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
                     <p className="text-sm font-medium text-slate-500">Nessun metadato disponibile.</p>
                     {!currentCategory && <p className="text-xs text-rose-500 font-semibold mt-1">Aggiungine almeno uno per completare la configurazione.</p>}
                   </div>
@@ -317,15 +311,16 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-semibold">{attr.type}</span>
                             {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-semibold">Obbligatorio</span>}
                           </div>
-                          {attr.type === 'enum' && <p className="text-xs text-slate-400 mt-1 truncate max-w-md">[{attr.options.join(', ')}]</p>}
+                          {attr.type === 'enum' && <p className="text-xs text-slate-400 mt-1 truncate max-w-[200px]">[{attr.options.join(', ')}]</p>}
                         </div>
                         
                         <div className="flex items-center gap-3">
-                          <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-semibold text-blue-600 hover:text-blue-800">Modifica</button>
-                          {!currentCategory ? (
-                            <button onClick={() => setLocalAttributes(prev => prev.filter(a => a.name !== attr.name))} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Rimuovi</button>
+                          <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800">Modifica</button>
+                          {/* Se l'attributo non ha un nome originale, significa che è appena stato creato localmente -> Elimina */}
+                          {!currentCategory || !(attr as any)._originalName ? (
+                            <button onClick={() => setLocalAttributes(prev => prev.filter(a => a.name !== attr.name))} className="text-xs font-bold text-rose-600 hover:text-rose-800">Rimuovi</button>
                           ) : (
-                            <button onClick={() => setDeprecateAlert({isOpen: true, attrName: attr.name, attrType: attr.type})} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Depreca</button>
+                            <button onClick={() => setDeprecateAlert({isOpen: true, attrName: attr.name, attrType: attr.type})} className="text-xs font-bold text-rose-600 hover:text-rose-800">Depreca</button>
                           )}
                         </div>
                       </div>
@@ -346,7 +341,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                   ⬅ Indietro
                 </button>
               ) : currentCategory ? (
-                <button onClick={() => setDeleteCategoryAlert(true)} className="px-4 py-2 text-sm font-medium text-rose-600 border border-rose-200 bg-white hover:bg-rose-50 rounded-md transition-colors flex items-center gap-2">
+                <button onClick={() => setDeleteCategoryAlert(true)} className="px-3 py-2 text-sm font-medium text-rose-600 border border-rose-200 bg-white hover:bg-rose-50 rounded-md transition-colors flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   Elimina Categoria
                 </button>
@@ -362,15 +357,15 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                      <button onClick={() => { if(!catName.trim()) setError("Nome obbligatorio"); else { setError(""); setCreationStep(2); } }} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 shadow-sm transition-colors">Avanti ➔</button>
                    </>
                  ) : (
-                   <button onClick={handleCreateFullCategory} disabled={isSubmitting || localAttributes.length === 0} className="px-5 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50 shadow-sm transition-colors">
-                     {isSubmitting ? "Salvataggio..." : "Salva Categoria"}
+                   <button onClick={handleCreateFullCategory} disabled={isSubmitting || localAttributes.length === 0} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50 shadow-sm transition-colors">
+                     {isSubmitting ? "Salvataggio in corso..." : "Salva Categoria"}
                    </button>
                  )
               ) : (
                  <>
-                   {/* FOOTER SEMPRE UGUALE IN EDITING (Sia in Info che in Metadati) */}
+                   {/* FOOTER UGUALE IN EDITING (Innesca il salvataggio massivo) */}
                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Chiudi</button>
-                   <button onClick={handleSaveGeneralEdits} disabled={isSubmitting || !hasGeneralChanges} className={`px-5 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors ${hasGeneralChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed dark:bg-slate-600 dark:text-slate-400'}`}>
+                   <button onClick={handleSaveGeneralEdits} disabled={isSubmitting || !hasChanges} className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors ${hasChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed dark:bg-slate-600 dark:text-slate-400'}`}>
                      {isSubmitting ? "Attendere..." : "Aggiorna Info"}
                    </button>
                  </>
@@ -381,11 +376,12 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         </div>
       </div>
 
-      <AttributeFormModal isOpen={attrFormOpen} initialData={editingAttr} onClose={() => setAttrFormOpen(false)} onSave={handleSaveAttribute} isSubmitting={isSubmitting} />
+      {/* POPUP SUB-MODALI (Usano onSubmit interno) */}
+      <AttributeFormModal isOpen={attrFormOpen} initialData={editingAttr} onClose={() => setAttrFormOpen(false)} onSave={handleSaveAttribute} isSubmitting={false} />
       
       <ConfirmAlertModal isOpen={conflictPrompt.isOpen} title="Conflitto Dati Storici" confirmText="Depreca e Genera Nuovo" confirmColor="amber" onClose={() => setConflictPrompt({isOpen: false, pendingAttr: null})} onConfirm={handleResolveConflict} isSubmitting={isSubmitting} message={<>Esistono già vecchi asset salvati con questo formato.<br/><br/>Vuoi <strong>deprecare</strong> il vecchio attributo (mantenendo lo storico intatto) e generarne automaticamente uno nuovo?</>} />
       
-      <ConfirmAlertModal isOpen={!!deprecateAlert} title="Conferma Deprecazione" confirmText="Depreca Attributo" confirmColor="rose" onClose={() => setDeprecateAlert(null)} onConfirm={confirmDeprecate} isSubmitting={isSubmitting} message={<>Sei sicuro di voler deprecare l'attributo?<br/>Non sarà più visibile nei form per i nuovi asset, ma rimarrà intatto per lo storico.</>} />
+      <ConfirmAlertModal isOpen={!!deprecateAlert} title="Conferma Deprecazione" confirmText="Metti in Standby" confirmColor="rose" onClose={() => setDeprecateAlert(null)} onConfirm={confirmDeprecate} isSubmitting={false} message={<>Sei sicuro di voler deprecare l'attributo?<br/>Cliccando Conferma, la rimozione verrà messa in standby. <strong>Dovrai poi cliccare su "Aggiorna Info"</strong> per rendere la modifica definitiva sul database.</>} />
       
       <ConfirmAlertModal isOpen={deleteCategoryAlert} title="Elimina Categoria" confirmText="Sì, Elimina Definitivamente" confirmColor="rose" onClose={() => setDeleteCategoryAlert(false)} onConfirm={handleDeleteCategory} isSubmitting={isSubmitting} message={<>Sei sicuro di voler eliminare l'intera categoria e tutti i suoi metadati?<br/><br/><em>Questa operazione è irreversibile.</em></>} />
     </>

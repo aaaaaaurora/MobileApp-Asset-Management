@@ -16,6 +16,7 @@ export interface Operator {
 
 export interface Category {
   id: string;
+  _id?: string; 
   name: string;
 }
 
@@ -67,7 +68,14 @@ export default function OperatorsManagement() {
       
       // Gestione Categorie
       if (catRes.ok) {
-        setCategories(await catRes.json());
+        const rawCategories = await catRes.json();
+        // Mappiamo i dati: copiamo il valore di "_id" (MongoDB) dentro "id" (Postgres style)
+        // così l'intera tabella e il modale lo leggeranno senza problemi.
+        const normalizedCategories = rawCategories.map((c: any) => ({
+          ...c,
+          id: c._id || c.id
+        }));
+        setCategories(normalizedCategories);
       } else {
         setCategories([]); 
       }

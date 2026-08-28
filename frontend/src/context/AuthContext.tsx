@@ -6,6 +6,7 @@ interface User {
   role: string;        // 'GUEST', 'OPERATORE', 'AMMINISTRATORE'
   campus_ids: string[];
   category_id: string | null;
+  name?: string;
   first_name?: string;  
 }
 
