@@ -82,7 +82,7 @@ export default function CategoriesManagement() {
             Gestione Categorie Asset
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Modella dinamicamente le entità e i loro attributi personalizzati (Senza alterare il DB).
+            Modella dinamicamente le entità e i loro attributi personalizzati.
           </p>
         </div>
         

@@ -5,6 +5,7 @@ import CampusMap from "./pages/Dashboard/CampusMap";
 import Home from "./pages/Dashboard/Home"; 
 import OperatorsManagement from "./pages/Admin/OperatorsManagement"; 
 import CategoriesManagement from "./pages/Admin/CategoriesManagement";
+import SystemLogs from "./pages/Admin/SystemLogs";
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
@@ -36,6 +37,8 @@ export default function App() {
               <Route path="/admin/operators" element={<OperatorsManagement />} />
               
               <Route path="/admin/categories" element={<CategoriesManagement />} />
+
+              <Route path="/dashboard/logs" element={<SystemLogs />} />
               {/* SPAZIO PER LE PROSSIME PAGINE:
               <Route path="/admin/campus/new" element={<NewCampus />} />
               */}

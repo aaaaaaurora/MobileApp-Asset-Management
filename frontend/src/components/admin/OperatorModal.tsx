@@ -50,8 +50,16 @@ export default function OperatorModal({
     onSubmit(formData);
   };
 
+  const hasCategoryChanged = formData.category_id !== initialData.category_id;
+  const hasCampusesChanged = 
+    formData.campus_ids.length !== initialData.campus_ids.length || 
+    !formData.campus_ids.every(id => initialData.campus_ids.includes(id));
+    
+  const hasChanges = hasCategoryChanged || hasCampusesChanged;
+  const isSaveDisabled = isSubmitting || (isEditing && !hasChanges);
+
   return (
-    <div className="fixed inset-0 z-99999 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-opacity">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-opacity">
       <div className="w-full max-w-lg flex flex-col max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden dark:bg-slate-800">
         
         <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-700">
@@ -70,7 +78,7 @@ export default function OperatorModal({
 
             <div className="mb-5">
               <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">
-                Indirizzo Email (Account SSO)
+                Indirizzo E-mail esistente
               </label>
               <input
                 type="email"
@@ -85,7 +93,7 @@ export default function OperatorModal({
 
             <div className="mb-5">
               <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">
-                Categoria di Competenza
+                Categoria di competenza
               </label>
               <select
                 value={formData.category_id}
@@ -101,10 +109,10 @@ export default function OperatorModal({
 
             <div className="mb-2">
               <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">
-                Campus Assegnati
+                Campus assegnati
               </label>
               <p className="mb-3 text-xs font-medium text-slate-500">
-                Seleziona i perimetri geografici. Se lasci tutto vuoto, l'Operatore non vedrà nulla.
+                Seleziona i perimetri geografici. Se lasci tutto vuoto, l'Operatore non vedrà nessun campus.
               </p>
               
               <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-3 max-h-48 overflow-y-auto">
@@ -140,12 +148,15 @@ export default function OperatorModal({
             Annulla
           </button>
           
-          {/* TASTO SALVA BENE IN VISTA */}
           <button
             type="submit"
             form="operatorForm"
-            disabled={isSubmitting}
-            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-60"
+            disabled={isSaveDisabled}
+            className={`rounded-lg px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+              isSaveDisabled 
+                ? 'bg-slate-400 cursor-not-allowed dark:bg-slate-600 dark:text-slate-300' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
             {isSubmitting ? "Salvataggio..." : isEditing ? "Aggiorna Permessi" : "Salva Operatore"}
           </button>

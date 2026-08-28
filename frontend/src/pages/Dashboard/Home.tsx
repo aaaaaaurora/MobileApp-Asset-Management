@@ -52,7 +52,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
 
   const displayFirstName = user?.first_name || (user?.name ? user.name.split(' ')[0] : '');
-  
+
   // EFFETTO 1: Scarica la lista dei campus UNA SOLA VOLTA al caricamento
   useEffect(() => {
     const fetchCampuses = async () => {
@@ -143,7 +143,7 @@ export default function Home() {
             onChange={(e) => setSelectedCampus(e.target.value)}
             className="rounded-lg border border-stroke bg-white py-2 px-4 outline-none focus:border-primary dark:border-strokedark dark:bg-boxdark"
           >
-            <option value="">🌍 Tutti i Campus (Aggregata)</option>
+            <option value="">🌍 Tutti i Campus</option>
             {/* Mappiamo dinamicamente i campus presi dal database */}
             {availableCampuses.map((campus) => (
               <option key={campus.id} value={campus.id}>
