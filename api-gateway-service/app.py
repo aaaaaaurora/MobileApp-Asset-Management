@@ -78,6 +78,7 @@ def gateway_proxy(service_name, path):
     if token_payload:
         headers['X-User-Id'] = str(token_payload.get('sub'))
         headers['X-User-Role'] = str(token_payload.get('role', ''))
+        headers['X-User-Email'] = str(token_payload.get('email', '')) 
         
         # Estrazione e propagazione dei campus autorizzati (convertiti in stringa separata da virgole)
         campus_ids = token_payload.get('campus_ids', [])
