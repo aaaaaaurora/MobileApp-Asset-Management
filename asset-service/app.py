@@ -22,10 +22,12 @@ try:
     client = MongoClient(DATABASE_URL, serverSelectionTimeoutMS=5000)
     db = client.get_default_database()
     
-    # Riferimenti alle collezioni previste dallo SDA
+    # Riferimenti alle collezioni previste 
     categories_col = db.categories
     assets_col = db.assets
     history_col = db.asset_history
+    campus_cache_col = db.campus_cache
+
 except ConnectionFailure as e:
     print(f"[ASSET SERVICE] Errore di connessione a MongoDB: {e}")
 
@@ -47,6 +49,7 @@ def get_auth_context():
     return {
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
+        'email' : request.headers.get('X-User-Email'), # <-- MODIFICA: Presa dell'email dal Gateway
         'campus_ids': campus_ids
     }
 
@@ -75,6 +78,14 @@ def publish_event(action, extra_data=None):
     Wrapper per pubblicare eventi verso DataInsight Service o altri consumer.
     """
     auth = get_auth_context()
+    
+    if extra_data is None:
+        extra_data = {}
+        
+    # <-- MODIFICA: Iniettiamo l'email nel payload
+    if auth.get('email'):
+        extra_data['email'] = auth.get('email')
+
     mq_manager.publish_event(
         exchange_name='system_events',
         action=action,
@@ -82,6 +93,22 @@ def publish_event(action, extra_data=None):
         service_name='asset-service',
         extra_data=extra_data
     )
+
+def get_cached_campus_name(campus_id):
+    """Recupera il nome del campus dalla cache locale senza chiamate esterne."""
+    doc = campus_cache_col.find_one({"_id": campus_id})
+    return doc.get("name") if doc else None
+
+def extract_asset_name(metadata):
+    """Tenta di estrarre un nome rappresentativo dell'asset dai metadati dinamici."""
+    if not metadata: 
+        return None
+    # Cerchiamo chiavi comuni che potrebbero fungere da 'Nome'
+    for key in ['name', 'nome', 'targa', 'modello', 'titolo']:
+        for k, v in metadata.items():
+            if k.lower() == key and v:
+                return str(v)
+    return None
 
 # ============================================================================
 # ENDPOINT DI SISTEMA
@@ -657,11 +684,17 @@ def create_asset():
         }
         history_col.insert_one(snapshot)
 
+        # INIEZIONE NOMI PER LA TABELLA DEI LOG (Local Cache & Extraction)
+        campus_name = get_cached_campus_name(campus_id)
+        asset_name = extract_asset_name(validated_metadata)
+
         # 6. Tracciabilità asincrona (RabbitMQ)
         publish_event("ASSET_CREATED", {
             "asset_id": asset_id,
             "category_id": category_id,
-            "campus_id": campus_id
+            "campus_id": campus_id,
+            "campus_name": campus_name, 
+            "asset_name": asset_name 
         })
 
         return jsonify({
@@ -792,11 +825,17 @@ def update_asset(asset_id):
         }
         history_col.insert_one(snapshot)
 
+        # INIEZIONE NOMI PER LA TABELLA DEI LOG 
+        campus_name = get_cached_campus_name(updated_asset.get('campus_id'))
+        asset_name = extract_asset_name(final_metadata)
+
         # 8. Eventi RabbitMQ
         publish_event("ASSET_UPDATED", {
             "asset_id": asset_id,
             "category_id": category_id,
             "campus_id": updated_asset.get('campus_id'),
+            "campus_name": campus_name,  
+            "asset_name": asset_name,  
             "updated_keys": list(raw_metadata.keys())
         })
 
@@ -961,11 +1000,17 @@ def delete_asset(asset_id):
         # 3. Eliminazione fisica dalla collezione corrente
         assets_col.delete_one({"_id": ObjectId(asset_id)})
 
+        # INIEZIONE NOMI PER LA TABELLA DEI LOG
+        campus_name = get_cached_campus_name(campus_id)
+        asset_name = extract_asset_name(asset_to_delete.get('metadata', {}))
+
         # 4. Tracciabilità asincrona (RabbitMQ)
         publish_event("ASSET_DELETED", {
             "asset_id": asset_id,
             "category_id": category_id,
-            "campus_id": campus_id
+            "campus_id": campus_id,
+            "campus_name": campus_name, 
+            "asset_name": asset_name 
         })
 
         return jsonify({"message": "Asset eliminato con successo"}), 200
@@ -1029,15 +1074,30 @@ def process_system_events(ch, method, properties, body):
         payload = json.loads(body.decode('utf-8'))
         action = payload.get("azione")
         
-        if action == "CAMPUS_DELETED":
+        # <-- NUOVO: GESTIONE EVENT-DRIVEN CACHE DEI CAMPUS
+        if action in ["CAMPUS_CREATED", "CAMPUS_UPDATED"]:
+            campus_id = payload.get("campus_id")
+            campus_name = payload.get("campus_name")
+            if campus_id and campus_name:
+                campus_cache_col.update_one(
+                    {"_id": campus_id},
+                    {"$set": {"name": campus_name}},
+                    upsert=True
+                )
+        
+        elif action == "CAMPUS_DELETED":
             campus_id = payload.get("campus_id")
             if campus_id:
+                # 1. Rimuovi dalla cache locale
+                campus_cache_col.delete_one({"_id": campus_id})
+                
                 # Troviamo tutti gli asset del campus eliminato
                 assets_to_delete = list(assets_col.find({"campus_id": campus_id}))
                 
                 for asset in assets_to_delete:
                     asset_id = str(asset['_id'])
                     category_id = asset.get('category_id')
+                    metadata = asset.get('metadata', {})
                     
                     # 1. Tracciamento storico (Soft Delete Logico)
                     history_col.insert_one({
@@ -1053,6 +1113,8 @@ def process_system_events(ch, method, properties, body):
                     
                     # 3. Notifica agli altri servizi usando direttamente mq_manager 
                     # (perché siamo in un thread senza contesto di richiesta HTTP)
+                    asset_name = extract_asset_name(metadata)
+                    
                     mq_manager.publish_event(
                         exchange_name='system_events',
                         action='ASSET_DELETED',
@@ -1061,8 +1123,8 @@ def process_system_events(ch, method, properties, body):
                         extra_data={
                             "asset_id": asset_id,
                             "category_id": category_id,
-                            "campus_id": campus_id
-                        }
+                            "campus_id": campus_id,
+                            "asset_name": asset_name,                         }
                     )
                     
         # Ack manuale se auto_ack=False
@@ -1090,6 +1152,5 @@ def start_consumer_thread():
 # ENTRY POINT
 # ============================================================================
 if __name__ == '__main__':
-    
     start_consumer_thread()
     app.run(host='0.0.0.0', port=5000)

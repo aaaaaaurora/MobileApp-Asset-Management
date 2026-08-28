@@ -52,18 +52,27 @@ def get_auth_context():
     return {
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
+        'email': request.headers.get('X-User-Email'), # <--- MODIFICA: Ora estraiamo anche l'email dal Gateway
         'campus_ids': campus_ids
     }
 
 def publish_event(action, extra_data=None):
     """Wrapper per pubblicare eventi verso RabbitMQ."""
     auth = get_auth_context()
+    
+    if extra_data is None:
+        extra_data = {}
+        
+    # <--- MODIFICA: Iniettiamo l'email nel payload di tutti gli eventi generati da questo servizio
+    if auth.get('email'):
+        extra_data['email'] = auth.get('email')
+
     mq_manager.publish_event(
         exchange_name='system_events',
         action=action,
         actor_id=auth.get('user_id') or None,
         service_name='geozone-service',
-        extra_data=extra_data
+        extra_data=extra_data if extra_data else None
     )
 
 def error_response(message, status_code):

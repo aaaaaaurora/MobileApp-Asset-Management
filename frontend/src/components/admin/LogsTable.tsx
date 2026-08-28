@@ -16,7 +16,6 @@ interface LogsTableProps {
 
 export default function LogsTable({ logs, isLoading }: LogsTableProps) {
   
-  // Formattatore per le date (es: "28 Ago 2026 - 15:30")
   const formatDate = (isoString: string) => {
     if (!isoString) return "-";
     const date = new Date(isoString);
@@ -26,9 +25,32 @@ export default function LogsTable({ logs, isLoading }: LogsTableProps) {
     });
   };
 
-  // Funzione per ripulire l'azione e renderla più leggibile
   const formatAction = (action: string) => {
     return action.replace(/_/g, ' ').toUpperCase();
+  };
+
+  const getUserDisplay = (log: AuditLog) => {
+    if (log.actor_id === 'system') {
+      return <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px] uppercase">System Auto</span>;
+    }
+    if (!log.actor_id) return <span className="text-slate-400 italic">Sconosciuto</span>;
+
+    const payload = log.payload || {};
+    const extraData = payload.extra_data || {};
+    const humanReadable = payload.email || extraData.email || payload.name || extraData.name;
+
+    if (humanReadable) {
+      return <span className="font-semibold text-slate-700 dark:text-slate-200">{humanReadable}</span>;
+    }
+
+    return (
+      <span 
+        title={log.actor_id} 
+        className="font-mono text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 px-2 py-1 rounded cursor-help"
+      >
+        {log.actor_id.substring(0, 8)}...
+      </span>
+    );
   };
 
   return (
@@ -42,7 +64,7 @@ export default function LogsTable({ logs, isLoading }: LogsTableProps) {
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Azione Effettuata</th>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Utente / Operatore</th>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Campus</th>
-              <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">ID Entità (Asset)</th>
+              <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Entità (Asset)</th>
             </tr>
           </thead>
           
@@ -57,7 +79,6 @@ export default function LogsTable({ logs, isLoading }: LogsTableProps) {
                 </td>
               </tr>
             ) : logs.length === 0 ? (
-              // STATO VUOTO (UC-AMM-06: Nessun dato storico disponibile)
               <tr>
                 <td colSpan={5} className="py-16 text-center">
                   <svg className="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -69,9 +90,15 @@ export default function LogsTable({ logs, isLoading }: LogsTableProps) {
               </tr>
             ) : (
               logs.map((log, index) => {
-                // Il campus può trovarsi nel payload a seconda di come lo emette l'Asset Service
-                const campusId = log.payload?.campus_id || log.payload?.extra_data?.campus_id || "-";
+                // Estraiamo i dati dal payload in modo sicuro
+                const extra = log.payload?.extra_data || log.payload || {};
                 
+                const campusId = extra.campus_id || "-";
+                const campusName = extra.campus_name; // Il nuovo campo umano
+
+                const entityId = log.entity_id || "-";
+                const entityName = extra.asset_name || extra.entity_name || extra.name; // Il nuovo campo umano
+
                 return (
                   <tr 
                     key={log.id} 
@@ -84,36 +111,44 @@ export default function LogsTable({ logs, isLoading }: LogsTableProps) {
                     </td>
                     
                     <td className="py-4 px-6">
-                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 border border-blue-200 uppercase tracking-wide">
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 border border-blue-200 uppercase tracking-wide shadow-sm">
                         {formatAction(log.action)}
                       </span>
                       {log.service_name && (
-                        <span className="block text-[10px] text-slate-400 mt-1 uppercase font-semibold">
-                          Via: {log.service_name}
+                        <span className="block text-[10px] text-slate-400 mt-1.5 font-semibold">
+                          VIA: {log.service_name.toUpperCase()}
                         </span>
                       )}
                     </td>
                     
-                    <td className="py-4 px-6 font-mono text-xs text-slate-600 dark:text-slate-300">
-                      {log.actor_id === 'system' ? (
-                        <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">SYSTEM AUTO</span>
-                      ) : (
-                        log.actor_id || "Sconosciuto"
-                      )}
+                    <td className="py-4 px-6">
+                      {getUserDisplay(log)}
                     </td>
                     
+                    {/* COLONNA CAMPUS: Mostra il nome se c'è, sennò l'ID formattato bene */}
                     <td className="py-4 px-6">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        {campusId !== "-" ? (
-                          <span className="px-2 py-1 bg-slate-100 rounded text-xs border border-slate-200 font-mono">
-                            {campusId.substring(0, 8)}...
-                          </span>
-                        ) : "-"}
-                      </span>
+                      {campusName ? (
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{campusName}</span>
+                      ) : campusId !== "-" ? (
+                        <span title={campusId} className="px-2 py-1 bg-slate-100 rounded-md text-[11px] border border-slate-200 font-mono cursor-help text-slate-500">
+                          {campusId.substring(0, 8)}...
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </td>
 
-                    <td className="py-4 px-6 font-mono text-xs text-slate-500">
-                      {log.entity_id ? log.entity_id : "-"}
+                    {/* COLONNA ASSET: Mostra il nome se c'è, sennò l'ID formattato bene */}
+                    <td className="py-4 px-6">
+                      {entityName ? (
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{entityName}</span>
+                      ) : entityId !== "-" ? (
+                        <span title={entityId} className="font-mono text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md cursor-help">
+                          {entityId.substring(0, 8)}...
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </td>
                   </tr>
                 );

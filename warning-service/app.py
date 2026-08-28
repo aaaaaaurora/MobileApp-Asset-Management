@@ -71,11 +71,14 @@ def get_auth_context():
     return {
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
+        'email': request.headers.get('X-User-Email'), # <-- MODIFICA 1: Estrazione email dal token JWT
         'campus_ids': request.headers.get('X-Campus-Ids', '').split(',') if request.headers.get('X-Campus-Ids') else []
     }
 
 def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
     """Sfrutta il Manager centralizzato per emettere log asincroni."""
+    auth_ctx = get_auth_context()
+    
     event_data = {
         "azione": action,
         "entity_id": str(entity_id),
@@ -83,6 +86,11 @@ def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
         "campus_id": str(campus_id),
         "dettagli": payload_details
     }
+    
+    # <-- MODIFICA 2: Iniezione email nel payload se presente
+    if auth_ctx.get('email'):
+        event_data['email'] = auth_ctx.get('email')
+        
     mq_manager.publish_event('system_events', action, str(actor_id), 'warning-service', event_data)
     
     

@@ -15,6 +15,7 @@ from shared_utils.messaging import RabbitMQManager
 # Nuovi import necessari per la validazione reale del token Google
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+import requests # Spostato in alto per pulizia
 
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
@@ -79,7 +80,6 @@ class UserCategory(db.Model):
 # ============================================================================
 # FUNZIONI DI UTILITA'
 # ============================================================================
-import requests # Assicurati che questa libreria sia importata in cima al file
 
 def verify_google_token(access_token):
     """
@@ -107,16 +107,29 @@ def verify_google_token(access_token):
         print(f"ERRORE CRITICO VERIFICA TOKEN: {e}", flush=True)
         return None
 
-def publish_audit_event(action, actor_id):
+def publish_audit_event(action, actor_id, extra_data=None):
     """
-    Pubblica un evento asincrono sul Message Broker (RabbitMQ) sfruttando 
-    la libreria centralizzata 'shared_utils'.
+    Pubblica un evento asincrono sul Message Broker (RabbitMQ).
+    MODIFICA: Arricchisce automaticamente l'evento con l'email prelevandola dal DB.
     """
+    if extra_data is None:
+        extra_data = {}
+        
+    if actor_id:
+        try:
+            # Recuperiamo l'utente dal database in modo efficiente
+            user = db.session.get(AppUser, actor_id)
+            if user and user.email:
+                extra_data['email'] = user.email
+        except Exception as e:
+            print(f"Errore recupero email per audit log: {e}", flush=True)
+
     mq_manager.publish_event(
         exchange_name='system_events',
         action=action,
-        actor_id=actor_id,
-        service_name='auth-service'
+        actor_id=str(actor_id) if actor_id else None,
+        service_name='auth-service',
+        extra_data=extra_data if extra_data else None
     )
 
 def error_response(message, status_code):
@@ -320,7 +333,8 @@ def verify_2fa():
         "campus_ids": campus_ids,
         "category_id": category_id,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=8),
-        "first_name": user.first_name
+        "first_name": user.first_name,
+        "email": user.email       
     }
 
     final_token = jwt.encode(jwt_payload, app.config['JWT_SECRET'], algorithm="HS256")
