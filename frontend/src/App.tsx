@@ -38,7 +38,8 @@ export default function App() {
               
               <Route path="/admin/categories" element={<CategoriesManagement />} />
 
-              <Route path="/dashboard/logs" element={<SystemLogs />} />
+              <Route path="/admin/history" element={<SystemLogs />} />
+              
               {/* SPAZIO PER LE PROSSIME PAGINE:
               <Route path="/admin/campus/new" element={<NewCampus />} />
               */}
