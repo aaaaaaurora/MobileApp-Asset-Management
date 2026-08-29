@@ -460,6 +460,5 @@ def verify_location():
     except Exception as e:
         return error_response(f"Errore interno del motore spaziale: {str(e)}", 500)
 
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

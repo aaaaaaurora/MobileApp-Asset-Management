@@ -784,7 +784,6 @@ def update_asset(asset_id):
     except Exception as e:
         return error_response(f"Errore durante l'aggiornamento dell'asset: {str(e)}", 500)
 
-
 # ============================================================================
 # ENDPOINT: Ricerca, filtraggio e visualizzazione massiva degli Asset
 # ============================================================================
