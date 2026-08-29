@@ -236,14 +236,17 @@ def upload_images():
         "errors": errors
     }), status_code
 
+import io
+from flask import send_file
+
 # ==========================================
 # ENDPOINT: US 3-2 (Anteprima e Visualizzazione)
 # ==========================================
 @app.route('/images/<media_id_str>', methods=['GET'])
 def get_image(media_id_str):
     """
-    Recupera i metadati dell'immagine e genera un URL pre-firmato sicuro (Pre-signed URL)
-    per l'accesso diretto a MinIO, reindirizzando il client.
+    Recupera l'immagine da MinIO e la restituisce direttamente al client come stream binario,
+    evitando problemi di DNS e reindirizzamenti esterni.
     """
     try:
         media_uuid = uuid.UUID(media_id_str)
@@ -256,21 +259,26 @@ def get_image(media_id_str):
         return jsonify({"error": "Immagine non trovata nel database"}), 404
 
     try:
-        # 2. Generazione Pre-signed URL sicuro valido per 1 ora
-        presigned_url = minio_client.get_presigned_url(
-            "GET",
-            metadata.bucket_name,
-            metadata.object_key,
-            expires=datetime.timedelta(hours=1)
-        )
+        # 2. Preleva l'oggetto direttamente da MinIO (il container parla con il container)
+        response = minio_client.get_object(metadata.bucket_name, metadata.object_key)
         
-        # 3. Reindirizzamento del client direttamente all'Object Storage
-        from flask import redirect
-        return redirect(presigned_url)
+        # 3. Legge i byte in memoria
+        file_stream = io.BytesIO(response.read())
+        
+        # 4. Restituisce il file al client tramite Flask
+        return send_file(
+            file_stream, 
+            mimetype='image/jpeg', # Modifica con metadata.mime_type se lo hai salvato nel DB
+            as_attachment=False
+        )
 
-    except S3Error as minio_err:
-        return jsonify({"error": f"Errore nel recupero dell'immagine dallo storage: {str(minio_err)}"}), 500
-
+    except Exception as err:
+        return jsonify({"error": f"Errore nel recupero dell'immagine dallo storage: {str(err)}"}), 500
+    finally:
+        # Rilascia la connessione a MinIO in modo pulito
+        if 'response' in locals():
+            response.close()
+            response.release_conn()
 # ==========================================
 # ENDPOINT: US 3-3 
 # ==========================================

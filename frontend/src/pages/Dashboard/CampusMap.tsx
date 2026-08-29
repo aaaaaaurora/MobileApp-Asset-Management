@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
@@ -165,96 +166,101 @@ export default function CampusMap() {
         </Map>
       </div>
 
-      {/* MODALE FISSA AL CENTRO DELLA PAGINA */}
-      {selectedAsset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark max-h-[90vh] overflow-y-auto">
+      {/* MODALE GLOBALE CON REACT PORTAL */}
+      {selectedAsset && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative flex flex-col w-full max-w-md max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden">
             
-            {/* Pulsante di Chiusura (X) Grande e Visibile */}
-            <button 
-              onClick={() => setSelectedAsset(null)} 
-              className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
-            >
-              ✕
-            </button>
-
-            <h3 className="font-bold text-xl text-black dark:text-white mb-4 pr-8 border-b border-stroke dark:border-strokedark pb-2">
-              Dettagli Asset
-            </h3>
-
-            {/* Sezione Immagini Corretta (Tramite Gateway Media) */}
-            {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
-              <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
-                {selectedAsset.media_ids.map((mediaId: string) => (
-                  <img
-                    key={mediaId}
-                    src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
-                    alt="Asset"
-                    className="h-40 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark"
-                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Attributi dell'Asset */}
-            <div className="flex flex-col gap-2 text-sm mb-4">
-              {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
-                <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
-                  <span className="font-semibold text-body capitalize">{key.replace('_', ' ')}</span>
-                  <span className="text-black dark:text-white font-medium">{String(val)}</span>
-                </div>
-              ))}
+            {/* Header Fisso */}
+            <div className="flex justify-between items-center p-5 border-b border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
+              <h3 className="font-bold text-xl text-black dark:text-white">
+                Dettagli Asset
+              </h3>
+              <button 
+                onClick={() => setSelectedAsset(null)} 
+                className="text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Modulo Operatore (Manutenzione Preventiva) */}
-            {user?.role === 'OPERATORE' && (
-              <div className="mt-4 border-t border-stroke dark:border-strokedark pt-4">
-                <span className="block text-xs font-bold text-primary mb-2 uppercase tracking-wider">
-                  Registra Manutenzione Preventiva
-                </span>
-                <textarea 
-                  value={formText} 
-                  onChange={(e) => setFormText(e.target.value)} 
-                  placeholder="Scrivi qui la nota tecnica di intervento..." 
-                  className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input mb-3 text-black dark:text-white" 
-                  rows={3} 
-                />
-                <button 
-                  onClick={handleActionSubmit} 
-                  disabled={isSubmitting || !formText.trim()} 
-                  className="flex w-full justify-center rounded bg-primary p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50 transition"
-                >
-                  {isSubmitting ? 'Registrazione in corso...' : 'Conferma e Registra Intervento'}
-                </button>
-              </div>
-            )}
+            {/* Corpo Scorrevole */}
+            <div className="flex-1 overflow-y-auto p-5">
+              
+              {/* Immagini */}
+              {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
+                <div className="mb-5 flex gap-2 overflow-x-auto pb-2">
+                  {selectedAsset.media_ids.map((mediaId: string) => (
+                    <img
+                      key={mediaId}
+                      src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
+                      alt="Errore di rete con MinIO (Vedi Console)"
+                      className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
+                    />
+                  ))}
+                </div>
+              )}
 
-            {/* Modulo Utente (Segnalazione Guasti) */}
-            {user?.role === 'UTENTE' && (
-              <div className="mt-4 border-t border-stroke dark:border-strokedark pt-4">
-                <span className="block text-xs font-bold text-danger mb-2 uppercase tracking-wider">
-                  Invia Segnalazione Guasto
-                </span>
-                <textarea 
-                  value={formText} 
-                  onChange={(e) => setFormText(e.target.value)} 
-                  placeholder="Descrivi dettagliatamente il problema riscontrato..." 
-                  className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-danger active:border-danger dark:border-form-strokedark dark:bg-form-input mb-3 text-black dark:text-white" 
-                  rows={3} 
-                />
+              {/* Attributi */}
+              <div className="flex flex-col gap-2 text-sm mb-5">
+                {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
+                  <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
+                    <span className="font-semibold text-body capitalize">{key.replace('_', ' ')}</span>
+                    <span className="text-black dark:text-white font-medium">{String(val)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Aree di Testo */}
+              {user?.role === 'OPERATORE' && (
+                <div>
+                  <span className="block text-xs font-bold text-primary mb-2 uppercase tracking-wider">
+                    Registra Manutenzione Preventiva
+                  </span>
+                  <textarea 
+                    value={formText} 
+                    onChange={(e) => setFormText(e.target.value)} 
+                    placeholder="Scrivi qui la nota tecnica di intervento..." 
+                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
+                    rows={4} 
+                  />
+                </div>
+              )}
+
+              {user?.role === 'UTENTE' && (
+                <div>
+                  <span className="block text-xs font-bold text-danger mb-2 uppercase tracking-wider">
+                    Invia Segnalazione Guasto
+                  </span>
+                  <textarea 
+                    value={formText} 
+                    onChange={(e) => setFormText(e.target.value)} 
+                    placeholder="Descrivi dettagliatamente il problema riscontrato..." 
+                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-danger active:border-danger dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
+                    rows={4} 
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Piede Fisso con Pulsante */}
+            {(user?.role === 'OPERATORE' || user?.role === 'UTENTE') && (
+              <div className="p-5 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
                 <button 
                   onClick={handleActionSubmit} 
                   disabled={isSubmitting || !formText.trim()} 
-                  className="flex w-full justify-center rounded bg-danger p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50 transition"
+                  className={`flex w-full justify-center rounded p-3 font-medium text-white transition ${user?.role === 'OPERATORE' ? 'bg-primary hover:bg-opacity-90' : 'bg-danger hover:bg-opacity-90'} disabled:opacity-50`}
                 >
-                  {isSubmitting ? 'Invio in corso...' : 'Invia Segnalazione'}
+                  {isSubmitting 
+                    ? 'Operazione in corso...' 
+                    : user?.role === 'OPERATORE' ? 'Conferma e Registra Intervento' : 'Invia Segnalazione'}
                 </button>
               </div>
             )}
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
