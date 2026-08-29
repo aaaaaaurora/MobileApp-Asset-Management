@@ -282,7 +282,8 @@ export default function AssetList() {
                     />
                     <button 
                       onClick={() => handleDeleteImage(mediaId)} 
-                      className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-md hover:bg-red-700 transition"
+                      // Modificato: posizionato all'interno dell'immagine (top-1 right-1) e ingrandito leggermente (w-6 h-6)
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-md hover:bg-red-700 transition"
                       title="Elimina foto"
                     >
                       ✕
