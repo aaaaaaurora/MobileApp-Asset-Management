@@ -114,6 +114,7 @@ def gateway_proxy(service_name, path):
             "error": f"Gateway Timeout o Errore di comunicazione con il servizio '{service_name}': {str(e)}"
         }), 502
 
+
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
