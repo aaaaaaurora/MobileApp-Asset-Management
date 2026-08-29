@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 interface Ticket {
   id: string;
@@ -91,14 +91,16 @@ export default function TicketSegnalazioni() {
                 <th className="py-4 px-4 font-medium text-black dark:text-white xl:pl-11">Data</th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">Descrizione Problema</th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">Stato</th>
+                {/* Nuova colonna per la Posizione */}
+                <th className="py-4 px-4 font-medium text-black dark:text-white">Posizione</th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">Azioni</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={4} className="py-5 text-center text-gray-500">Caricamento ticket in corso...</td></tr>
+                <tr><td colSpan={5} className="py-5 text-center text-gray-500">Caricamento ticket in corso...</td></tr>
               ) : tickets.length === 0 ? (
-                <tr><td colSpan={4} className="py-5 text-center text-gray-500">Nessuna segnalazione.</td></tr>
+                <tr><td colSpan={5} className="py-5 text-center text-gray-500">Nessuna segnalazione.</td></tr>
               ) : (
                 tickets.map((ticket) => (
                   <tr key={ticket.id}>
@@ -115,27 +117,27 @@ export default function TicketSegnalazioni() {
                         {ticket.status.toUpperCase()}
                       </span>
                     </td>
+                    {/* Cella separata per la navigazione in mappa */}
                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <div className="flex items-center gap-2">
-                        {/* NUOVO BOTTONE MAPPA */}
+                      <button
+                        onClick={() => navigate('/map', { state: { focusAssetId: ticket.asset_id, focusCampusId: ticket.campus_id } })}
+                        className="rounded border border-blue-600 text-blue-600 py-1 px-3 text-xs font-medium hover:bg-blue-600 hover:text-white transition inline-flex items-center gap-1"
+                      >
+                        📍 Mappa
+                      </button>
+                    </td>
+                    {/* Cella dedicata esclusivamente alla risoluzione */}
+                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                      {ticket.status === 'aperta' ? (
                         <button
-                          onClick={() => navigate('/map', { state: { focusAssetId: ticket.asset_id, focusCampusId: ticket.campus_id } })}
-                          className="rounded border border-blue-600 text-blue-600 py-1 px-3 text-xs font-medium hover:bg-blue-600 hover:text-white transition"
+                          onClick={() => setSelectedTicket(ticket)}
+                          className="rounded bg-blue-600 py-1 px-4 text-xs font-medium text-white hover:bg-blue-700 transition"
                         >
-                          📍 Mappa
+                          Gestisci
                         </button>
-                        
-                        {ticket.status === 'aperta' ? (
-                          <button
-                            onClick={() => setSelectedTicket(ticket)}
-                            className="rounded bg-blue-600 py-1 px-3 text-xs font-medium text-white hover:bg-blue-700 transition"
-                          >
-                            Gestisci
-                          </button>
-                        ) : (
-                          <span className="text-xs text-gray-500 ml-2">Risolto</span>
-                        )}
-                      </div>
+                      ) : (
+                        <span className="text-xs text-gray-500 font-medium">Risolto</span>
+                      )}
                     </td>
                   </tr>
                 ))
