@@ -466,6 +466,46 @@ def get_operators():
         
     return jsonify(result), 200
 
+from flask import request, jsonify
+import uuid
+
+# ==========================================
+# ENDPOINT: Profilo Utente Loggato
+# ==========================================
+@app.route('/me', methods=['GET'])
+def get_current_user():
+    """
+    Restituisce i dati anagrafici dell'utente attualmente autenticato.
+    Richiede che il Gateway abbia validato il JWT e passato gli header.
+    """
+    # Recupera il contesto di autenticazione (dipende da come lo hai implementato, 
+    # di solito leggi l'header X-User-Id iniettato dal Gateway)
+    auth_ctx = get_auth_context() 
+    user_id_str = auth_ctx.get('user_id')
+    user_role = auth_ctx.get('role')
+
+    if not user_id_str:
+        return jsonify({"error": "Utente non autenticato"}), 401
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        return jsonify({"error": "Formato ID utente non valido"}), 400
+
+    # Interroga la tabella app_user
+    user = db.session.get(AppUser, user_uuid)
+    
+    if not user:
+        return jsonify({"error": "Utente non trovato nel database"}), 404
+
+    return jsonify({
+        "id": str(user.id),
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user_role
+    }), 200
+
 # ============================================================================
 # CONSUMER ASINCRONO INTEGRATO CON LA CLASSE CENTRALIZZATA
 # ============================================================================
