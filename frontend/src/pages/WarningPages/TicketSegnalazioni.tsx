@@ -114,7 +114,7 @@ export default function TicketSegnalazioni() {
                   <td colSpan={4} className="py-5 text-center text-gray-500">Nessuna segnalazione presente nel tuo campus.</td>
                 </tr>
               ) : (
-                tickets.map((ticket, key) => (
+                tickets.map((ticket) => (
                   <tr key={ticket.id}>
                     <td className="border-b border-[#eee] py-5 px-4 pl-9 dark:border-strokedark xl:pl-11">
                       <p className="text-sm text-black dark:text-white">
