@@ -123,6 +123,7 @@ def health_check():
     """Endpoint per i Liveness e Readiness Probe di Kubernetes."""
     return jsonify({"status": "healthy"}), 200
 
+
 # ============================================================================
 # ENDPOINT RESTful
 # ============================================================================

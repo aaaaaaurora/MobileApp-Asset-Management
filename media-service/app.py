@@ -34,6 +34,7 @@ minio_client = Minio(
     secret_key=MINIO_SECRET_KEY,
     secure=False # Impostare a True in produzione con certificati validi
 )
+
 # Configurazione RabbitMQ
 RABBITMQ_URL = os.getenv('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq-service:5672/')
 mq_manager = RabbitMQManager(rabbitmq_url=RABBITMQ_URL)

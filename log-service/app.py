@@ -585,7 +585,7 @@ def start_mq_consumer():
         except Exception as e:
             logger.error(f"[!] Connessione RabbitMQ persa: {str(e)}. Riconnessione tra 5s...")
             time.sleep(5)
-       
+
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
