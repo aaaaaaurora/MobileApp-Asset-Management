@@ -17,9 +17,9 @@ export default function CampusMap() {
   const [formText, setFormText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 1. Geolocalizzazione Utente
+  // 1. Geolocalizzazione Guest
   useEffect(() => {
-    if (user?.role === 'UTENTE' && 'geolocation' in navigator) {
+    if (user?.role === 'GUEST' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition((position) => {
         setViewState(prev => ({ ...prev, longitude: position.coords.longitude, latitude: position.coords.latitude }));
       });
@@ -49,7 +49,7 @@ export default function CampusMap() {
     const fetchAssets = async () => {
       try {
         let url = `${import.meta.env.VITE_API_URL}/asset/api/assets`;
-        if (user?.role !== 'UTENTE' && selectedCampus) {
+        if (user?.role !== 'GUEST' && selectedCampus) {
           url += `?campus_id=${selectedCampus}`;
         }
         const response = await fetch(url, {
@@ -60,7 +60,7 @@ export default function CampusMap() {
         setAssets(data.assets || []);
       } catch (error) { console.error("Errore recupero asset:", error); }
     };
-    if (user?.role === 'UTENTE' || selectedCampus) fetchAssets();
+    if (user?.role === 'GUEST' || selectedCampus) fetchAssets();
   }, [selectedCampus, user, token]);
 
   // 4. Centratura Mappa
@@ -227,7 +227,7 @@ export default function CampusMap() {
                 </div>
               )}
 
-              {user?.role === 'UTENTE' && (
+              {user?.role === 'GUEST' && (
                 <div>
                   <span className="block text-xs font-bold text-red-600 mb-2 uppercase tracking-wider">
                     Invia Segnalazione Guasto
@@ -244,7 +244,7 @@ export default function CampusMap() {
             </div>
 
             {/* Piede Fisso con Pulsante */}
-            {(user?.role === 'OPERATORE' || user?.role === 'UTENTE') && (
+            {(user?.role === 'OPERATORE' || user?.role === 'GUEST') && (
               <div className="p-5 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
                 <button 
                   onClick={handleActionSubmit} 
