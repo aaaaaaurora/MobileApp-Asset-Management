@@ -476,23 +476,21 @@ import uuid
 def get_current_user():
     """
     Restituisce i dati anagrafici dell'utente attualmente autenticato.
-    Richiede che il Gateway abbia validato il JWT e passato gli header.
+    Legge gli header iniettati in modo sicuro dall'API Gateway.
     """
-    # Recupera il contesto di autenticazione (dipende da come lo hai implementato, 
-    # di solito leggi l'header X-User-Id iniettato dal Gateway)
-    auth_ctx = get_auth_context() 
-    user_id_str = auth_ctx.get('user_id')
-    user_role = auth_ctx.get('role')
+    # Leggiamo gli header direttamente dalla request
+    user_id_str = request.headers.get('X-User-Id')
+    user_role = request.headers.get('X-User-Role')
 
     if not user_id_str:
-        return jsonify({"error": "Utente non autenticato"}), 401
+        return jsonify({"error": "Utente non autenticato o header mancanti dal Gateway"}), 401
 
     try:
         user_uuid = uuid.UUID(user_id_str)
     except ValueError:
         return jsonify({"error": "Formato ID utente non valido"}), 400
 
-    # Interroga la tabella app_user
+    # Interroga la tabella app_user (assicurati che il modello si chiami AppUser o User a seconda della tua implementazione)
     user = db.session.get(AppUser, user_uuid)
     
     if not user:
