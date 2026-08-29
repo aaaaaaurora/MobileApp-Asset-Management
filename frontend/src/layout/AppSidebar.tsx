@@ -28,6 +28,13 @@ const PlusIcon = (
   </svg>
 );
 
+// Nuova Icona per la Lista Asset
+const ListIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+  </svg>
+);
+
 // 2. Funzione che genera il menu in base al ruolo
 const getNavItemsByRole = (role?: string): NavItem[] => {
   // La Mappa è comune a tutti, la mettiamo come base
@@ -45,7 +52,9 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
     case "OPERATORE":
       return [
         ...baseMenu,
-        { icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" }, 
+        { icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" },
+        // Aggiunta la voce "Lista Asset" per la gestione massiva
+        { icon: ListIcon, name: "Lista Asset", path: "/assets/list" }, 
         { icon: <HorizontaLDots className="w-5 h-5" />, name: "Ticket Segnalazioni", path: "/operator/tickets" }
       ];
     case "UTENTE":
