@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Map, { Source, Layer, MapRef, Marker, Popup } from 'react-map-gl/maplibre';
+import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 
@@ -7,12 +7,10 @@ export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
 
-  // Stati della Mappa e del Campus
   const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 15, pitch: 45, bearing: 0 });
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
-  // Stati per Asset e Moduli nel Popup
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [formText, setFormText] = useState('');
@@ -27,7 +25,7 @@ export default function CampusMap() {
     }
   }, [user]);
 
-  // 2. Fetch Campus (Operatore / Amministratore)
+  // 2. Fetch Campus
   useEffect(() => {
     if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
       const fetchCampuses = async () => {
@@ -64,7 +62,7 @@ export default function CampusMap() {
     if (user?.role === 'UTENTE' || selectedCampus) fetchAssets();
   }, [selectedCampus, user, token]);
 
-  // 4. Centratura Mappa al cambio campus (Effetto FlyTo)
+  // 4. Centratura Mappa
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
@@ -75,15 +73,13 @@ export default function CampusMap() {
     }
   }, [selectedCampus, campuses]);
 
-  // 5. Invio Modulo (Manutenzione o Segnalazione)
+  // 5. Invio Modulo
   const handleActionSubmit = async () => {
     if (!formText.trim() || !selectedAsset) return;
     setIsSubmitting(true);
     
     try {
       const isOperator = user?.role === 'OPERATORE';
-      
-      // NOTA: Verifica che i prefissi "/asset" e "/warning" corrispondano a quelli registrati sul tuo Gateway
       const endpoint = isOperator ? '/asset/maintenances' : '/warning/warnings';
       
       const payload = isOperator 
@@ -107,7 +103,6 @@ export default function CampusMap() {
     }
   };
 
-  // 6. Assegnazione Dinamica Icone
   const getAssetIcon = (asset: any) => {
     const type = asset.metadata?.tipologia?.toLowerCase() || '';
     if (type.includes('alber') || type.includes('pin')) return '🌲';
@@ -120,11 +115,10 @@ export default function CampusMap() {
     : null;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] w-full">
+    <div className="flex flex-col h-[calc(100vh-120px)] w-full relative">
       <div className="flex flex-row items-center justify-between mb-4">
         <h2 className="font-semibold text-title-md2 text-black dark:text-white">Mappa del Campus</h2>
         
-        {/* Selettore Campus (nascosto agli Utenti) */}
         {(user?.role === 'OPERATORE' || user?.role === 'AMMINISTRATORE') && campuses.length > 0 && (
           <select 
             value={selectedCampus} 
@@ -145,8 +139,6 @@ export default function CampusMap() {
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
         >
-          
-          {/* Poligono Campus */}
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
               <Layer id="campus-fill" type="fill" paint={{ 'fill-color': '#3C50E0', 'fill-opacity': 0.2 }} />
@@ -154,7 +146,6 @@ export default function CampusMap() {
             </Source>
           )}
 
-          {/* Markers degli Asset */}
           {assets.map(asset => (
             <Marker 
               key={asset._id} 
@@ -163,7 +154,7 @@ export default function CampusMap() {
               onClick={(e) => { 
                 e.originalEvent.stopPropagation(); 
                 setSelectedAsset(asset);
-                setFormText(''); // Pulisce il form quando si cambia asset
+                setFormText(''); 
               }}
             >
               <div className="text-2xl cursor-pointer hover:scale-125 transition-transform">
@@ -171,99 +162,100 @@ export default function CampusMap() {
               </div>
             </Marker>
           ))}
-
-          {/* Popup Interattivo In Stile Tailadmin */}
-          {selectedAsset && (
-            <Popup 
-              longitude={selectedAsset.geometry.coordinates[0]} 
-              latitude={selectedAsset.geometry.coordinates[1]} 
-              closeOnClick={false} 
-              onClose={() => setSelectedAsset(null)}
-              className="z-50"
-              maxWidth="320px"
-              anchor="bottom"
-              offset={15}
-            >
-              <div className="flex flex-col gap-3 p-1">
-                <h3 className="font-semibold text-lg text-black dark:text-white border-b border-stroke dark:border-strokedark pb-2">
-                  Dettagli Asset
-                </h3>
-
-                {/* Sezione Immagini */}
-                {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
-                  <div className="flex overflow-x-auto gap-2 pb-1">
-                    {selectedAsset.media_ids.map((mediaId: string) => (
-                      <img
-                        key={mediaId}
-                        src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
-                        alt="Asset"
-                        className="h-32 w-full object-cover rounded-sm shadow-sm border border-stroke dark:border-strokedark"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Sezione Attributi Dinamici */}
-                <div className="flex flex-col gap-1 text-sm max-h-32 overflow-y-auto pr-1">
-                  {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
-                    <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1 last:border-0">
-                      <span className="font-medium text-body capitalize">{key.replace('_', ' ')}</span>
-                      <span className="text-black dark:text-white font-medium">{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Modulo Operatore (Manutenzione Preventiva Diretta) */}
-                {user?.role === 'OPERATORE' && (
-                  <div className="mt-1 border-t border-stroke dark:border-strokedark pt-3">
-                    <span className="block text-xs font-semibold text-body mb-2 uppercase tracking-wider">
-                      Manutenzione Preventiva
-                    </span>
-                    <textarea 
-                      value={formText} 
-                      onChange={(e) => setFormText(e.target.value)} 
-                      placeholder="Nota tecnica di intervento..." 
-                      className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input mb-3 text-black dark:text-white" 
-                      rows={2} 
-                    />
-                    <button 
-                      onClick={handleActionSubmit} 
-                      disabled={isSubmitting || !formText.trim()} 
-                      className="flex w-full justify-center rounded bg-primary p-2 font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
-                    >
-                      {isSubmitting ? 'Salvataggio...' : 'Registra Intervento'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Modulo Utente (Segnalazione Guasti) */}
-                {user?.role === 'UTENTE' && (
-                  <div className="mt-1 border-t border-stroke dark:border-strokedark pt-3">
-                    <span className="block text-xs font-semibold text-body mb-2 uppercase tracking-wider">
-                      Segnala Problema
-                    </span>
-                    <textarea 
-                      value={formText} 
-                      onChange={(e) => setFormText(e.target.value)} 
-                      placeholder="Descrivi il problema riscontrato..." 
-                      className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-danger active:border-danger dark:border-form-strokedark dark:bg-form-input mb-3 text-black dark:text-white" 
-                      rows={2} 
-                    />
-                    <button 
-                      onClick={handleActionSubmit} 
-                      disabled={isSubmitting || !formText.trim()} 
-                      className="flex w-full justify-center rounded bg-danger p-2 font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
-                    >
-                      {isSubmitting ? 'Invio in corso...' : 'Invia Segnalazione'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </Popup>
-          )}
         </Map>
       </div>
+
+      {/* MODALE FISSA AL CENTRO DELLA PAGINA */}
+      {selectedAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark max-h-[90vh] overflow-y-auto">
+            
+            {/* Pulsante di Chiusura (X) Grande e Visibile */}
+            <button 
+              onClick={() => setSelectedAsset(null)} 
+              className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
+            >
+              ✕
+            </button>
+
+            <h3 className="font-bold text-xl text-black dark:text-white mb-4 pr-8 border-b border-stroke dark:border-strokedark pb-2">
+              Dettagli Asset
+            </h3>
+
+            {/* Sezione Immagini Corretta (Tramite Gateway Media) */}
+            {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
+              <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
+                {selectedAsset.media_ids.map((mediaId: string) => (
+                  <img
+                    key={mediaId}
+                    src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
+                    alt="Asset"
+                    className="h-40 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Attributi dell'Asset */}
+            <div className="flex flex-col gap-2 text-sm mb-4">
+              {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
+                <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
+                  <span className="font-semibold text-body capitalize">{key.replace('_', ' ')}</span>
+                  <span className="text-black dark:text-white font-medium">{String(val)}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Modulo Operatore (Manutenzione Preventiva) */}
+            {user?.role === 'OPERATORE' && (
+              <div className="mt-4 border-t border-stroke dark:border-strokedark pt-4">
+                <span className="block text-xs font-bold text-primary mb-2 uppercase tracking-wider">
+                  Registra Manutenzione Preventiva
+                </span>
+                <textarea 
+                  value={formText} 
+                  onChange={(e) => setFormText(e.target.value)} 
+                  placeholder="Scrivi qui la nota tecnica di intervento..." 
+                  className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input mb-3 text-black dark:text-white" 
+                  rows={3} 
+                />
+                <button 
+                  onClick={handleActionSubmit} 
+                  disabled={isSubmitting || !formText.trim()} 
+                  className="flex w-full justify-center rounded bg-primary p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50 transition"
+                >
+                  {isSubmitting ? 'Registrazione in corso...' : 'Conferma e Registra Intervento'}
+                </button>
+              </div>
+            )}
+
+            {/* Modulo Utente (Segnalazione Guasti) */}
+            {user?.role === 'UTENTE' && (
+              <div className="mt-4 border-t border-stroke dark:border-strokedark pt-4">
+                <span className="block text-xs font-bold text-danger mb-2 uppercase tracking-wider">
+                  Invia Segnalazione Guasto
+                </span>
+                <textarea 
+                  value={formText} 
+                  onChange={(e) => setFormText(e.target.value)} 
+                  placeholder="Descrivi dettagliatamente il problema riscontrato..." 
+                  className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-danger active:border-danger dark:border-form-strokedark dark:bg-form-input mb-3 text-black dark:text-white" 
+                  rows={3} 
+                />
+                <button 
+                  onClick={handleActionSubmit} 
+                  disabled={isSubmitting || !formText.trim()} 
+                  className="flex w-full justify-center rounded bg-danger p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50 transition"
+                >
+                  {isSubmitting ? 'Invio in corso...' : 'Invia Segnalazione'}
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
