@@ -81,7 +81,7 @@ export default function CampusMap() {
     
     try {
       const isOperator = user?.role === 'OPERATORE';
-      const endpoint = isOperator ? '/asset/maintenances' : '/warning/warnings';
+      const endpoint = isOperator ? '/warning/maintenances' : '/warning/warnings';
       
       const payload = isOperator 
         ? { asset_id: selectedAsset._id, tipo_intervento: 'preventiva', nota_intervento: formText }
@@ -214,14 +214,14 @@ export default function CampusMap() {
               {/* Aree di Testo */}
               {user?.role === 'OPERATORE' && (
                 <div>
-                  <span className="block text-xs font-bold text-primary mb-2 uppercase tracking-wider">
+                  <span className="block text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">
                     Registra Manutenzione Preventiva
                   </span>
                   <textarea 
                     value={formText} 
                     onChange={(e) => setFormText(e.target.value)} 
                     placeholder="Scrivi qui la nota tecnica di intervento..." 
-                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
+                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
                     rows={4} 
                   />
                 </div>
@@ -229,14 +229,14 @@ export default function CampusMap() {
 
               {user?.role === 'UTENTE' && (
                 <div>
-                  <span className="block text-xs font-bold text-danger mb-2 uppercase tracking-wider">
+                  <span className="block text-xs font-bold text-red-600 mb-2 uppercase tracking-wider">
                     Invia Segnalazione Guasto
                   </span>
                   <textarea 
                     value={formText} 
                     onChange={(e) => setFormText(e.target.value)} 
                     placeholder="Descrivi dettagliatamente il problema riscontrato..." 
-                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-danger active:border-danger dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
+                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-red-600 active:border-red-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
                     rows={4} 
                   />
                 </div>
@@ -249,7 +249,7 @@ export default function CampusMap() {
                 <button 
                   onClick={handleActionSubmit} 
                   disabled={isSubmitting || !formText.trim()} 
-                  className={`flex w-full justify-center rounded p-3 font-medium text-white transition ${user?.role === 'OPERATORE' ? 'bg-primary hover:bg-opacity-90' : 'bg-danger hover:bg-opacity-90'} disabled:opacity-50`}
+                  className={`flex w-full justify-center rounded p-3 font-medium text-white transition ${user?.role === 'OPERATORE' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}
                 >
                   {isSubmitting 
                     ? 'Operazione in corso...' 

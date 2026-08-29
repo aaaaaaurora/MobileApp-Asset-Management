@@ -14,7 +14,7 @@ const AppHeader: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 flex items-center justify-between w-full px-4 py-3 bg-white border-b border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 lg:px-6 lg:py-4">
+    <header className="sticky top-0 flex items-center justify-between w-full px-4 py-3 bg-white border-b border-gray-200 z-40 dark:border-gray-800 dark:bg-gray-900 lg:px-6 lg:py-4">
       
       {/* Bottone Toggle Sidebar */}
       <button
