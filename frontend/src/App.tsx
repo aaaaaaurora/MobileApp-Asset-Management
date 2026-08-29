@@ -2,11 +2,10 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import CampusMap from "./pages/Dashboard/CampusMap";
-
-// Importa il buttafuori che protegge le rotte
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
 import CreateAsset from './pages/AssetPages/CreateAsset';
+import TicketSegnalazioni from './pages/WarningPages/TicketSegnalazioni';
 
 export default function App() {
   return (
@@ -15,6 +14,7 @@ export default function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/signin" element={<SignIn />} />
+          
           {/* ========================================== */}
           {/* ROTTE PROTETTE - BASE (Tutti gli autenticati) */}
           {/* ========================================== */}
@@ -37,6 +37,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['OPERATORE']} />}>
             <Route element={<AppLayout />}>
               <Route path="/assets/new" element={<CreateAsset />} />
+              <Route path="/operator/tickets" element={<TicketSegnalazioni />} />
             </Route>
           </Route>
 
