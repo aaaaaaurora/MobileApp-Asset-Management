@@ -20,6 +20,7 @@ interface Asset {
   campus_id: string;
   geometry: { type: string; coordinates: [number, number] };
   metadata: Record<string, any>;
+  media_ids?: string[]; // Aggiunto per le foto
   status: string;
   created_at: string;
 }
@@ -33,7 +34,7 @@ export default function AssetList() {
 
   // Stati per la modale di Modifica/Eliminazione
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any> }>({ lat: 0, lng: 0, metadata: {} });
+  const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -43,7 +44,6 @@ export default function AssetList() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Fetch Categorie
       const catRes = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/categories`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -52,7 +52,6 @@ export default function AssetList() {
         setCategories(catData);
       }
 
-      // Fetch Asset (Il backend filtra in automatico in base al ruolo)
       const assetRes = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -77,7 +76,8 @@ export default function AssetList() {
     setFormData({
       lng: asset.geometry.coordinates[0],
       lat: asset.geometry.coordinates[1],
-      metadata: { ...asset.metadata }
+      metadata: { ...asset.metadata },
+      media_ids: asset.media_ids ? [...asset.media_ids] : []
     });
   };
 
@@ -88,13 +88,71 @@ export default function AssetList() {
     }));
   };
 
+  // --------------------------------------------------------
+  // LOGICA GESTIONE IMMAGINI (MEDIA SERVICE)
+  // --------------------------------------------------------
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Usiamo FormData per simulare un form multipart/form-data
+    const uploadPayload = new FormData();
+    uploadPayload.append('images', file);
+
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: uploadPayload // Il browser imposterà automaticamente il Content-Type corretto con il boundary
+      });
+
+      if (!res.ok) throw new Error("Errore durante il caricamento dell'immagine");
+      
+      const data = await res.json();
+      const newMediaId = data.uploaded[0].media_id;
+
+      // Aggiungiamo il nuovo ID all'array locale
+      setFormData(prev => ({ ...prev, media_ids: [...prev.media_ids, newMediaId] }));
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteImage = async (mediaId: string) => {
+    if (!window.confirm("Vuoi eliminare definitivamente questa foto?")) return;
+    
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error("Errore durante l'eliminazione dell'immagine dallo storage");
+
+      // Rimuoviamo l'ID dall'array locale
+      setFormData(prev => ({ ...prev, media_ids: prev.media_ids.filter(id => id !== mediaId) }));
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // --------------------------------------------------------
+  // LOGICA SALVATAGGIO ASSET
+  // --------------------------------------------------------
   const handleUpdate = async () => {
     if (!selectedAsset) return;
     setIsProcessing(true);
 
     const payload = {
       geometry: { type: 'Point', coordinates: [formData.lng, formData.lat] },
-      metadata: formData.metadata
+      metadata: formData.metadata,
+      media_ids: formData.media_ids // Questo array aggiornato andrà a MongoDB
     };
 
     try {
@@ -114,7 +172,7 @@ export default function AssetList() {
 
       alert("Asset aggiornato con successo!");
       setSelectedAsset(null);
-      fetchData(); // Ricarica la tabella
+      fetchData(); 
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -148,7 +206,6 @@ export default function AssetList() {
     }
   };
 
-  // Recupera gli attributi della categoria selezionata per generare i campi dinamici
   const activeCategory = selectedAsset ? categories.find(c => c._id === selectedAsset.category_id) : null;
 
   return (
@@ -212,6 +269,36 @@ export default function AssetList() {
               <button onClick={() => setSelectedAsset(null)} className="text-gray-500 hover:text-black dark:hover:text-white font-bold">✕</button>
             </div>
 
+            {/* SEZIONE FOTO */}
+            <div className="mb-5">
+              <h4 className="text-sm font-semibold text-black dark:text-white mb-2">Gestione Foto</h4>
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {formData.media_ids.map(mediaId => (
+                  <div key={mediaId} className="relative min-w-[100px] h-24 flex-shrink-0">
+                    <img 
+                      src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`} 
+                      className="w-full h-full object-cover rounded border border-stroke dark:border-strokedark"
+                      alt="Asset Media" 
+                    />
+                    <button 
+                      onClick={() => handleDeleteImage(mediaId)} 
+                      className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-md hover:bg-red-700 transition"
+                      title="Elimina foto"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Bottone per Aggiungere Nuova Foto */}
+                <label className="min-w-[100px] h-24 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded cursor-pointer hover:bg-gray-50 dark:border-strokedark dark:hover:bg-meta-4 transition">
+                  <span className="text-2xl text-gray-400">+</span>
+                  <span className="text-[10px] text-gray-500">Aggiungi</span>
+                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
+                </label>
+              </div>
+            </div>
+
             {/* Sezione Coordinate */}
             <div className="mb-5">
               <h4 className="text-sm font-semibold text-black dark:text-white mb-2">Coordinate Geografiche</h4>
@@ -244,7 +331,6 @@ export default function AssetList() {
                     </div>
                   ))
                 ) : (
-                  // Fallback se la categoria non viene trovata
                   Object.keys(formData.metadata).map(key => (
                     <div key={key}>
                       <label className="mb-1 block text-xs font-medium text-gray-500 capitalize">{key.replace('_', ' ')}</label>

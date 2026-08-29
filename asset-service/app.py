@@ -745,9 +745,11 @@ def update_asset(asset_id):
             "updated_at": timestamp
         }
 
-        # L'aggiornamento geografico è opzionale
         if 'geometry' in data:
             update_fields['geometry'] = data['geometry']
+            
+        if 'media_ids' in data:
+            update_fields['media_ids'] = data['media_ids']
 
         # 6. Salvataggio del nuovo stato corrente (sovrascrittura su 'assets')
         assets_col.update_one(
