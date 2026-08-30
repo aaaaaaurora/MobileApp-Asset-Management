@@ -32,7 +32,7 @@ export default function CreateCampusPage() {
 
     try {
       // API Pubblica di OpenStreetMap per la risoluzione dei poligoni
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=geojson&polygon_geojson=1`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=geojson&polygon_geojson=1&countrycodes=it&polygon_threshold=0.001`);
       const data = await res.json();
 
       if (!data.features || data.features.length === 0) {
@@ -155,7 +155,7 @@ export default function CreateCampusPage() {
                       setGeoJsonData(null); // Resetta la mappa se l'utente cambia il nome
                     }}
                     disabled={isSaving}
-                    placeholder="Es. Campus di Fisciano"
+                    placeholder="[Nome Università], [Comune]"
                     className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white"
                   />
                   <button

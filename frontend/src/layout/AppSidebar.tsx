@@ -84,7 +84,7 @@ const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem
         { icon: DashboardIcon, name: "Dashboard", path: "/dashboard" },
         { icon: UsersIcon, name: "Gestione Operatori", path: "/admin/operators" },
         { icon: CategoryIcon, name: "Gestione Categorie Asset", path: "/admin/categories" },
-        { icon: CampusIcon, name: "Registrazione Campus", path: "/admin/campus/new" },
+        { icon: CampusIcon, name: "Gestione Campus", path: "/admin/campuses" },
         { icon: AssetIcon, name: "Lista Asset", path: "/admin/assets" },
         { icon: HistoryIcon, name: "Storico Operazioni", path: "/admin/history" }
       ];

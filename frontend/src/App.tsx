@@ -7,6 +7,8 @@ import OperatorsManagement from "./pages/Admin/OperatorsManagement";
 import CategoriesManagement from "./pages/Admin/CategoriesManagement";
 import SystemLogs from "./pages/Admin/SystemLogs";
 import NewCampus from './pages/Admin/CreateCampus';
+import CampusList from './pages/Admin/CampusList';
+
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
@@ -42,6 +44,8 @@ export default function App() {
               <Route path="/admin/history" element={<SystemLogs />} />
               
               <Route path="/admin/campus/new" element={<NewCampus />} />
+
+              <Route path="admin/campuses" element={<CampusList />} />
               
             </Route>
           </Route>
