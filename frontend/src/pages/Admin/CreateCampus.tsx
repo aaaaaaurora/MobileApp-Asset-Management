@@ -31,7 +31,7 @@ export default function CreateCampusPage() {
     setGeoJsonData(null);
 
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=geojson&polygon_geojson=1&countrycodes=it&polygon_threshold=0.01`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=geojson&polygon_geojson=1&countrycodes=it`);
       const data = await res.json();
 
       if (!data.features || data.features.length === 0) {
