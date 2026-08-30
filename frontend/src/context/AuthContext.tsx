@@ -38,30 +38,10 @@ const decodeJWT = (token: string) => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
-  // 1. Inizializzazione Sincrona del Token
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('jwt_token'));
-  
-  // 2. Inizializzazione Sincrona dell'Utente (Previene il logout al refresh)
-  const [user, setUser] = useState<User | null>(() => {
-    const savedToken = localStorage.getItem('jwt_token');
-    if (savedToken) {
-      const decoded = decodeJWT(savedToken);
-      if (decoded) {
-        return {
-          id: decoded.sub,
-          role: decoded.role || 'UTENTE',
-          campus_ids: decoded.campus_ids || [],
-          category_id: decoded.category_id || null,
-          email: decoded.email,
-          name: decoded.name,
-          first_name: decoded.first_name,
-        };
-      }
-    }
-    return null;
-  });
+  // Inizializza il token dal localStorage se presente
+  const [token, setToken] = useState<string | null>(localStorage.getItem('jwt_token'));
+  const [user, setUser] = useState<User | null>(null);
 
-  // L'useEffect gestisce i futuri aggiornamenti (es. login o scadenza token)
   useEffect(() => {
     if (token) {
       const decoded = decodeJWT(token);
@@ -79,7 +59,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         // Token corrotto, puliamo tutto
         setToken(null);
-        setUser(null);
         localStorage.removeItem('jwt_token');
       }
     } else {
