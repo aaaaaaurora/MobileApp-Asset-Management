@@ -6,6 +6,7 @@ import Home from "./pages/Dashboard/Home";
 import OperatorsManagement from "./pages/Admin/OperatorsManagement"; 
 import CategoriesManagement from "./pages/Admin/CategoriesManagement";
 import SystemLogs from "./pages/Admin/SystemLogs";
+import NewCampus from './pages/Admin/CreateCampus';
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
@@ -40,9 +41,8 @@ export default function App() {
 
               <Route path="/admin/history" element={<SystemLogs />} />
               
-              {/* SPAZIO PER LE PROSSIME PAGINE:
               <Route path="/admin/campus/new" element={<NewCampus />} />
-              */}
+              
             </Route>
           </Route>
 
