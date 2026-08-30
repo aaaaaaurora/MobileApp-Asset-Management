@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 // Interfaccia basata sul payload del tuo backend app.py
 export interface User {
   id: string;          // Mappato dal 'sub' del JWT
-  role: string;        // 'GUEST', 'OPERATORE', 'AMMINISTRATORE'
+  role: string;        // 'GUEST', 'OPERATORE', 'AMMINISTRATORE' 
   campus_ids: string[];
   category_id: string | null;
   email?: string;

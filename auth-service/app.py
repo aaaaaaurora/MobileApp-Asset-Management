@@ -481,7 +481,7 @@ def update_operator(user_id):
         # 6. Tracciabilità 
         admin_id = request.headers.get('X-User-Id')
         
-        # Inietta l'email dell'operatore aggiornato nel log affinché compaia nella colonna "Entità" 
+        # Inietta l'email dell'operatore aggiornato nel log affinché compaia nella colonna "Entità"
         publish_audit_event(
             "UPDATE_OPERATOR_PROFILE", 
             admin_id,
