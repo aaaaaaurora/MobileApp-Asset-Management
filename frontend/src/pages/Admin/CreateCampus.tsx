@@ -18,7 +18,7 @@ export default function CreateCampusPage() {
   const [successMsg, setSuccessMsg] = useState("");
 
   // =================================================================
-  // Ricerca Area Geografica via Nominatim (Step 4 & 5)
+  // Ricerca Area Geografica via Nominatim 
   // =================================================================
   const handleSearchArea = async () => {
     if (!searchQuery.trim()) {
@@ -31,23 +31,27 @@ export default function CreateCampusPage() {
     setGeoJsonData(null);
 
     try {
-      // API Pubblica di OpenStreetMap per la risoluzione dei poligoni
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=geojson&polygon_geojson=1&countrycodes=it&polygon_threshold=0.001`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=geojson&polygon_geojson=1&countrycodes=it&polygon_threshold=0.01`);
       const data = await res.json();
 
       if (!data.features || data.features.length === 0) {
-        throw new Error("Area non trovata: Impossibile recuperare corrispondenze valide per la chiave di ricerca inserita.");
+        throw new Error("Area non trovata: Impossibile recuperare corrispondenze valide.");
       }
 
-      // Estraiamo la prima entità che possiede una geometria di tipo Polygon
       const polygonFeature = data.features.find(
         (f: any) => f.geometry && f.geometry.type === 'Polygon'
       );
 
       if (!polygonFeature) {
-        throw new Error("Area trovata, ma non possiede un perimetro poligonale valido. Prova una ricerca più specifica.");
+        throw new Error("Area trovata, ma non possiede un perimetro poligonale valido.");
       }
 
+      // ESTRAZIONE NOME UFFICIALE: Prende il nome esatto da OSM, o la prima parte dell'indirizzo
+      const officialName = polygonFeature.properties?.name || polygonFeature.properties?.display_name?.split(',')[0] || searchQuery.trim();
+      
+      // Sovrascrive il testo digitato dall'utente con il nome ufficiale formattato
+      setSearchQuery(officialName);
+      
       setGeoJsonData(polygonFeature.geometry);
 
     } catch (err: any) {

@@ -92,7 +92,7 @@ def health_check():
 def create_campus():
     """
     Crea e registra un nuovo perimetro universitario nel database spaziale.
-    Utilizza PostGIS per validare la correttezza geometrica del poligono.
+    Utilizza PostGIS per validare la correttezza geometrica e prevenire sovrapposizioni territoriali.
     """
     auth = get_auth_context()
     
@@ -114,30 +114,42 @@ def create_campus():
     if geometry.get('type') != 'Polygon':
         return error_response("Il sistema supporta unicamente geometrie di tipo 'Polygon'.", 400)
 
+    # 1. Controllo Testuale: Verifica se il nome esiste già (Case-Insensitive)
+    existing_campus = db.session.query(Campus).filter(func.lower(Campus.name) == func.lower(name)).first()
+    if existing_campus:
+        return error_response(f"Campus già presente: Il nome '{existing_campus.name}' risulta già censito.", 409)
+
     try:
-        # 1. Conversione del dizionario Python in stringa JSON per PostGIS
+        # Preparazione della geometria per PostGIS
         geojson_str = json.dumps(geometry)
+        new_geom = func.ST_SetSRID(func.ST_GeomFromGeoJSON(geojson_str), 4326)
 
-        # 2. Validazione geometrica demandata esclusivamente a PostGIS (ST_IsValid)
-        # Viene costruita la geometria in RAM sul DB e verificata (es. niente auto-intersezioni)
-        is_valid = db.session.query(
-            func.ST_IsValid(func.ST_GeomFromGeoJSON(geojson_str))
-        ).scalar()
-
+        # 2. Validazione Geometrica: Verifica che il poligono sia topologicamente valido
+        is_valid = db.session.query(func.ST_IsValid(new_geom)).scalar()
         if not is_valid:
-            return error_response("La geometria fornita non è un poligono topologicamente valido (es. auto-intersezioni rilevate).", 422)
+            return error_response("La geometria fornita non è un poligono topologicamente valido.", 422)
 
-        # 3. Creazione del modello (Uso di ST_SetSRID per imporre il sistema WGS 84)
+        # 3. Controllo Spaziale: Verifica che l'area non si sovrapponga a campus esistenti
+        overlapping_campus = db.session.query(Campus).filter(
+            func.ST_Intersects(Campus.geom, new_geom)
+        ).first()
+        
+        if overlapping_campus:
+            return error_response(
+                f"Area già assegnata: Il perimetro selezionato punta a un'area già coperta dal campus '{overlapping_campus.name}'.", 
+                409
+            )
+
+        # 4. Creazione e Salvataggio del modello
         new_campus = Campus(
             name=name,
             description=description,
-            geom=func.ST_SetSRID(func.ST_GeomFromGeoJSON(geojson_str), 4326)
+            geom=new_geom
         )
 
         db.session.add(new_campus)
         db.session.commit()
 
-        # 4. Estrazione dell'ID generato dal DB
         campus_id = new_campus.id
 
         # 5. Pubblicazione dell'evento RabbitMQ 
@@ -161,7 +173,6 @@ def create_campus():
     except Exception as e:
         db.session.rollback()
         return error_response(f"Errore interno durante l'elaborazione geospaziale: {str(e)}", 500)
-    
     
 # ============================================================================
 # ENDPOINT: Consultazione elenco campus universitari 

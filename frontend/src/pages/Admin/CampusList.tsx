@@ -16,6 +16,10 @@ export default function CampusListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Stato per il Modale di Eliminazione
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [campusToDelete, setCampusToDelete] = useState<{ id: string; name: string } | null>(null);
+
   const fetchCampuses = async () => {
     if (!token) return;
     setIsLoading(true);
@@ -43,14 +47,19 @@ export default function CampusListPage() {
     fetchCampuses();
   }, [token]);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Sei sicuro di voler eliminare definitivamente il campus "${name}" e tutti gli asset associati? L'operazione è irreversibile.`)) {
-      return;
-    }
+  // Apre il modale e salva quale campus stiamo per eliminare
+  const confirmDelete = (id: string, name: string) => {
+    setCampusToDelete({ id, name });
+    setIsDeleteModalOpen(true);
+  };
+
+  // Esegue l'eliminazione effettiva
+  const executeDelete = async () => {
+    if (!campusToDelete) return;
 
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${baseUrl}/geozone/api/geozones/campuses/${id}`, {
+      const res = await fetch(`${baseUrl}/geozone/api/geozones/campuses/${campusToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -60,10 +69,16 @@ export default function CampusListPage() {
         throw new Error(data.error || "Errore durante l'eliminazione.");
       }
 
-      // Ricarica la lista per mostrare i dati aggiornati
-      fetchCampuses();
+      // Aggiorna la UI istantaneamente rimuovendo il campus dall'array locale
+      setCampuses(prevCampuses => prevCampuses.filter(c => c.id !== campusToDelete.id));
+      
+      // Chiude il modale
+      setIsDeleteModalOpen(false);
+      setCampusToDelete(null);
+
     } catch (err: any) {
-      alert(err.message);
+      setErrorMsg(err.message);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -89,7 +104,7 @@ export default function CampusListPage() {
         </div>
         
         <Link
-          to="/admin/campus/new"
+          to="/admin/campuses/new"
           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -138,8 +153,8 @@ export default function CampusListPage() {
                     <td className="py-4 px-6">{formatDate(campus.created_at)}</td>
                     <td className="py-4 px-6 text-right">
                       <button
-                        onClick={() => handleDelete(campus.id, campus.name)}
-                        className="inline-flex items-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase"
+                        onClick={() => confirmDelete(campus.id, campus.name)}
+                        className="inline-flex items-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors"
                       >
                         <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -154,6 +169,46 @@ export default function CampusListPage() {
           </table>
         </div>
       </div>
+
+      {/* Modale Custom di Conferma Eliminazione */}
+      {isDeleteModalOpen && campusToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
+            
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30">
+                <svg className="h-6 w-6 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Elimina Campus</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Azione irreversibile</p>
+              </div>
+            </div>
+            
+            <p className="text-slate-600 dark:text-slate-300 text-sm mb-6">
+              Sei sicuro di voler eliminare definitivamente il campus <span className="font-bold text-slate-800 dark:text-white">"{campusToDelete.name}"</span> e tutti gli asset associati?
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={executeDelete}
+                className="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-500 transition-colors focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 shadow-sm"
+              >
+                Sì, elimina
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

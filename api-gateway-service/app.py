@@ -95,7 +95,7 @@ def gateway_proxy(service_name, path):
             cookies=request.cookies,
             params=request.args,
             allow_redirects=False,
-            timeout=15
+            timeout=60
         )
 
         # Filtraggio degli header di hop-by-hop non instradabili
