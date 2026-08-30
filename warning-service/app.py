@@ -62,6 +62,9 @@ class LocalAssetCache(db.Model):
     __tablename__ = 'local_asset_cache'
     asset_id = db.Column(db.String(24), primary_key=True)
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
+    
+    campus_name = db.Column(db.String(100), nullable=True)
+    asset_name = db.Column(db.String(255), nullable=True)
 
 # ==========================================
 # UTILITIES
@@ -71,7 +74,7 @@ def get_auth_context():
     return {
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
-        'email': request.headers.get('X-User-Email'), # <-- MODIFICA 1: Estrazione email dal token JWT
+        'email': request.headers.get('X-User-Email'), 
         'campus_ids': request.headers.get('X-Campus-Ids', '').split(',') if request.headers.get('X-Campus-Ids') else []
     }
 
@@ -87,7 +90,7 @@ def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
         "dettagli": payload_details
     }
     
-    # <-- MODIFICA 2: Iniezione email nel payload se presente
+    
     if auth_ctx.get('email'):
         event_data['email'] = auth_ctx.get('email')
         
@@ -109,17 +112,28 @@ def process_asset_events(ch, method, properties, body):
                 asset_id = payload.get("asset_id")
                 campus_id = payload.get("campus_id")
                 
+                
+                campus_name = payload.get("campus_name")
+                asset_name = payload.get("asset_name")
+                
                 if asset_id and campus_id:
                     campus_uuid = uuid.UUID(campus_id)
                     asset = db.session.get(LocalAssetCache, asset_id)
                     
                     if not asset:
-                        # Se non esiste, lo creiamo
-                        asset = LocalAssetCache(asset_id=asset_id, campus_id=campus_uuid)
+                        # Se non esiste, lo creiamo memorizzando anche i nomi
+                        asset = LocalAssetCache(
+                            asset_id=asset_id, 
+                            campus_id=campus_uuid,
+                            campus_name=campus_name,
+                            asset_name=asset_name
+                        )
                         db.session.add(asset)
                     else:
-                        # Se esiste, aggiorniamo il campus in caso di spostamento
+                        # Se esiste, aggiorniamo tutto (in caso di ridenominazione o spostamento)
                         asset.campus_id = campus_uuid
+                        asset.campus_name = campus_name
+                        asset.asset_name = asset_name
                         
                     db.session.commit()
                     
@@ -226,13 +240,18 @@ def create_warning():
         warning_id = str(new_warning.id)
         db.session.commit()
 
-        # Inoltro Evento Asincrono
+        # Inoltro Evento Asincrono con i nomi estratti dalla cache
         publish_audit(
             action="CREATE_WARNING",
             entity_id=warning_id,
             actor_id=reporter_id,
             campus_id=campus_id_str,
-            payload_details={"asset_id": str(asset_id_str), "status": "aperta"}
+            payload_details={
+                "asset_id": str(asset_id_str), 
+                "status": "aperta",
+                "campus_name": local_asset.campus_name, 
+                "asset_name": local_asset.asset_name   
+            }
         )
 
         return jsonify({
@@ -363,6 +382,9 @@ def resolve_warning(warning_id_str):
     if not technical_note or str(technical_note).strip() == "":
         return jsonify({"error": "EMPTY_REPORT: La nota tecnica dell'intervento è obbligatoria"}), 400
 
+
+    local_asset = db.session.get(LocalAssetCache, warning.asset_id)
+
     try:
         # Transazione Atomica: Aggiornamento Segnalazione + Creazione Intervento
         
@@ -383,7 +405,7 @@ def resolve_warning(warning_id_str):
         db.session.add(new_maintenance)
         db.session.commit()
 
-        # C. Pubblicazione evento RabbitMQ
+        # C. Pubblicazione evento RabbitMQ con nomi inclusi
         publish_audit(
             action="RESOLVE_WARNING",
             entity_id=warning_id_str,
@@ -393,7 +415,9 @@ def resolve_warning(warning_id_str):
                 "asset_id": str(warning.asset_id),
                 "status_precedente": "aperta",
                 "status_nuovo": "chiusa",
-                "maintenance_id": str(new_maintenance.id)
+                "maintenance_id": str(new_maintenance.id),
+                "campus_name": local_asset.campus_name if local_asset else None, 
+                "asset_name": local_asset.asset_name if local_asset else None    
             }
         )
 
@@ -477,7 +501,7 @@ def create_maintenance():
         maintenance_id = str(new_maintenance.id)
         db.session.commit()
 
-        # 4. Pubblicazione evento RabbitMQ
+        # 4. Pubblicazione evento RabbitMQ con nomi inclusi
         publish_audit(
             action="LOG_MAINTENANCE",
             entity_id=maintenance_id,
@@ -485,7 +509,9 @@ def create_maintenance():
             campus_id=campus_id_str,
             payload_details={
                 "asset_id": asset_id_str,
-                "tipo_intervento": m_type_enum.value
+                "tipo_intervento": m_type_enum.value,
+                "campus_name": local_asset.campus_name, 
+                "asset_name": local_asset.asset_name    
             }
         )
 

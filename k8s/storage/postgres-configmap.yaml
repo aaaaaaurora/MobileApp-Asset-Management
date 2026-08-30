@@ -141,7 +141,9 @@ data:
     -- Tabella 3: cache locale degli Asset 
     CREATE TABLE local_asset_cache (
       asset_id VARCHAR(24) PRIMARY KEY,
-      campus_id UUID NOT NULL
+      campus_id UUID NOT NULL,
+      campus_name VARCHAR(100),
+      asset_name VARCHAR(255)
     );
 
     -- ==========================================

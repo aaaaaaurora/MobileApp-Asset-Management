@@ -158,7 +158,10 @@ def create_category():
         new_category['_id'] = str(result.inserted_id)
         
         # Pubblicazione evento asincrono per il DataInsight Service
-        publish_event("CATEGORY_CREATED", {"category_id": new_category['_id'], "category_name": category_name})
+        publish_event("CATEGORY_CREATED", {
+            "category_id": new_category['_id'], 
+            "category_name": category_name
+        })
 
         return jsonify({
             "message": "Categoria creata con successo",
@@ -268,14 +271,16 @@ def update_category(category_id):
         if result.matched_count == 0:
             return error_response("Categoria non trovata", 404)
 
+        # Recupera e restituisce il documento aggiornato
+        updated_category = categories_col.find_one({"_id": ObjectId(category_id)})
+
         # Tracciabilità asincrona
         publish_event("CATEGORY_UPDATED", {
             "category_id": category_id, 
+            "category_name": updated_category.get('name'),
             "updated_fields": list(update_fields.keys())
         })
 
-        # Recupera e restituisce il documento aggiornato
-        updated_category = categories_col.find_one({"_id": ObjectId(category_id)})
         return jsonify(serialize_mongo_doc(updated_category)), 200
 
     except Exception as e:
@@ -370,6 +375,7 @@ def add_category_attribute(category_id):
         # 6. Tracciabilità asincrona (DataInsight Service / Log Service)
         publish_event("ATTRIBUTE_ADDED", {
             "category_id": category_id,
+            "category_name": category.get('name'),
             "attribute_name": attr_name,
             "attribute_type": attr_type
         })
@@ -400,6 +406,12 @@ def delete_category(category_id):
         return error_response("ID categoria non valido", 400)
 
     try:
+        # Recupera il nome della categoria prima di eliminarla
+        category = categories_col.find_one({"_id": ObjectId(category_id)})
+        if not category:
+            return error_response("Categoria non trovata", 404)
+        cat_name = category.get('name', 'Categoria Sconosciuta')
+
         # Verifica se la categoria è usata da qualche asset
         assets_using_cat = assets_col.count_documents({"category_id": category_id})
         if assets_using_cat > 0:
@@ -411,7 +423,10 @@ def delete_category(category_id):
             return error_response("Categoria non trovata", 404)
 
         # Tracciabilità
-        publish_event("CATEGORY_DELETED", {"category_id": category_id})
+        publish_event("CATEGORY_DELETED", {
+            "category_id": category_id,
+            "category_name": cat_name
+        })
 
         return jsonify({"message": "Categoria eliminata con successo"}), 200
 
@@ -514,6 +529,7 @@ def update_category_attribute(category_id, attribute_name):
         # 8. Eventi RabbitMQ
         publish_event("ATTRIBUTE_UPDATED", {
             "category_id": category_id,
+            "category_name": category.get('name'),
             "old_name": attribute_name,
             "new_name": new_name,
             "new_type": new_type
@@ -522,6 +538,7 @@ def update_category_attribute(category_id, attribute_name):
         if new_status == "unavailable" and current_attr.get('status') != "unavailable":
             publish_event("ATTRIBUTE_DEPRECATED", {
                 "category_id": category_id,
+                "category_name": category.get('name'),
                 "attribute_name": new_name
             })
 
@@ -691,10 +708,11 @@ def create_asset():
         # 6. Tracciabilità asincrona (RabbitMQ)
         publish_event("ASSET_CREATED", {
             "asset_id": asset_id,
+            "asset_name": asset_name, 
             "category_id": category_id,
+            "category_name": category.get('name', 'Sconosciuta'),
             "campus_id": campus_id,
-            "campus_name": campus_name, 
-            "asset_name": asset_name 
+            "campus_name": campus_name
         })
 
         return jsonify({
@@ -832,10 +850,11 @@ def update_asset(asset_id):
         # 8. Eventi RabbitMQ
         publish_event("ASSET_UPDATED", {
             "asset_id": asset_id,
+            "asset_name": asset_name,  
             "category_id": category_id,
+            "category_name": category.get('name', 'Sconosciuta'),
             "campus_id": updated_asset.get('campus_id'),
             "campus_name": campus_name,  
-            "asset_name": asset_name,  
             "updated_keys": list(raw_metadata.keys())
         })
 
@@ -1003,14 +1022,17 @@ def delete_asset(asset_id):
         # INIEZIONE NOMI PER LA TABELLA DEI LOG
         campus_name = get_cached_campus_name(campus_id)
         asset_name = extract_asset_name(asset_to_delete.get('metadata', {}))
+        category = categories_col.find_one({"_id": ObjectId(category_id)})
+        category_name = category.get('name', 'Sconosciuta') if category else 'Sconosciuta'
 
         # 4. Tracciabilità asincrona (RabbitMQ)
         publish_event("ASSET_DELETED", {
             "asset_id": asset_id,
+            "asset_name": asset_name,
             "category_id": category_id,
+            "category_name": category_name,
             "campus_id": campus_id,
-            "campus_name": campus_name, 
-            "asset_name": asset_name 
+            "campus_name": campus_name
         })
 
         return jsonify({"message": "Asset eliminato con successo"}), 200
@@ -1091,6 +1113,8 @@ def process_system_events(ch, method, properties, body):
                 # 1. Rimuovi dalla cache locale
                 campus_cache_col.delete_one({"_id": campus_id})
                 
+                campus_name = payload.get("campus_name", "Campus Sconosciuto")
+
                 # Troviamo tutti gli asset del campus eliminato
                 assets_to_delete = list(assets_col.find({"campus_id": campus_id}))
                 
@@ -1114,6 +1138,8 @@ def process_system_events(ch, method, properties, body):
                     # 3. Notifica agli altri servizi usando direttamente mq_manager 
                     # (perché siamo in un thread senza contesto di richiesta HTTP)
                     asset_name = extract_asset_name(metadata)
+                    category = categories_col.find_one({"_id": ObjectId(category_id)}) if category_id else None
+                    category_name = category.get('name', 'Sconosciuta') if category else 'Sconosciuta'
                     
                     mq_manager.publish_event(
                         exchange_name='system_events',
@@ -1122,9 +1148,13 @@ def process_system_events(ch, method, properties, body):
                         service_name='asset-service',
                         extra_data={
                             "asset_id": asset_id,
+                            "asset_name": asset_name,
                             "category_id": category_id,
+                            "category_name": category_name,
                             "campus_id": campus_id,
-                            "asset_name": asset_name,                         }
+                            "campus_name": campus_name,
+                            "email": "System Auto"
+                        }
                     )
                     
         # Ack manuale se auto_ack=False

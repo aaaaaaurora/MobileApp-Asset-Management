@@ -15,7 +15,7 @@ from shared_utils.messaging import RabbitMQManager
 # Nuovi import necessari per la validazione reale del token Google
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-import requests # Spostato in alto per pulizia
+import requests
 
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
@@ -110,7 +110,7 @@ def verify_google_token(access_token):
 def publish_audit_event(action, actor_id, extra_data=None):
     """
     Pubblica un evento asincrono sul Message Broker (RabbitMQ).
-    MODIFICA: Arricchisce automaticamente l'evento con l'email prelevandola dal DB.
+    Arricchisce automaticamente l'evento con l'email prelevandola dal DB.
     """
     if extra_data is None:
         extra_data = {}
@@ -411,7 +411,13 @@ def create_operator():
         
         # Recupera l'ID dell'admin dagli header passati dal Gateway
         admin_id = request.headers.get('X-User-Id')
-        publish_audit_event("CREATE_OPERATOR_PROFILE", admin_id)
+        
+        # Inietta l'email dell'operatore creato nel log affinché compaia nella colonna "Entità"
+        publish_audit_event(
+            "CREATE_OPERATOR_PROFILE", 
+            admin_id,
+            extra_data={"entity_name": email} 
+        )
         
         return jsonify({
             "status": "created",
@@ -474,7 +480,13 @@ def update_operator(user_id):
         
         # 6. Tracciabilità
         admin_id = request.headers.get('X-User-Id')
-        publish_audit_event("UPDATE_OPERATOR_PROFILE", admin_id)
+        
+        # Inietta l'email dell'operatore aggiornato nel log affinché compaia nella colonna "Entità"
+        publish_audit_event(
+            "UPDATE_OPERATOR_PROFILE", 
+            admin_id,
+            extra_data={"entity_name": user.email}
+        )
 
         return jsonify({"status": "updated"}), 200
 

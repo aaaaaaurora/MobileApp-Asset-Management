@@ -52,7 +52,7 @@ def get_auth_context():
     return {
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
-        'email': request.headers.get('X-User-Email'), # <--- MODIFICA: Ora estraiamo anche l'email dal Gateway
+        'email': request.headers.get('X-User-Email'), 
         'campus_ids': campus_ids
     }
 
@@ -63,7 +63,7 @@ def publish_event(action, extra_data=None):
     if extra_data is None:
         extra_data = {}
         
-    # <--- MODIFICA: Iniettiamo l'email nel payload di tutti gli eventi generati da questo servizio
+    # Iniettiamo l'email nel payload di tutti gli eventi generati da questo servizio
     if auth.get('email'):
         extra_data['email'] = auth.get('email')
 
@@ -140,7 +140,7 @@ def create_campus():
         # 4. Estrazione dell'ID generato dal DB
         campus_id = new_campus.id
 
-        # 5. Pubblicazione dell'evento RabbitMQ (fondamentale per l'Auth Service)
+        # 5. Pubblicazione dell'evento RabbitMQ 
         publish_event("CAMPUS_CREATED", {
             "campus_id": str(campus_id),
             "campus_name": name
