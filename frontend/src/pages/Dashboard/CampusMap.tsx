@@ -12,6 +12,9 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
+// Nuovo stato per bloccare i margini di navigazione della mappa
+  const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | null>(null);
+  
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [formText, setFormText] = useState('');
@@ -26,9 +29,9 @@ export default function CampusMap() {
     }
   }, [user]);
 
-  // 2. Fetch Campus
+  // 2. Fetch Campus (Esteso a tutti gli utenti, inclusi i GUEST)
   useEffect(() => {
-    if (user && (user.role === 'OPERATORE' || user.role === 'AMMINISTRATORE')) {
+    if (user) {
       const fetchCampuses = async () => {
         try {
           const response = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/campuses`, {
@@ -49,7 +52,7 @@ export default function CampusMap() {
     const fetchAssets = async () => {
       try {
         let url = `${import.meta.env.VITE_API_URL}/asset/api/assets`;
-        if (user?.role !== 'GUEST' && selectedCampus) {
+        if (selectedCampus) {
           url += `?campus_id=${selectedCampus}`;
         }
         const response = await fetch(url, {
@@ -60,16 +63,40 @@ export default function CampusMap() {
         setAssets(data.assets || []);
       } catch (error) { console.error("Errore recupero asset:", error); }
     };
-    if (user?.role === 'GUEST' || selectedCampus) fetchAssets();
+    if (selectedCampus) fetchAssets();
   }, [selectedCampus, user, token]);
 
-  // 4. Centratura Mappa
+  // 4. Centratura Mappa e Calcolo Confini
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
       const ring = activeCampus.geometry.coordinates[0];
-      const avgLng = ring.reduce((sum: number, p: number[]) => sum + p[0], 0) / ring.length;
-      const avgLat = ring.reduce((sum: number, p: number[]) => sum + p[1], 0) / ring.length;
+      
+      let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+      let sumLng = 0, sumLat = 0;
+
+      ring.forEach((p: number[]) => {
+        sumLng += p[0];
+        sumLat += p[1];
+        if (p[0] < minLng) minLng = p[0];
+        if (p[0] > maxLng) maxLng = p[0];
+        if (p[1] < minLat) minLat = p[1];
+        if (p[1] > maxLat) maxLat = p[1];
+      });
+
+      const avgLng = sumLng / ring.length;
+      const avgLat = sumLat / ring.length;
+
+      // Imposta il recinto di blocco (Bounding Box) con un margine di respiro (~1.5km)
+      const margin = 0.015; 
+      const bounds: [number, number, number, number] = [
+        minLng - margin, minLat - margin, // Sud-Ovest (minLng, minLat)
+        maxLng + margin, maxLat + margin  // Nord-Est (maxLng, maxLat)
+      ];
+
+      setMaxBounds(bounds);
+
+      setMaxBounds(bounds);
       mapRef.current?.flyTo({ center: [avgLng, avgLat], zoom: 15, duration: 1500 });
     }
   }, [selectedCampus, campuses]);
@@ -120,7 +147,8 @@ export default function CampusMap() {
       <div className="flex flex-row items-center justify-between mb-4">
         <h2 className="font-semibold text-title-md2 text-black dark:text-white">Mappa del Campus</h2>
         
-        {(user?.role === 'OPERATORE' || user?.role === 'AMMINISTRATORE') && campuses.length > 0 && (
+        {/* Rimosso blocco di ruolo: visibile a tutti per orientamento */}
+        {campuses.length > 0 && (
           <select 
             value={selectedCampus} 
             onChange={(e) => { setSelectedCampus(e.target.value); setSelectedAsset(null); }} 
@@ -139,6 +167,8 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
+          maxBounds={maxBounds || undefined} // Limite di spostamento geografico
+          minZoom={14} // Evita che l'utente rimpicciolisca troppo la mappa
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -171,11 +201,8 @@ export default function CampusMap() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative flex flex-col w-full max-w-md max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden">
             
-            {/* Header Fisso */}
             <div className="flex justify-between items-center p-5 border-b border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
-              <h3 className="font-bold text-xl text-black dark:text-white">
-                Dettagli Asset
-              </h3>
+              <h3 className="font-bold text-xl text-black dark:text-white">Dettagli Asset</h3>
               <button 
                 onClick={() => setSelectedAsset(null)} 
                 className="text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
@@ -184,10 +211,7 @@ export default function CampusMap() {
               </button>
             </div>
 
-            {/* Corpo Scorrevole */}
             <div className="flex-1 overflow-y-auto p-5">
-              
-              {/* Immagini */}
               {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
                 <div className="mb-5 flex gap-2 overflow-x-auto pb-2">
                   {selectedAsset.media_ids.map((mediaId: string) => (
@@ -201,7 +225,6 @@ export default function CampusMap() {
                 </div>
               )}
 
-              {/* Attributi */}
               <div className="flex flex-col gap-2 text-sm mb-5">
                 {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
                   <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
@@ -211,7 +234,6 @@ export default function CampusMap() {
                 ))}
               </div>
 
-              {/* Aree di Testo */}
               {user?.role === 'OPERATORE' && (
                 <div>
                   <span className="block text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">
@@ -243,7 +265,6 @@ export default function CampusMap() {
               )}
             </div>
 
-            {/* Piede Fisso con Pulsante */}
             {(user?.role === 'OPERATORE' || user?.role === 'GUEST') && (
               <div className="p-5 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
                 <button 
@@ -257,7 +278,6 @@ export default function CampusMap() {
                 </button>
               </div>
             )}
-
           </div>
         </div>,
         document.body
