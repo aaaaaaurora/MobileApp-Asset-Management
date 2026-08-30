@@ -170,7 +170,7 @@ def create_campus():
                 "name": name,
                 "description": description
             }
-        }), 20
+        }), 201
 
     except IntegrityError:
         db.session.rollback()
