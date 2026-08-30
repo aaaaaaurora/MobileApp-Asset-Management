@@ -19,6 +19,9 @@ export default function CampusListPage() {
   // Stato per il Modale di Eliminazione
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [campusToDelete, setCampusToDelete] = useState<{ id: string; name: string } | null>(null);
+  
+  // NUOVO STATO: Blocca il bottone durante l'eliminazione
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchCampuses = async () => {
     if (!token) return;
@@ -47,15 +50,16 @@ export default function CampusListPage() {
     fetchCampuses();
   }, [token]);
 
-  // Apre il modale e salva quale campus stiamo per eliminare
   const confirmDelete = (id: string, name: string) => {
     setCampusToDelete({ id, name });
     setIsDeleteModalOpen(true);
   };
 
-  // Esegue l'eliminazione effettiva
   const executeDelete = async () => {
     if (!campusToDelete) return;
+    
+    // Attiviamo lo spinner e blocchiamo i click multipli
+    setIsDeleting(true);
 
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '';
@@ -69,16 +73,17 @@ export default function CampusListPage() {
         throw new Error(data.error || "Errore durante l'eliminazione.");
       }
 
-      // Aggiorna la UI istantaneamente rimuovendo il campus dall'array locale
       setCampuses(prevCampuses => prevCampuses.filter(c => c.id !== campusToDelete.id));
       
-      // Chiude il modale
       setIsDeleteModalOpen(false);
       setCampusToDelete(null);
 
     } catch (err: any) {
       setErrorMsg(err.message);
       setIsDeleteModalOpen(false);
+    } finally {
+      // Spegniamo lo spinner a operazione conclusa (sia con successo che con errore)
+      setIsDeleting(false);
     }
   };
 
@@ -170,7 +175,6 @@ export default function CampusListPage() {
         </div>
       </div>
 
-      {/* Modale Custom di Conferma Eliminazione */}
       {isDeleteModalOpen && campusToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
@@ -194,15 +198,29 @@ export default function CampusListPage() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                disabled={isDeleting}
+                className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Annulla
               </button>
+              
+              {/* Bottone aggiornato con Spinner e controllo di disabilitazione */}
               <button
                 onClick={executeDelete}
-                className="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-500 transition-colors focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 shadow-sm"
+                disabled={isDeleting}
+                className="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-500 transition-colors focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Sì, elimina
+                {isDeleting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Eliminazione...
+                  </>
+                ) : (
+                  "Sì, elimina"
+                )}
               </button>
             </div>
 

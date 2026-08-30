@@ -21,8 +21,10 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:pass@127.0.0.1:5433/
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+RABBITMQ_URL = os.getenv('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq-service:5672/')
+
 db = SQLAlchemy(app)
-mq_manager = RabbitMQManager()
+mq_manager = RabbitMQManager(rabbitmq_url=RABBITMQ_URL)
 
 # ============================================================================
 # MODELLI ORM (GeoAlchemy2)
@@ -153,14 +155,14 @@ def create_campus():
         # 4. Estrazione dell'ID generato dal DB
         campus_id = new_campus.id
 
-        # TEST: Bypassiamo temporaneamente RabbitMQ per confermare che sia lui a bloccare il thread
-        # try:
-        #     publish_event("CAMPUS_CREATED", {
-        #         "campus_id": str(campus_id),
-        #         "campus_name": name
-        #     })
-        # except Exception as e:
-        #     print(f"ATTENZIONE: {str(e)}")
+        # 5. Pubblicazione evento RabbitMQ 
+        try:
+            publish_event("CAMPUS_CREATED", {
+                "campus_id": str(campus_id),
+                "campus_name": name
+            })
+        except Exception as e:
+            print(f"ATTENZIONE: Impossibile comunicare con RabbitMQ - {str(e)}")
 
         return jsonify({
             "message": "Campus creato con successo.",
