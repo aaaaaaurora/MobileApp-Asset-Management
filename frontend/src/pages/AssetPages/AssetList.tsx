@@ -6,6 +6,7 @@ interface CategoryAttribute {
   name: string;
   type: string;
   required: boolean;
+  options?: string[]; // AGGIUNTO: Necessario per i menu a tendina
 }
 
 interface Category {
@@ -36,7 +37,7 @@ export default function AssetList() {
   const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // NUOVO: Stati temporanei per posticipare i salvataggi
+  // Stati temporanei per posticipare i salvataggi (Deferred Save)
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
@@ -100,18 +101,15 @@ export default function AssetList() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Aggiungiamo il file nell'array temporaneo anziché inviarlo a MinIO
     setPendingUploads(prev => [...prev, { file, preview: URL.createObjectURL(file) }]);
   };
 
   const handleDeleteExistingImage = (mediaId: string) => {
-    // Segnamo l'immagine esistente per la cancellazione e la togliamo dalla vista
     setPendingDeletes(prev => [...prev, mediaId]);
     setFormData(prev => ({ ...prev, media_ids: prev.media_ids.filter(id => id !== mediaId) }));
   };
 
   const handleDeletePendingImage = (index: number) => {
-    // Togliamo la nuova immagine dall'array temporaneo senza chiamare il server
     setPendingUploads(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -342,12 +340,26 @@ export default function AssetList() {
                   activeCategory.attributes.map(attr => (
                     <div key={attr.name}>
                       <label className="mb-1 block text-xs font-medium text-gray-500 capitalize">{attr.name.replace('_', ' ')} {attr.required && '*'}</label>
-                      <input 
-                        type={attr.type === 'number' ? 'number' : 'text'} 
-                        value={formData.metadata[attr.name] || ''} 
-                        onChange={e => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)} 
-                        className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white" 
-                      />
+                      
+                      {/* AGGIUNTA LA CONDIZIONE PER I MENU A TENDINA (ENUM) */}
+                      {attr.type === 'enum' ? (
+                        <select 
+                          value={formData.metadata[attr.name] || ''} 
+                          onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
+                          className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white"
+                        >
+                          <option value="">Seleziona...</option>
+                          {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      ) : (
+                        <input 
+                          type={attr.type === 'number' ? 'number' : 'text'} 
+                          value={formData.metadata[attr.name] || ''} 
+                          onChange={e => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)} 
+                          className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white" 
+                        />
+                      )}
+
                     </div>
                   ))
                 ) : (
