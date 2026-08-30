@@ -478,7 +478,7 @@ def update_operator(user_id):
         # 5. Consolidamento transazione
         db.session.commit()
         
-        # 6. Tracciabilità
+        # 6. Tracciabilità 
         admin_id = request.headers.get('X-User-Id')
         
         # Inietta l'email dell'operatore aggiornato nel log affinché compaia nella colonna "Entità"
