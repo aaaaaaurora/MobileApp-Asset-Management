@@ -2,10 +2,14 @@ import os
 import jwt
 import requests
 from flask import Flask, request, jsonify, Response
+from flask_cors import CORS  
+
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
 # ============================================================================
 app = Flask(__name__)
+
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Configurazione della chiave segreta per la validazione del JWT
 app.config['JWT_SECRET'] = os.getenv('JWT_SECRET', 'super-secret-key-fallback')
@@ -54,8 +58,9 @@ def health_check():
 # SMISTATORE DI TRAFFICO (REVERSE PROXY DINAMICO)
 # ============================================================================
 
-@app.route('/api/<service_name>', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-@app.route('/api/<service_name>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+# <-- 3. Aggiunto il metodo 'OPTIONS' per permettere al proxy di instradarlo se necessario
+@app.route('/api/<service_name>', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+@app.route('/api/<service_name>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
 def gateway_proxy(service_name, path):
     """
     Punto di ingresso unico: intercetta le chiamate verso /api/<service_name>/<path>,
@@ -119,4 +124,3 @@ def gateway_proxy(service_name, path):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-    
