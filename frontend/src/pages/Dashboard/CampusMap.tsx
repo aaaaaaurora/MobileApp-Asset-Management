@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,7 @@ export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const focusAssetId = location.state?.focusAssetId;
   const focusCampusId = location.state?.focusCampusId;
@@ -79,13 +80,16 @@ export default function CampusMap() {
 
   // 3.5. Focus automatico su Asset da Ticket
   useEffect(() => {
-    if (focusAssetId && assets.length > 0) {
-      const assetToFocus = assets.find(a => a._id === focusAssetId);
-      if (assetToFocus) {
-        setSelectedAsset(assetToFocus);
+      if (focusAssetId && assets.length > 0) {
+        const assetToFocus = assets.find(a => a._id === focusAssetId);
+        if (assetToFocus) {
+          setSelectedAsset(assetToFocus);
+          
+          // NUOVO: Svuota lo state della rotta così non lo riapre cambiando campus!
+          navigate(location.pathname, { replace: true, state: {} });
+        }
       }
-    }
-  }, [focusAssetId, assets]);
+    }, [focusAssetId, assets, navigate, location.pathname]);
 
   // 4. Inquadratura Mappa su Confini Campus (fitBounds)
   useEffect(() => {
