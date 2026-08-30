@@ -24,15 +24,12 @@ const CreateAsset: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Stati per le Categorie
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryObj, setSelectedCategoryObj] = useState<Category | null>(null);
 
-  // Stati Dati Asset
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [matchedCampusId, setMatchedCampusId] = useState<string | null>(null); // NUOVO: salva in quale campus ci troviamo
+  const [matchedCampusId, setMatchedCampusId] = useState<string | null>(null); 
   
-  // Stati Media e IA
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [mediaId, setMediaId] = useState<string | null>(null);
@@ -43,9 +40,6 @@ const CreateAsset: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ==========================================
-  // INIZIALIZZAZIONE: Categorie
-  // ==========================================
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -56,13 +50,10 @@ const CreateAsset: React.FC = () => {
             'Authorization': `Bearer ${token}`
           }
         });
-        
         if (!response.ok) throw new Error('Errore nel recupero delle categorie');
-        
         const data = await response.json();
         setCategories(data);
       } catch (err) {
-        console.error("Errore fetch categorie:", err);
         setError("Impossibile caricare le categorie dal server.");
       }
     };
@@ -70,9 +61,6 @@ const CreateAsset: React.FC = () => {
     if (token) fetchCategories();
   }, [token]);
 
-  // ==========================================
-  // US 3-1: GPS e Validazione Geozone Multi-Campus
-  // ==========================================
   const captureLocation = () => {
     setLoading('Acquisizione e validazione GPS...');
     setError(null);
@@ -96,7 +84,6 @@ const CreateAsset: React.FC = () => {
         }
         
         try {
-          // Creiamo un array di chiamate API in parallelo per tutti i campus assegnati all'operatore
           const validationPromises = campusList.map(async (campusId: string) => {
             const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
               method: 'POST',
@@ -111,23 +98,16 @@ const CreateAsset: React.FC = () => {
             return { campusId, isInside: data.is_inside };
           });
 
-          // Aspettiamo che tutti i controlli PostGIS finiscano
           const results = await Promise.allSettled(validationPromises);
-          
-          // Cerchiamo se c'è ALMENO UN campus in cui l'utente si trova
           const validResult = results.find(
             (r) => r.status === 'fulfilled' && r.value.isInside
           );
 
           if (validResult && validResult.status === 'fulfilled') {
-            // MATCH TROVATO: siamo dentro un campus!
             setLocation({ lat, lng });
             setMatchedCampusId(validResult.value.campusId);
           } else {
-            // NESSUN MATCH
             setError("Coordinate fuori perimetro! Ti trovi all'esterno di tutti i campus a te assegnati.");
-            //setLocation({ lat, lng }); 
-            //setMatchedCampusId(campusList[0]);
           }
         } catch (err: any) {
           console.warn("Geozone check fallito, bypass temporaneo per test:", err);
@@ -146,47 +126,77 @@ const CreateAsset: React.FC = () => {
     );
   };
 
-  // ==========================================
-  // US 3-2: Capture Immagine (Salvataggio in RAM)
-  // ==========================================
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // ROLLBACK: Se cambiamo idea e scattiamo una nuova foto, cancelliamo la vecchia da MinIO
+      if (mediaId) {
+        fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(err => console.error("Errore cancellazione vecchia foto:", err));
+        setMediaId(null);
+      }
       setPhotoFile(file);
       setPhotoPreview(URL.createObjectURL(file));
     }
   };
 
-  // ==========================================
-  // US 3-2 & 3-3: Upload su MinIO e Analisi Vision
-  // ==========================================
+  // NUOVO: Annullamento volontario dell'intera procedura
+  const handleCancelProcess = async () => {
+    if (window.confirm("Sei sicuro di voler annullare? Tutti i dati non salvati andranno persi.")) {
+      if (mediaId) {
+        try {
+          await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } catch (e) { console.error("Errore pulizia file:", e); }
+      }
+      
+      setStep(1);
+      setLocation(null);
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      setMediaId(null);
+      setAiSuggestions(null);
+      setMetadata({});
+      setSelectedCategory('');
+      setSelectedCategoryObj(null);
+      setMatchedCampusId(null);
+    }
+  };
+
   const triggerAIAnalysis = async () => {
     if (!selectedCategory || !photoFile) return;
     
     setError(null);
-    setLoading('Upload in corso...');
+    let currentMediaId = mediaId;
 
     try {
-      const formData = new FormData();
-      formData.append('images', photoFile);
+      // ROLLBACK: Se andiamo avanti e indietro tra i passaggi 2 e 3, non carichiamo duplicati
+      if (!currentMediaId) {
+        setLoading('Upload in corso...');
+        const formData = new FormData();
+        formData.append('images', photoFile);
 
-      const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }, 
-        body: formData
-      });
+        const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }, 
+          body: formData
+        });
 
-      const uploadData = await uploadRes.json();
-      
-      if (!uploadRes.ok || uploadData.errors?.length > 0) {
-        throw new Error(uploadData.errors?.[0]?.error || "Errore durante l'upload su MinIO.");
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || uploadData.errors?.length > 0) {
+          throw new Error(uploadData.errors?.[0]?.error || "Errore durante l'upload su MinIO.");
+        }
+
+        currentMediaId = uploadData.uploaded[0].media_id;
+        setMediaId(currentMediaId);
       }
 
-      const uploadedMediaId = uploadData.uploaded[0].media_id;
-      setMediaId(uploadedMediaId);
-
       setLoading('Analisi Computer Vision in corso...');
-      const analyzeRes = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${uploadedMediaId}/analyze`, {
+      const analyzeRes = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${currentMediaId}/analyze`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -195,7 +205,6 @@ const CreateAsset: React.FC = () => {
 
       if (analyzeData.status === "success" || analyzeData.status === "degraded") {
         setAiSuggestions(analyzeData.suggestions);
-        
         if (analyzeData.suggestions?.suggested_title) {
           setMetadata(prev => ({ 
             ...prev, 
@@ -216,9 +225,6 @@ const CreateAsset: React.FC = () => {
     setMetadata(prev => ({ ...prev, [key]: value }));
   };
 
-  // ==========================================
-  // US 3-4: Salvataggio Finale su Asset DB
-  // ==========================================
   const submitAsset = async () => {
     setLoading('Salvataggio asset in corso...');
     setError(null);
@@ -226,7 +232,7 @@ const CreateAsset: React.FC = () => {
     try {
       const payload = {
         category_id: selectedCategory,
-        campus_id: matchedCampusId, // ORA USA IL CAMPUS RILEVATO DAL GPS!
+        campus_id: matchedCampusId,
         media_id: mediaId, 
         geometry: { type: 'Point', coordinates: [location?.lng, location?.lat] },
         metadata: metadata
@@ -277,7 +283,7 @@ const CreateAsset: React.FC = () => {
               <h3 className="font-medium text-black dark:text-white">Fase {step} di 3</h3>
               <div className="flex gap-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className={`h-2 w-8 rounded-full ${step >= i ? 'bg-primary' : 'bg-stroke dark:bg-strokedark'}`}></div>
+                  <div key={i} className={`h-2 w-8 rounded-full ${step >= i ? 'bg-blue-600' : 'bg-stroke dark:bg-strokedark'}`}></div>
                 ))}
               </div>
             </div>
@@ -289,7 +295,7 @@ const CreateAsset: React.FC = () => {
                 </div>
               )}
 
-              {/* STEP 1: Acquisizione Posizione e Foto */}
+              {/* STEP 1 */}
               {step === 1 && (
                 <div className="space-y-6">
                   <div>
@@ -315,7 +321,7 @@ const CreateAsset: React.FC = () => {
                     {photoPreview ? (
                       <div className="mt-2">
                         <img src={photoPreview} alt="Anteprima" className="w-full h-48 object-cover rounded-md border border-stroke mb-3" />
-                        <button onClick={() => fileInputRef.current?.click()} className="text-primary hover:underline text-sm font-medium">
+                        <button onClick={() => fileInputRef.current?.click()} className="text-blue-600 hover:underline text-sm font-medium">
                           Scatta un'altra foto
                         </button>
                       </div>
@@ -339,7 +345,7 @@ const CreateAsset: React.FC = () => {
                 </div>
               )}
 
-              {/* STEP 2: Categoria e Upload */}
+              {/* STEP 2 */}
               {step === 2 && (
                 <div className="space-y-6">
                   <div>
@@ -351,7 +357,7 @@ const CreateAsset: React.FC = () => {
                         setSelectedCategory(catId);
                         setSelectedCategoryObj(categories.find(c => c._id === catId) || null);
                       }}
-                      className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-primary dark:border-form-strokedark dark:text-white"
+                      className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-blue-600 dark:border-form-strokedark dark:text-white"
                     >
                       <option value="" disabled>Seleziona...</option>
                       {categories.map((cat) => (
@@ -375,13 +381,13 @@ const CreateAsset: React.FC = () => {
                 </div>
               )}
 
-              {/* STEP 3: Form Dinamico e AI */}
+              {/* STEP 3 */}
               {step === 3 && (
                 <div className="space-y-6">
                   
                   {aiSuggestions && (
-                    <div className="rounded border-l-4 border-primary bg-primary/5 p-4 dark:bg-meta-4">
-                      <h5 className="font-semibold text-primary mb-2 flex items-center gap-2">
+                    <div className="rounded border-l-4 border-blue-600 bg-blue-600/5 p-4 dark:bg-meta-4">
+                      <h5 className="font-semibold text-blue-600 mb-2 flex items-center gap-2">
                         <span>🧠</span> Analisi Cloud Vision Completata
                       </h5>
                       <p className="text-sm text-black dark:text-white mb-1">
@@ -409,7 +415,7 @@ const CreateAsset: React.FC = () => {
                         <select 
                           value={metadata[attr.name] || ''} 
                           onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                          className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-primary dark:border-form-strokedark dark:text-white"
+                          className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-blue-600 dark:border-form-strokedark dark:text-white"
                         >
                           <option value="">Seleziona...</option>
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -419,17 +425,21 @@ const CreateAsset: React.FC = () => {
                           type={attr.type === 'number' ? 'number' : 'text'}
                           value={metadata[attr.name] || ''}
                           onChange={(e) => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                          className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 outline-none focus:border-primary dark:border-form-strokedark dark:text-white"
+                          className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 outline-none focus:border-blue-600 dark:border-form-strokedark dark:text-white"
                         />
                       )}
                     </div>
                   ))}
 
                   <div className="flex gap-4 mt-6">
-                    <button onClick={() => setStep(2)} className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
+                    <button onClick={() => setStep(2)} className="flex w-1/4 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
                       Indietro
                     </button>
-                    <button onClick={submitAsset} disabled={!!loading} className="flex w-2/3 justify-center rounded bg-meta-3 p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50">
+                    {/* NUOVO BOTTONE: ANNULLA TUTTO E PULISCE IL DB */}
+                    <button onClick={handleCancelProcess} className="flex w-1/4 justify-center rounded border border-red-600 text-red-600 p-3 font-medium hover:bg-red-50 dark:hover:bg-red-900/20">
+                      Annulla
+                    </button>
+                    <button onClick={submitAsset} disabled={!!loading} className="flex w-2/4 justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50">
                       {loading ? 'Salvataggio...' : 'Conferma e Salva'}
                     </button>
                   </div>

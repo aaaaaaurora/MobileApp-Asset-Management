@@ -20,7 +20,7 @@ interface Asset {
   campus_id: string;
   geometry: { type: string; coordinates: [number, number] };
   metadata: Record<string, any>;
-  media_ids?: string[]; // Aggiunto per le foto
+  media_ids?: string[];
   status: string;
   created_at: string;
 }
@@ -32,10 +32,13 @@ export default function AssetList() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Stati per la modale di Modifica/Eliminazione
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // NUOVO: Stati temporanei per posticipare i salvataggi
+  const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
+  const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -79,6 +82,9 @@ export default function AssetList() {
       metadata: { ...asset.metadata },
       media_ids: asset.media_ids ? [...asset.media_ids] : []
     });
+    // Pulizia array temporanei ad ogni apertura
+    setPendingDeletes([]);
+    setPendingUploads([]);
   };
 
   const handleMetadataChange = (key: string, value: any) => {
@@ -89,73 +95,75 @@ export default function AssetList() {
   };
 
   // --------------------------------------------------------
-  // LOGICA GESTIONE IMMAGINI (MEDIA SERVICE)
+  // LOGICA GESTIONE IMMAGINI IN LOCALE (DEFERRED)
   // --------------------------------------------------------
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Usiamo FormData per simulare un form multipart/form-data
-    const uploadPayload = new FormData();
-    uploadPayload.append('images', file);
-
-    setIsProcessing(true);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: uploadPayload // Il browser imposterà automaticamente il Content-Type corretto con il boundary
-      });
-
-      if (!res.ok) throw new Error("Errore durante il caricamento dell'immagine");
-      
-      const data = await res.json();
-      const newMediaId = data.uploaded[0].media_id;
-
-      // Aggiungiamo il nuovo ID all'array locale
-      setFormData(prev => ({ ...prev, media_ids: [...prev.media_ids, newMediaId] }));
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setIsProcessing(false);
-    }
+    // Aggiungiamo il file nell'array temporaneo anziché inviarlo a MinIO
+    setPendingUploads(prev => [...prev, { file, preview: URL.createObjectURL(file) }]);
   };
 
-  const handleDeleteImage = async (mediaId: string) => {
-    if (!window.confirm("Vuoi eliminare definitivamente questa foto?")) return;
-    
-    setIsProcessing(true);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+  const handleDeleteExistingImage = (mediaId: string) => {
+    // Segnamo l'immagine esistente per la cancellazione e la togliamo dalla vista
+    setPendingDeletes(prev => [...prev, mediaId]);
+    setFormData(prev => ({ ...prev, media_ids: prev.media_ids.filter(id => id !== mediaId) }));
+  };
 
-      if (!res.ok) throw new Error("Errore durante l'eliminazione dell'immagine dallo storage");
+  const handleDeletePendingImage = (index: number) => {
+    // Togliamo la nuova immagine dall'array temporaneo senza chiamare il server
+    setPendingUploads(prev => prev.filter((_, i) => i !== index));
+  };
 
-      // Rimuoviamo l'ID dall'array locale
-      setFormData(prev => ({ ...prev, media_ids: prev.media_ids.filter(id => id !== mediaId) }));
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setIsProcessing(false);
-    }
+  const closeModal = () => {
+    setSelectedAsset(null);
+    setPendingUploads([]);
+    setPendingDeletes([]);
   };
 
   // --------------------------------------------------------
-  // LOGICA SALVATAGGIO ASSET
+  // LOGICA SALVATAGGIO ASSET E IMMAGINI
   // --------------------------------------------------------
   const handleUpdate = async () => {
     if (!selectedAsset) return;
     setIsProcessing(true);
 
-    const payload = {
-      geometry: { type: 'Point', coordinates: [formData.lng, formData.lat] },
-      metadata: formData.metadata,
-      media_ids: formData.media_ids // Questo array aggiornato andrà a MongoDB
-    };
-
     try {
+      // 1. Eseguiamo le cancellazioni definitive su MinIO
+      if (pendingDeletes.length > 0) {
+        await Promise.all(pendingDeletes.map(mediaId => 
+          fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ));
+      }
+
+      // 2. Carichiamo su MinIO le nuove immagini aggiunte
+      const newUploadedIds: string[] = [];
+      for (const item of pendingUploads) {
+        const uploadPayload = new FormData();
+        uploadPayload.append('images', item.file);
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: uploadPayload
+        });
+
+        if (!res.ok) throw new Error("Errore durante l'upload delle nuove immagini");
+        const data = await res.json();
+        newUploadedIds.push(data.uploaded[0].media_id);
+      }
+
+      // 3. Salviamo l'asset su MongoDB con il nuovo array unito
+      const finalMediaIds = [...formData.media_ids, ...newUploadedIds];
+      const payload = {
+        geometry: { type: 'Point', coordinates: [formData.lng, formData.lat] },
+        metadata: formData.metadata,
+        media_ids: finalMediaIds 
+      };
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets/${selectedAsset._id}`, {
         method: 'PUT',
         headers: {
@@ -167,11 +175,11 @@ export default function AssetList() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Errore durante l'aggiornamento");
+        throw new Error(err.error || "Errore durante l'aggiornamento dell'asset");
       }
 
       alert("Asset aggiornato con successo!");
-      setSelectedAsset(null);
+      closeModal();
       fetchData(); 
     } catch (error: any) {
       alert(error.message);
@@ -191,13 +199,9 @@ export default function AssetList() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Errore durante l'eliminazione");
-      }
-
+      if (!res.ok) throw new Error("Errore durante l'eliminazione");
       alert("Asset eliminato con successo!");
-      setSelectedAsset(null);
+      closeModal();
       fetchData();
     } catch (error: any) {
       alert(error.message);
@@ -246,10 +250,7 @@ export default function AssetList() {
                       </p>
                     </td>
                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <button
-                        onClick={() => openEditModal(asset)}
-                        className="rounded bg-blue-600 py-1 px-3 text-xs font-medium text-white hover:bg-blue-700 transition"
-                      >
+                      <button onClick={() => openEditModal(asset)} className="rounded bg-blue-600 py-1 px-3 text-xs font-medium text-white hover:bg-blue-700 transition">
                         Visualizza / Modifica
                       </button>
                     </td>
@@ -266,13 +267,15 @@ export default function AssetList() {
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 border-b border-stroke dark:border-strokedark pb-3">
               <h3 className="font-bold text-lg text-black dark:text-white">Gestione Asset</h3>
-              <button onClick={() => setSelectedAsset(null)} className="text-gray-500 hover:text-black dark:hover:text-white font-bold">✕</button>
+              <button onClick={closeModal} className="text-gray-500 hover:text-black dark:hover:text-white font-bold">✕</button>
             </div>
 
-            {/* SEZIONE FOTO */}
+            {/* SEZIONE FOTO (DEFERRED) */}
             <div className="mb-5">
               <h4 className="text-sm font-semibold text-black dark:text-white mb-2">Gestione Foto</h4>
               <div className="flex gap-3 overflow-x-auto pb-2">
+                
+                {/* Immagini Originali */}
                 {formData.media_ids.map(mediaId => (
                   <div key={mediaId} className="relative min-w-[100px] h-24 flex-shrink-0">
                     <img 
@@ -281,8 +284,7 @@ export default function AssetList() {
                       alt="Asset Media" 
                     />
                     <button 
-                      onClick={() => handleDeleteImage(mediaId)} 
-                      // Modificato: posizionato all'interno dell'immagine (top-1 right-1) e ingrandito leggermente (w-6 h-6)
+                      onClick={() => handleDeleteExistingImage(mediaId)} 
                       className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-md hover:bg-red-700 transition"
                       title="Elimina foto"
                     >
@@ -291,7 +293,24 @@ export default function AssetList() {
                   </div>
                 ))}
                 
-                {/* Bottone per Aggiungere Nuova Foto */}
+                {/* Nuove Immagini (In attesa) */}
+                {pendingUploads.map((item, index) => (
+                  <div key={`new-${index}`} className="relative min-w-[100px] h-24 flex-shrink-0">
+                    <img 
+                      src={item.preview} 
+                      className="w-full h-full object-cover rounded border-2 border-green-500 opacity-90"
+                      alt="New Upload" 
+                    />
+                    <button 
+                      onClick={() => handleDeletePendingImage(index)} 
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-md hover:bg-red-700 transition"
+                      title="Annulla inserimento"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
                 <label className="min-w-[100px] h-24 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded cursor-pointer hover:bg-gray-50 dark:border-strokedark dark:hover:bg-meta-4 transition">
                   <span className="text-2xl text-gray-400">+</span>
                   <span className="text-[10px] text-gray-500">Aggiungi</span>
@@ -354,7 +373,7 @@ export default function AssetList() {
                 </button>
                 
                 <div className="flex gap-2">
-                  <button onClick={() => setSelectedAsset(null)} disabled={isProcessing} className="rounded border border-stroke py-2 px-4 text-sm font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white transition">Annulla</button>
+                  <button onClick={closeModal} disabled={isProcessing} className="rounded border border-stroke py-2 px-4 text-sm font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white transition">Annulla</button>
                   <button onClick={handleUpdate} disabled={isProcessing} className="rounded bg-blue-600 py-2 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition">
                     Salva Modifiche
                   </button>
