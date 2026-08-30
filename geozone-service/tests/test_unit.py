@@ -74,12 +74,8 @@ def test_health_check(client):
 # TEST CASES: CREAZIONE CAMPUS (US 2-5)
 # ============================================================================
 
-@patch('app.db.session.query')
-def test_create_campus_success(mock_db_query, client, sample_polygon_geojson):
-    """Verifica la creazione corretta di un campus da parte di un Amministratore."""
-    # Mock della validazione PostGIS ST_IsValid per confermare la validità geometrica
-    mock_db_query.return_value.scalar.return_value = True
-
+def test_create_campus_success(client, sample_polygon_geojson):
+    """Verifica la creazione corretta di un campus da parte di un Amministratore delegando i calcoli a PostGIS."""
     headers = {
         'X-User-Role': 'AMMINISTRATORE',
         'X-User-Id': 'admin-123'
@@ -131,16 +127,16 @@ def test_create_campus_invalid_geometry_type(client):
     assert response.status_code == 400
     assert "geometrie di tipo 'Polygon'" in response.json['error']
 
-@patch('app.db.session.query')
-def test_create_campus_invalid_topology(mock_db_query, client, sample_polygon_geojson):
-    """Verifica che il sistema rifiuti poligoni non validi topologicamente (es. auto-intersezioni)."""
-    # Mock di ST_IsValid a False
-    mock_db_query.return_value.scalar.return_value = False
-
+def test_create_campus_invalid_topology(client):
+    """Verifica che PostGIS rifiuti poligoni non validi topologicamente (auto-intersezioni a farfalla)."""
     headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
     payload = {
         "name": "Campus Errato",
-        "geometry": sample_polygon_geojson
+        "geometry": {
+            "type": "Polygon",
+            # Geometria auto-intersecante: forma un '8' o una farfalla, non valida per GIS
+            "coordinates": [[[0.0, 0.0], [2.0, 2.0], [0.0, 2.0], [2.0, 0.0], [0.0, 0.0]]]
+        }
     }
 
     response = client.post('/api/geozones/campuses', json=payload, headers=headers)
@@ -148,25 +144,44 @@ def test_create_campus_invalid_topology(mock_db_query, client, sample_polygon_ge
     assert "non è un poligono topologicamente valido" in response.json['error']
 
 def test_create_campus_duplicate_name(client, sample_polygon_geojson):
-    """Verifica la protezione contro la creazione di campus con lo stesso nome (univocità)."""
-    # Inseriamo un campus iniziale direttamente nel DB di test
+    """Verifica la protezione contro la creazione di campus con lo stesso nome (Case-Insensitive)."""
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
         "INSERT INTO campus (id, name, description, geom) "
+        # Inseriamo un poligono lontano per assicurarci che fallisca SOLO per il nome, non per l'area
         "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))"
     ), {"id": campus_uuid, "name": "Campus Esistente", "desc": "Test"})
     db.session.commit()
 
     headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
     payload = {
-        "name": "Campus Esistente",
+        "name": "cAmPuS eSIsTeNtE", # Testiamo anche il case-insensitive inserendo maiuscole alternate
         "geometry": sample_polygon_geojson
     }
 
     response = client.post('/api/geozones/campuses', json=payload, headers=headers)
     assert response.status_code == 409
-    assert "esiste già a sistema" in response.json['error']
+    assert "risulta già censito" in response.json['error']
 
+def test_create_campus_overlapping_area(client, sample_polygon_geojson):
+    """Verifica che il sistema blocchi l'inserimento se l'area si sovrappone a un campus esistente."""
+    campus_uuid = str(uuid.uuid4())
+    db.session.execute(text(
+        "INSERT INTO campus (id, name, description, geom) "
+        "VALUES (:id, :name, :desc, ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326))"
+    ), {"id": campus_uuid, "name": "Polo Originale", "desc": "Test", "geojson": json.dumps(sample_polygon_geojson)})
+    db.session.commit()
+
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    payload = {
+        "name": "Nome Completamente Diverso", # Il nome passa il primo controllo
+        "geometry": sample_polygon_geojson    # L'area scatena il secondo blocco
+    }
+
+    response = client.post('/api/geozones/campuses', json=payload, headers=headers)
+    assert response.status_code == 409
+    assert "Area già assegnata" in response.json['error']
+    
 # ============================================================================
 # TEST CASES: CONSULTAZIONE CAMPUS (US 5-1)
 # ============================================================================

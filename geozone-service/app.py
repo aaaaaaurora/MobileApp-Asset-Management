@@ -152,7 +152,7 @@ def create_campus():
 
         campus_id = new_campus.id
 
-        # 5. Pubblicazione dell'evento RabbitMQ 
+        # 5. Pubblicazione dell'evento RabbitMQ
         publish_event("CAMPUS_CREATED", {
             "campus_id": str(campus_id),
             "campus_name": name
