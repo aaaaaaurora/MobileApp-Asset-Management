@@ -150,19 +150,18 @@ def create_campus():
         db.session.add(new_campus)
         db.session.commit()
 
+        # 4. Estrazione dell'ID generato dal DB
         campus_id = new_campus.id
 
-        # 5. Pubblicazione dell'evento RabbitMQ (Isolato per non bloccare l'HTTP)
-        try:
-            publish_event("CAMPUS_CREATED", {
-                "campus_id": str(campus_id),
-                "campus_name": name
-            })
-        except Exception as e:
-            # Il log registra l'errore interno, ma il thread prosegue senza bloccarsi
-            print(f"ATTENZIONE: Campus salvato su DB, ma evento RabbitMQ fallito: {str(e)}")
+        # TEST: Bypassiamo temporaneamente RabbitMQ per confermare che sia lui a bloccare il thread
+        # try:
+        #     publish_event("CAMPUS_CREATED", {
+        #         "campus_id": str(campus_id),
+        #         "campus_name": name
+        #     })
+        # except Exception as e:
+        #     print(f"ATTENZIONE: {str(e)}")
 
-        # La risposta scatta immediatamente dopo il commit, ignorando i colli di bottiglia di RabbitMQ
         return jsonify({
             "message": "Campus creato con successo.",
             "campus": {
