@@ -349,7 +349,7 @@ def update_campus(campus_id):
         if not events_to_publish:
             return error_response("Nessun campo valido fornito per l'aggiornamento.", 400)
 
-        # 4. Commit nel database. Il trigger ON UPDATE/onupdate aggiornerà 'updated_at'
+        # 4. Commit nel database. Il trigger ON UPDATE/onupdate aggiornerà 'updated_at  
         db.session.commit()
 
         # 5. Pubblicazione asincrona degli eventi

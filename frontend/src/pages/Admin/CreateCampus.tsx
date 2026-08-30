@@ -18,7 +18,7 @@ export default function CreateCampusPage() {
   const [successMsg, setSuccessMsg] = useState("");
 
   // =================================================================
-  // Ricerca Area Geografica via Nominatim
+  // Ricerca Area Geografica via Nominatim 
   // =================================================================
   const handleSearchArea = async () => {
     if (!searchQuery.trim()) {
