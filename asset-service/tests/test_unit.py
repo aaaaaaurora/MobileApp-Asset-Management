@@ -41,7 +41,8 @@ ADMIN_HEADERS = {
 OPERATOR_HEADERS = {
     'X-User-Id': 'op-456',
     'X-User-Role': 'OPERATORE',
-    'X-Campus-Ids': 'campus-A'
+    'X-Campus-Ids': 'campus-A',
+    'X-Client-Type': 'mobile'  # <-- FIX: Aggiunto header mobile obbligatorio per l'operatore
 }
 
 # ============================================================================
@@ -179,7 +180,8 @@ def existing_asset(client, configured_category):
         "geometry": {"type": "Point", "coordinates": [12.0, 42.0]},
         "metadata": {"targa": "AB123CD", "anno": 2020}
     }
-    res = client.post('/api/assets', json=payload, headers=ADMIN_HEADERS)
+    # FIX: Sostituito ADMIN_HEADERS con OPERATOR_HEADERS perché l'admin non può più censire asset
+    res = client.post('/api/assets', json=payload, headers=OPERATOR_HEADERS)
     return res.json['asset']['_id'], configured_category
 
 def test_get_asset_operator(client, existing_asset):
@@ -200,7 +202,7 @@ def test_search_assets_with_dynamic_filters(client, existing_asset):
 def test_update_asset_and_preserve_deprecated_field(client, existing_asset):
     asset_id, cat_id = existing_asset
     
-    # 1. Depreco il campo 'anno' nella categoria
+    # 1. Depreco il campo 'anno' nella categoria (L'admin PUO' farlo)
     client.put(f'/api/categories/{cat_id}/attributes/anno', json={"status": "unavailable"}, headers=ADMIN_HEADERS)
     
     # 2. Aggiorno l'asset inviando solo la targa (l'operatore non vede più 'anno')
@@ -225,7 +227,7 @@ def test_delete_asset_creates_history(client, existing_asset):
     hist_before = client.get(f'/api/assets/{asset_id}/history', headers=ADMIN_HEADERS)
     assert len(hist_before.json['history']) == 1
 
-    # Elimina l'asset
+    # Elimina l'asset (L'admin PUO' eliminare)
     res = client.delete(f'/api/assets/{asset_id}', headers=ADMIN_HEADERS)
     assert res.status_code == 200
 

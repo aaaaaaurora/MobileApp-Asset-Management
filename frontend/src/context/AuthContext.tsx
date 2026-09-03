@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Interfaccia basata sul payload del tuo backend app.py
+
 export interface User {
   id: string;          // Mappato dal 'sub' del JWT
   role: string;        // 'GUEST', 'OPERATORE', 'AMMINISTRATORE' 
@@ -8,7 +8,8 @@ export interface User {
   category_id: string | null;
   email?: string;
   name?: string;
-  first_name?: string;  
+  first_name?: string; 
+  last_name?: string; 
 }
 
 interface AuthContextType {
@@ -63,6 +64,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // L'useEffect gestisce i futuri aggiornamenti (es. login o scadenza token)
   useEffect(() => {
+
+    const fetchUserProfile = async (validToken: string, decodedToken: any) => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${validToken}`
+          }
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          // Unisce i permessi del JWT con i dati anagrafici presi dal DB
+          setUser({
+            id: decodedToken.sub,
+            role: decodedToken.role,
+            campus_ids: decodedToken.campus_ids || [],
+            category_id: decodedToken.category_id || null,
+            first_name: userData.first_name,
+            last_name: userData.last_name,
+            email: userData.email
+          });
+        } else {
+          // Se la richiesta fallisce (es. token revocato o utente inattivo dal DB), scarta la sessione
+          console.error("Errore nel recupero del profilo dal server");
+          logout();
+        }
+      } catch (error) {
+        console.error("Errore di rete durante il recupero del profilo", error);
+        // Evitiamo il logout in caso di momentanea assenza di rete, mantenendo i dati base del JWT
+      }
+    };
+
     if (token) {
       const decoded = decodeJWT(token);
       if (decoded) {
@@ -75,7 +109,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name: decoded.name,
           first_name: decoded.first_name,
         });
+        
         localStorage.setItem('jwt_token', token);
+
+        // Recupero in background dei dati anagrafici (nome, email)
+        fetchUserProfile(token, decoded);
+
       } else {
         // Token corrotto, puliamo tutto
         setToken(null);
@@ -91,21 +130,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = (newToken: string) => {
     setToken(newToken);
   };
-  
   const logout = () => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('jwt_token');
   };
 
+  const isAuthenticated = Boolean(token && user);
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      token, 
-      login, 
-      logout, 
-      isAuthenticated: !!token 
-    }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

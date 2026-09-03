@@ -16,6 +16,7 @@ data:
     -- ==========================================
     \c auth_db;
     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
     -- Funzione per il trigger
     CREATE OR REPLACE FUNCTION update_modified_column()
@@ -61,7 +62,6 @@ data:
       category_id VARCHAR(24) NOT NULL,
       PRIMARY KEY (user_id, category_id)
     );
-
     -- ==========================================
     -- 2. GEOZONE SERVICE DATABASE
     -- ==========================================

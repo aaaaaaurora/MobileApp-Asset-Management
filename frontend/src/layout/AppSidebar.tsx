@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ChevronDownIcon } from "../icons";
+import { ChevronDownIcon, HorizontaLDots } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
 
 // 🟢 Importiamo il nostro modale MODIFICARE QUANDO CI SARANNO GLI ASSET SULLA MAPPA 
-import WarningFormModal from "../components/guest/WarningFormModal";
 
 type NavItem = {
   name: string;
@@ -66,13 +65,24 @@ const TicketIcon = (
   </svg>
 );
 
-const WarningIcon = (
-  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+const PlusIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M9 3.375C9.31066 3.375 9.5625 3.62684 9.5625 3.9375V8.4375H14.0625C14.3732 8.4375 14.625 8.68934 14.625 9C14.625 9.31066 14.3732 9.5625 14.0625 9.5625H9.5625V14.0625C9.5625 14.3732 9.31066 14.625 9 14.625C8.68934 14.625 8.4375 14.3732 8.4375 14.0625V9.5625H3.9375C3.62684 9.5625 3.375 9.31066 3.375 9C3.375 8.68934 3.62684 8.4375 3.9375 8.4375H8.4375V3.9375C8.4375 3.62684 8.68934 3.375 9 3.375Z"
+      fill=""
+    />
   </svg>
 );
 
-const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem[] => {
+const ListIcon = (
+  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+  </svg>
+);
+
+// 2. Funzione che genera il menu in base al ruolo
+const getNavItemsByRole = (role?: string): NavItem[] => {
+  // La Mappa è comune a tutti, la mettiamo come base
   const baseMenu: NavItem[] = [
     { icon: MapIcon, name: "Mappa Campus", path: "/map" }
   ];
@@ -91,17 +101,16 @@ const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem
     case "OPERATORE":
       return [
         ...baseMenu,
-        { icon: TicketIcon, name: "Ticket Segnalazioni", path: "/operator/tickets" }
+        { icon: TicketIcon, name: "Ticket Segnalazioni", path: "/operator/tickets" },
+        { icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" },
+        // Aggiunta la voce "Lista Asset" per la gestione massiva
+        { icon: ListIcon, name: "Lista Asset", path: "/assets/list" }, 
+        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Ticket Segnalazioni", path: "/operator/tickets" }
       ];
     case "UTENTE":
     default:
       return [
         ...baseMenu,
-        { 
-          icon: WarningIcon, 
-          name: "Invia Segnalazione", 
-          action: openReportModal 
-        }
       ];
   }
 };
@@ -109,12 +118,10 @@ const getNavItemsByRole = (role?: string, openReportModal?: () => void): NavItem
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
+
   const { user } = useAuth();
   
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const TEST_ASSET_ID = "60d5ec49c1234567890abcde"; // Simula un ID reale
-
-  const navItems = getNavItemsByRole(user?.role, () => setIsReportModalOpen(true));
+  const navItems = getNavItemsByRole(user?.role);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -291,82 +298,71 @@ const AppSidebar: React.FC = () => {
   );
 
   return (
-    <>
-      <aside
-        className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-          ${
-            isExpanded || isMobileOpen
-              ? "w-[290px]"
-              : isHovered
-              ? "w-[290px]"
-              : "w-[90px]"
-          }
-          ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0`}
-        onMouseEnter={() => !isExpanded && setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+    <aside
+      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
+        ${
+          isExpanded || isMobileOpen
+            ? "w-[290px]"
+            : isHovered
+            ? "w-[290px]"
+            : "w-[90px]"
+        }
+        ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
+        lg:translate-x-0`}
+      onMouseEnter={() => !isExpanded && setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div
+        className={`py-8 flex ${
+          !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+        }`}
       >
-        <div
-          className={`py-8 flex ${
-            !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
-          }`}
-        >
-          <Link to="/">
-            {isExpanded || isHovered || isMobileOpen ? (
-              <>
-                <img
-                  className="dark:hidden"
-                  src="/images/logo/logo.svg"
-                  alt="Logo"
-                  width={150}
-                  height={40}
-                />
-                <img
-                  className="hidden dark:block"
-                  src="/images/logo/logo-dark.svg"
-                  alt="Logo"
-                  width={150}
-                  height={40}
-                />
-              </>
-            ) : (
-              <img
-                src="/images/logo/logo-icon.svg"
-                alt="Logo"
-                width={32}
-                height={32}
-              />
-            )}
-          </Link>
-        </div>
-        
-        <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-          <nav className="mb-6">
-            <div className="flex flex-col gap-4">
-              <div>
-                
-                <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                    !isExpanded && !isHovered
-                      ? "lg:justify-center"
-                      : "justify-start"
-                  }`}
-                >
-                </h2>
-                {renderMenuItems(navItems, "main")}
-              </div>
+      <Link to="/map" className="flex items-center justify-center w-full py-4">
+        {isExpanded || isHovered || isMobileOpen ? (
+          <img
+            src="/images/logo/logo_unisa.png"
+            alt="Logo UNISA"
+            width={80}
+            className="block mx-auto object-contain" 
+          />
+        ) : (
+          <img
+            src="/images/logo/logo_unisa.png"
+            alt="Logo UNISA Icona"
+            width={32}
+            height={32}
+            className="block mx-auto object-contain"
+          />
+        )}
+      </Link>
+      </div>
+      
+      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
+        <nav className="mb-6">
+          <div className="flex flex-col gap-4">
+            
+            {/* Sezione Menu Principale */}
+            <div>
+              <h2
+                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                  !isExpanded && !isHovered
+                    ? "lg:justify-center"
+                    : "justify-start"
+                }`}
+              >
+                {isExpanded || isHovered || isMobileOpen ? (
+                  "Menu"
+                ) : (
+                  <HorizontaLDots className="size-6" />
+                )}
+              </h2>
+              {renderMenuItems(navItems, "main")}
             </div>
-          </nav>
-          
-        </div>
-      </aside>
-
-      <WarningFormModal 
-        isOpen={isReportModalOpen} 
-        onClose={() => setIsReportModalOpen(false)} 
-        assetId={TEST_ASSET_ID} 
-      />
-    </>
+            
+          </div>
+        </nav>
+      </div>
+    </aside>
   );
 };
 

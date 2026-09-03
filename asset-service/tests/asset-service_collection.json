@@ -274,6 +274,7 @@
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
 					{ "key": "X-Campus-Ids", "value": "campus-A" },
+					{ "key": "X-Client-Type", "value": "mobile" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -314,6 +315,7 @@
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
 					{ "key": "X-Campus-Ids", "value": "campus-A" },
+					{ "key": "X-Client-Type", "value": "mobile" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -354,6 +356,7 @@
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
 					{ "key": "X-Campus-Ids", "value": "campus-A" },
+					{ "key": "X-Client-Type", "value": "mobile" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {
@@ -394,6 +397,7 @@
 					{ "key": "X-User-Id", "value": "op-456" },
 					{ "key": "X-User-Role", "value": "OPERATORE" },
 					{ "key": "X-Campus-Ids", "value": "campus-A" },
+					{ "key": "X-Client-Type", "value": "mobile" },
 					{ "key": "Content-Type", "value": "application/json" }
 				],
 				"body": {

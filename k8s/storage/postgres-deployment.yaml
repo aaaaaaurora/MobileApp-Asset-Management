@@ -30,7 +30,11 @@ spec:
     spec:
       containers:
       - name: postgres
+<<<<<<< HEAD
         image: postgis/postgis:15-3.4-alpine
+=======
+        image: postgis/postgis:15-3.3
+>>>>>>> feature/frontend-service
         ports:
         - containerPort: 5432
         

@@ -8,11 +8,10 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID
 import threading
-
-# Import della libreria centralizzata per RabbitMQ
+from google.auth.transport import requests
+import logging
+import requests
 from shared_utils.messaging import RabbitMQManager
-
-# Nuovi import necessari per la validazione reale del token Google
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import requests
@@ -30,7 +29,7 @@ app.config['JWT_SECRET'] = os.getenv('JWT_SECRET', 'super-secret-key-fallback')
 RABBITMQ_URL = os.getenv('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq-service:5672/')
 TOTP_ISSUER_NAME = os.getenv('TOTP_ISSUER_NAME', 'Campus_Management')
 # Aggiunta Client ID di Google
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', 'il-tuo-client-id-google.apps.googleusercontent.com')
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '644506126338-fvtr7mf0jpa9dusa58g8ilt0e9d2ftsr.apps.googleusercontent.com')
 
 db = SQLAlchemy(app)
 
@@ -75,7 +74,6 @@ class UserCategory(db.Model):
     __tablename__ = 'user_category'
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('app_user.id'), primary_key=True)
     category_id = db.Column(db.String(24), primary_key=True) # Soft link all'Asset Service
-
 
 # ============================================================================
 # FUNZIONI DI UTILITA'
@@ -245,6 +243,10 @@ def auth_google():
 
         return jsonify(response_data), 200
 
+
+# ============================================================================
+# ENDPOINT: Verifica 2FA e Generazione JWT Definitivo
+# ============================================================================
 
 @app.route('/auth/2fa/verify', methods=['POST'])
 def verify_2fa():
@@ -530,6 +532,44 @@ def get_operators():
         
     return jsonify(result), 200
 
+from flask import request, jsonify
+import uuid
+
+# ==========================================
+# ENDPOINT: Profilo Utente Loggato
+# ==========================================
+@app.route('/me', methods=['GET'])
+def get_current_user():
+    """
+    Restituisce i dati anagrafici dell'utente attualmente autenticato.
+    Legge gli header iniettati in modo sicuro dall'API Gateway.
+    """
+    # Leggiamo gli header direttamente dalla request
+    user_id_str = request.headers.get('X-User-Id')
+    user_role = request.headers.get('X-User-Role')
+
+    if not user_id_str:
+        return jsonify({"error": "Utente non autenticato o header mancanti dal Gateway"}), 401
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        return jsonify({"error": "Formato ID utente non valido"}), 400
+
+    # Interroga la tabella app_user (assicurati che il modello si chiami AppUser o User a seconda della tua implementazione)
+    user = db.session.get(AppUser, user_uuid)
+    
+    if not user:
+        return jsonify({"error": "Utente non trovato nel database"}), 404
+
+    return jsonify({
+        "id": str(user.id),
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user_role
+    }), 200
+
 # ============================================================================
 # CONSUMER ASINCRONO INTEGRATO CON LA CLASSE CENTRALIZZATA
 # ============================================================================
@@ -586,6 +626,7 @@ def start_consumer_thread():
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
+start_consumer_thread()
 
 if __name__ == '__main__':
     # Avvia il processo in background per ascoltare gli eventi RabbitMQ 

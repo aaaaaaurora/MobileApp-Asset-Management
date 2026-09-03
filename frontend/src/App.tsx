@@ -12,6 +12,9 @@ import CampusList from './pages/Admin/CampusList';
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
+import CreateAsset from './pages/AssetPages/CreateAsset';
+import TicketSegnalazioni from './pages/WarningPages/TicketSegnalazioni';
+import AssetList from './pages/AssetPages/AssetList';
 
 export default function App() {
   return (
@@ -21,6 +24,7 @@ export default function App() {
         <Routes>
           <Route path="/signin" element={<SignIn />} />
 
+          
           {/* ========================================== */}
           {/* ROTTE PROTETTE - BASE (Tutti gli autenticati) */}
           {/* ========================================== */}
@@ -54,6 +58,11 @@ export default function App() {
           {/* ROTTE OPERATORE                            */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute allowedRoles={['OPERATORE']} />}>
+            <Route element={<AppLayout />}>
+              <Route path="/assets/new" element={<CreateAsset />} />
+              <Route path="/operator/tickets" element={<TicketSegnalazioni />} />
+              <Route path="/assets/list" element={<AssetList />} />
+            </Route>
           </Route>
 
           {/* ========================================== */}

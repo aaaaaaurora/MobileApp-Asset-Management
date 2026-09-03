@@ -37,7 +37,6 @@ mq_manager = RabbitMQManager()
 # ============================================================================
 # FUNZIONI DI UTILITA' E MIDDLEWARE 
 # ============================================================================
-
 def get_auth_context():
     """
     Estrae le informazioni di sicurezza propagate dall'API Gateway.
@@ -50,8 +49,10 @@ def get_auth_context():
         'user_id': request.headers.get('X-User-Id'),
         'role': request.headers.get('X-User-Role'),
         'email' : request.headers.get('X-User-Email'), # <-- MODIFICA: Presa dell'email dal Gateway
-        'campus_ids': campus_ids
+        'campus_ids': campus_ids,
+        'client_type': request.headers.get('X-Client-Type', 'web').lower()
     }
+
 
 def serialize_mongo_doc(doc):
     """
@@ -121,7 +122,6 @@ def health_check():
 # ============================================================================
 # ENDPOINT: Creazione Categoria 
 # ============================================================================
-
 @app.route('/api/categories', methods=['POST'])
 def create_category():
     """
@@ -638,9 +638,22 @@ def create_asset():
     user_role = auth.get('role')
     user_campuses = auth.get('campus_ids', [])
 
-    # Solo Operatori e Amministratori possono censire asset
-    if user_role not in ['OPERATORE', 'AMMINISTRATORE']:
-        return error_response("Non hai i permessi per censire un asset", 403)
+    auth = get_auth_context()
+    user_role = auth.get('role')
+    # Supponiamo di aver aggiornato get_auth_context() per estrarre il client
+    client_type = auth.get('client_type') 
+
+    # 1. L'Amministratore NON può creare asset
+    if user_role == 'AMMINISTRATORE':
+        return error_response("Gli amministratori non possono censire fisicamente gli asset.", 403)
+
+    # 2. Solo gli Operatori possono procedere
+    if user_role != 'OPERATORE':
+        return error_response("Non hai i permessi per censire un asset.", 403)
+
+    # 3. L'Operatore deve OBBLIGATORIAMENTE usare l'app mobile
+    if client_type != 'mobile':
+        return error_response("Il censimento degli asset è consentito solo tramite l'App Mobile.", 403)
 
     data = request.get_json()
     if not data:
@@ -820,9 +833,11 @@ def update_asset(asset_id):
             "updated_at": timestamp
         }
 
-        # L'aggiornamento geografico è opzionale
         if 'geometry' in data:
             update_fields['geometry'] = data['geometry']
+            
+        if 'media_ids' in data:
+            update_fields['media_ids'] = data['media_ids']
 
         # 6. Salvataggio del nuovo stato corrente (sovrascrittura su 'assets')
         assets_col.update_one(
@@ -865,7 +880,6 @@ def update_asset(asset_id):
 
     except Exception as e:
         return error_response(f"Errore durante l'aggiornamento dell'asset: {str(e)}", 500)
-
 
 # ============================================================================
 # ENDPOINT: Ricerca, filtraggio e visualizzazione massiva degli Asset
@@ -1181,6 +1195,8 @@ def start_consumer_thread():
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
+start_consumer_thread()
+
 if __name__ == '__main__':
     start_consumer_thread()
     app.run(host='0.0.0.0', port=5000)

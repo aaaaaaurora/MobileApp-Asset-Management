@@ -1,16 +1,15 @@
 import os
 import jwt
 import requests
+from flask_cors import CORS
 from flask import Flask, request, jsonify, Response
-from flask_cors import CORS  
 
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE
 # ============================================================================
+
 app = Flask(__name__)
-
-CORS(app, resources={r"/*": {"origins": "*"}})
-
+CORS(app)
 # Configurazione della chiave segreta per la validazione del JWT
 app.config['JWT_SECRET'] = os.getenv('JWT_SECRET', 'super-secret-key-fallback')
 
@@ -117,6 +116,7 @@ def gateway_proxy(service_name, path):
         return jsonify({
             "error": f"Gateway Timeout o Errore di comunicazione con il servizio '{service_name}': {str(e)}"
         }), 502
+
 
 # ============================================================================
 # ENTRY POINT
