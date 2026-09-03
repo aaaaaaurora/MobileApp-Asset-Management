@@ -26,7 +26,7 @@ export default function App() {
 
           
           {/* ========================================== */}
-          {/* ROTTE PROTETTE - BASE (Tutti gli autenticati) */}
+          {/* ROTTE PROTETTE - BASE (Tutti gli autenticati)  */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
