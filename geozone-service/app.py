@@ -365,7 +365,7 @@ def update_campus(campus_id):
                 "campus_name": campus.name
             })
 
-        # 6. Ritorna il campus aggiornato estraendo la nuova geometria 
+        # 6. Ritorna il campus aggiornato estraendo la nuova geometria  
         updated_campus = db.session.query(
             Campus.id,
             Campus.name,

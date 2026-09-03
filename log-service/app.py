@@ -594,7 +594,7 @@ consumer_thread = threading.Thread(target=start_mq_consumer, daemon=True)
 consumer_thread.start()
 
 if __name__ == '__main__':
-    # Avvia il consumer in background 
+    # Avvia il consumer in background  
     consumer_thread = threading.Thread(target=start_mq_consumer, daemon=True)
     consumer_thread.start()
 
