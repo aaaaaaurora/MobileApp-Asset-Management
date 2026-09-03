@@ -587,7 +587,7 @@ def start_mq_consumer():
             time.sleep(5)
 
 # ============================================================================
-# ENTRY POINT
+# ENTRY POINT 
 # ============================================================================
 
 consumer_thread = threading.Thread(target=start_mq_consumer, daemon=True)

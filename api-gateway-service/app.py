@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask import Flask, request, jsonify, Response
 
 # ============================================================================
-# INIZIALIZZAZIONE E CONFIGURAZIONE
+# INIZIALIZZAZIONE E CONFIGURAZIONE 
 # ============================================================================
 
 app = Flask(__name__)

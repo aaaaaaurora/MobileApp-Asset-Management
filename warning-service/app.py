@@ -14,7 +14,7 @@ from shared_utils.messaging import RabbitMQManager
 
 app = Flask(__name__)
 
-# Configurazione
+# Configurazione 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:pass@db:5432/warning_db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
