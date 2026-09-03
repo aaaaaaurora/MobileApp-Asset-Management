@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
-
+ 
 export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
