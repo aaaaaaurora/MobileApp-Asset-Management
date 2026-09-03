@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
- 
+
 export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
@@ -18,10 +18,8 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
-  // Stati per gestire il blocco dinamico dello zoom e dei confini
-  const [dynamicMinZoom, setDynamicMinZoom] = useState(10);
+  // STATO UNICO E FISSO PER I LIMITI DELLA MAPPA
   const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
-  const isFittingBounds = useRef(false);
   
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
@@ -90,7 +88,7 @@ export default function CampusMap() {
       }
     }, [focusAssetId, assets, navigate, location.pathname]);
 
-  // 4. Inquadratura Mappa su Confini Campus (fitBounds e maxBounds)
+  // 4. Inquadratura Mappa su Confini Campus e Blocco Assoluto
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
@@ -104,12 +102,12 @@ export default function CampusMap() {
         if (p[1] < minLat) minLat = p[1];
         if (p[1] > maxLat) maxLat = p[1];
       });
+
+      // Buffer calcolato al 10% per lasciare un margine estetico ai bordi del campus
+      const lngBuffer = (maxLng - minLng) * 0.10;
+      const latBuffer = (maxLat - minLat) * 0.10;
       
-      // Calcola un leggero buffer (circa 10-20%) per permettere alla mappa di applicare il padding
-      const lngBuffer = (maxLng - minLng) * 0.15;
-      const latBuffer = (maxLat - minLat) * 0.15;
-      
-      // maplibre richiede [minLng, minLat, maxLng, maxLat]
+      // Imposta i confini INVALICABILI della mappa (Ovest, Sud, Est, Nord)
       setMaxBounds([
         minLng - lngBuffer, 
         minLat - latBuffer, 
@@ -117,18 +115,13 @@ export default function CampusMap() {
         maxLat + latBuffer
       ]);
 
-      setDynamicMinZoom(10);
-      isFittingBounds.current = true;
-
+      // Centra la mappa all'avvio
       mapRef.current?.fitBounds(
         [
           [minLng, minLat],
           [maxLng, maxLat]
         ],
-        { 
-          padding: 50,
-          duration: 1500 
-        } 
+        { padding: 30, duration: 1000 } 
       );
     }
   }, [selectedCampus, campuses]);
@@ -195,18 +188,10 @@ export default function CampusMap() {
           ref={mapRef} 
           {...viewState} 
           onMove={evt => setViewState(evt.viewState)} 
-          onMoveEnd={(evt) => {
-            if (isFittingBounds.current) {
-              isFittingBounds.current = false;
-              setDynamicMinZoom(evt.viewState.zoom);
-            }
-          }}
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          // Rimosso dragPan={false} per abilitare la navigazione interna
-          minZoom={dynamicMinZoom} 
-          maxBounds={maxBounds} // Limita il movimento ai bordi calcolati
+          maxBounds={maxBounds} // Limita fisicamente e irrevocabilmente pan e zoom-out
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -233,7 +218,7 @@ export default function CampusMap() {
           ))}
         </Map>
         
-        {/* FAB (Floating Action Button) per aggiunta rapida Asset riservato all'operatore */}
+        {/* FAB (Floating Action Button) per aggiunta rapida Asset */}
         {user?.role === 'OPERATORE' && (
           <button
             onClick={() => navigate('/assets/new')}
@@ -270,7 +255,7 @@ export default function CampusMap() {
                     <img
                       key={mediaId}
                       src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
-                      alt="Errore di rete con MinIO (Vedi Console)"
+                      alt="Immagine Asset"
                       className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
                     />
                   ))}
