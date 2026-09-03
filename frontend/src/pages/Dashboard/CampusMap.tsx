@@ -18,8 +18,9 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
-  // NUOVO: Stati per gestire il blocco dinamico dello zoom
+  // Stati per gestire il blocco dinamico dello zoom e dei confini
   const [dynamicMinZoom, setDynamicMinZoom] = useState(10);
+  const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
   const isFittingBounds = useRef(false);
   
   const [assets, setAssets] = useState<any[]>([]);
@@ -84,14 +85,12 @@ export default function CampusMap() {
         const assetToFocus = assets.find(a => a._id === focusAssetId);
         if (assetToFocus) {
           setSelectedAsset(assetToFocus);
-          
-          // NUOVO: Svuota lo state della rotta così non lo riapre cambiando campus!
           navigate(location.pathname, { replace: true, state: {} });
         }
       }
     }, [focusAssetId, assets, navigate, location.pathname]);
 
-  // 4. Inquadratura Mappa su Confini Campus (fitBounds)
+  // 4. Inquadratura Mappa su Confini Campus (fitBounds e maxBounds)
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
@@ -105,8 +104,19 @@ export default function CampusMap() {
         if (p[1] < minLat) minLat = p[1];
         if (p[1] > maxLat) maxLat = p[1];
       });
+      
+      // Calcola un leggero buffer (circa 10-20%) per permettere alla mappa di applicare il padding
+      const lngBuffer = (maxLng - minLng) * 0.15;
+      const latBuffer = (maxLat - minLat) * 0.15;
+      
+      // maplibre richiede [minLng, minLat, maxLng, maxLat]
+      setMaxBounds([
+        minLng - lngBuffer, 
+        minLat - latBuffer, 
+        maxLng + lngBuffer, 
+        maxLat + latBuffer
+      ]);
 
-      // Sblocchiamo lo zoom temporaneamente per permettere l'animazione di transizione
       setDynamicMinZoom(10);
       isFittingBounds.current = true;
 
@@ -185,23 +195,18 @@ export default function CampusMap() {
           ref={mapRef} 
           {...viewState} 
           onMove={evt => setViewState(evt.viewState)} 
-          
-          // NUOVO: Intercettiamo la fine dell'animazione
           onMoveEnd={(evt) => {
             if (isFittingBounds.current) {
               isFittingBounds.current = false;
-              // Catturiamo lo zoom calcolato e blocchiamo la mappa!
               setDynamicMinZoom(evt.viewState.zoom);
             }
           }}
-
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          dragPan={false}
-          
-          // NUOVO: Limite di zoom in uscita dinamico
+          // Rimosso dragPan={false} per abilitare la navigazione interna
           minZoom={dynamicMinZoom} 
+          maxBounds={maxBounds} // Limita il movimento ai bordi calcolati
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -227,6 +232,17 @@ export default function CampusMap() {
             </Marker>
           ))}
         </Map>
+        
+        {/* FAB (Floating Action Button) per aggiunta rapida Asset riservato all'operatore */}
+        {user?.role === 'OPERATORE' && (
+          <button
+            onClick={() => navigate('/assets/new')}
+            className="absolute bottom-6 left-6 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 hover:bg-blue-700"
+            title="Censisci Nuovo Asset"
+          >
+            <span className="text-3xl font-light leading-none mb-1">+</span>
+          </button>
+        )}
       </div>
 
       {/* MODALE GLOBALE CON REACT PORTAL */}
