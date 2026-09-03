@@ -88,41 +88,52 @@ export default function CampusMap() {
       }
     }, [focusAssetId, assets, navigate, location.pathname]);
 
-  // 4. Inquadratura Mappa su Confini Campus e Blocco Assoluto
+  // 4. Inquadratura Mappa su Confini Campus e Blocco Assoluto (RICORSIVO)
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
-      const ring = activeCampus.geometry.coordinates[0];
       
-      let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+      let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
 
-      ring.forEach((p: number[]) => {
-        if (p[0] < minLng) minLng = p[0];
-        if (p[0] > maxLng) maxLng = p[0];
-        if (p[1] < minLat) minLat = p[1];
-        if (p[1] > maxLat) maxLat = p[1];
-      });
+      // Funzione ricorsiva infallibile per estrarre coordinate da Polygon o MultiPolygon
+      const extractCoords = (coords: any[]) => {
+        if (typeof coords[0] === 'number') {
+          const lng = coords[0];
+          const lat = coords[1];
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+        } else if (Array.isArray(coords)) {
+          coords.forEach(extractCoords);
+        }
+      };
 
-      // Buffer calcolato al 10% per lasciare un margine estetico ai bordi del campus
-      const lngBuffer = (maxLng - minLng) * 0.10;
-      const latBuffer = (maxLat - minLat) * 0.10;
-      
-      // Imposta i confini INVALICABILI della mappa (Ovest, Sud, Est, Nord)
-      setMaxBounds([
-        minLng - lngBuffer, 
-        minLat - latBuffer, 
-        maxLng + lngBuffer, 
-        maxLat + latBuffer
-      ]);
+      // Avvia l'estrazione dalla geometria del database
+      extractCoords(activeCampus.geometry.coordinates);
 
-      // Centra la mappa all'avvio
-      mapRef.current?.fitBounds(
-        [
-          [minLng, minLat],
-          [maxLng, maxLat]
-        ],
-        { padding: 30, duration: 1000 } 
-      );
+      if (minLng !== Infinity) {
+        // Buffer calcolato al 10% per lasciare un margine estetico di scorrimento ai bordi
+        const lngBuffer = (maxLng - minLng) * 0.10;
+        const latBuffer = (maxLat - minLat) * 0.10;
+        
+        // Imposta i confini INVALICABILI e fissi della mappa
+        setMaxBounds([
+          minLng - lngBuffer, 
+          minLat - latBuffer, 
+          maxLng + lngBuffer, 
+          maxLat + latBuffer
+        ] as [number, number, number, number]);
+
+        // Centra la mappa all'avvio
+        mapRef.current?.fitBounds(
+          [
+            [minLng, minLat],
+            [maxLng, maxLat]
+          ],
+          { padding: 30, duration: 1000 } 
+        );
+      }
     }
   }, [selectedCampus, campuses]);
 
@@ -191,7 +202,7 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          maxBounds={maxBounds} // Limita fisicamente e irrevocabilmente pan e zoom-out
+          maxBounds={maxBounds} // Blocca pan e zoom-out entro il perimetro calcolato
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
