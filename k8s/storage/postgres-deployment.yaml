@@ -41,7 +41,7 @@ spec:
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: app-secrets       # Il nome del file Secret 
+              name: app-secrets       # Il nome del file Secret
               key: postgres-password  # Il nome della riga da pescare
         
         volumeMounts:

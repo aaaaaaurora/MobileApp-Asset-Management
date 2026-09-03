@@ -39,7 +39,7 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
       {/* 
         ALTEZZA FISSA: h-[460px].
-        Il modale ora è solido e compatto, non cambierà mai dimensione. 
+        Il modale ora è solido e compatto, non cambierà mai dimensione.
       */}
       <div className="w-full max-w-md h-[460px] flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         
