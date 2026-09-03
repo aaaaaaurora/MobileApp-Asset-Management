@@ -247,7 +247,7 @@ def test_update_campus_success(client, sample_polygon_geojson):
     db.session.execute(text(
         "INSERT INTO campus (id, name, description, geom, admin_id) "
         "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), :admin_id)"
-    ), {"id": campus_uuid, "name": "Vecchio Nome", "desc": "Vecchia descrizione", "admin_id": "admin-123"})
+    ), {"id": campus_uuid, "name": "Vecchio Nome", "desc": "Vecchia descrizione", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
     # 2. Prepariamo la richiesta PUT con i dati aggiornati
@@ -282,7 +282,7 @@ def test_delete_campus_success(client):
     db.session.execute(text(
         "INSERT INTO campus (id, name, description, geom, admin_id) "
         "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), :admin_id)"
-    ), {"id": campus_uuid, "name": "Campus Da Eliminare", "desc": "Elimina", "admin_id": "admin-123"})
+    ), {"id": campus_uuid, "name": "Campus Da Eliminare", "desc": "Elimina", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
     headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}

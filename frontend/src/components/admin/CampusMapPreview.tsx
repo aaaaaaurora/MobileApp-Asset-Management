@@ -7,7 +7,7 @@ interface CampusMapPreviewProps {
   geoJsonData: any;
 }
 
-// Componente di utilità per ricalcolare i confini della mappa dinamicamente
+// Componente di utilità per ricalcolare i confini della mappa dinamicamente 
 function MapBoundsUpdater({ geoJsonData }: { geoJsonData: any }) {
   const map = useMap();
 
