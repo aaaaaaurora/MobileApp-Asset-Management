@@ -105,7 +105,6 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
         { icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" },
         // Aggiunta la voce "Lista Asset" per la gestione massiva
         { icon: ListIcon, name: "Lista Asset", path: "/assets/list" }, 
-        { icon: <HorizontaLDots className="w-5 h-5" />, name: "Ticket Segnalazioni", path: "/operator/tickets" }
       ];
     case "UTENTE":
     default:

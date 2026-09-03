@@ -45,7 +45,7 @@ def client():
 def mock_rabbitmq():
     """
     Mock automatico per RabbitMQ. Previene l'invio reale di eventi durante i test,
-    evitando crash se il broker non è raggiungibile durante l'esecuzione dei test unitari[cite: 2].
+    evitando crash se il broker non è raggiungibile durante l'esecuzione dei test unitari.
     """
     with patch('app.mq_manager.publish_event') as mock_pub:
         yield mock_pub
@@ -65,7 +65,7 @@ def sample_polygon_geojson():
 # ============================================================================
 
 def test_health_check(client):
-    """Verifica che il probe di Kubernetes risponda correttamente[cite: 2]."""
+    """Verifica che il probe di Kubernetes risponda correttamente."""
     response = client.get('/health')
     assert response.status_code == 200
     assert response.json['status'] == 'healthy'
@@ -147,10 +147,9 @@ def test_create_campus_duplicate_name(client, sample_polygon_geojson):
     """Verifica la protezione contro la creazione di campus con lo stesso nome (Case-Insensitive)."""
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
-        "INSERT INTO campus (id, name, description, geom) "
-        # Inseriamo un poligono lontano per assicurarci che fallisca SOLO per il nome, non per l'area
-        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))"
-    ), {"id": campus_uuid, "name": "Campus Esistente", "desc": "Test"})
+        "INSERT INTO campus (id, name, description, geom, admin_id) "
+        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), :admin_id)"
+    ), {"id": campus_uuid, "name": "Campus Esistente", "desc": "Test", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
     headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
@@ -167,9 +166,9 @@ def test_create_campus_overlapping_area(client, sample_polygon_geojson):
     """Verifica che il sistema blocchi l'inserimento se l'area si sovrappone a un campus esistente."""
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
-        "INSERT INTO campus (id, name, description, geom) "
-        "VALUES (:id, :name, :desc, ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326))"
-    ), {"id": campus_uuid, "name": "Polo Originale", "desc": "Test", "geojson": json.dumps(sample_polygon_geojson)})
+        "INSERT INTO campus (id, name, description, geom, admin_id) "
+        "VALUES (:id, :name, :desc, ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326), :admin_id)"
+    ), {"id": campus_uuid, "name": "Polo Originale", "desc": "Test", "geojson": json.dumps(sample_polygon_geojson), "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
     headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
@@ -197,9 +196,9 @@ def test_get_campuses_success(client):
     # Inserimento di un campus di prova
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
-        "INSERT INTO campus (id, name, description, geom) "
-        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))"
-    ), {"id": campus_uuid, "name": "Campus Nord", "desc": "Desc Nord"})
+        "INSERT INTO campus (id, name, description, geom, admin_id) "
+        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), :admin_id)"
+    ), {"id": campus_uuid, "name": "Campus Nord", "desc": "Desc Nord", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
     headers = {'X-User-Role': 'GUEST'}
@@ -215,9 +214,9 @@ def test_get_single_campus_success(client):
     """Verifica il recupero dei dettagli di un singolo campus con metriche spaziali (Centroide e BBox)."""
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
-        "INSERT INTO campus (id, name, description, geom) "
-        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))', 4326))"
-    ), {"id": campus_uuid, "name": "Campus Sud", "desc": "Desc Sud"})
+        "INSERT INTO campus (id, name, description, geom, admin_id) "
+        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))', 4326), :admin_id)"
+    ), {"id": campus_uuid, "name": "Campus Sud", "desc": "Desc Sud", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
     headers = {'X-User-Role': 'OPERATORE'}
@@ -246,9 +245,9 @@ def test_update_campus_success(client, sample_polygon_geojson):
     # 1. Inseriamo un campus reale nel database di test
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
-        "INSERT INTO campus (id, name, description, geom) "
-        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))"
-    ), {"id": campus_uuid, "name": "Vecchio Nome", "desc": "Vecchia descrizione"})
+        "INSERT INTO campus (id, name, description, geom, admin_id) "
+        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), :admin_id)"
+    ), {"id": campus_uuid, "name": "Vecchio Nome", "desc": "Vecchia descrizione", "admin_id": "admin-123"})
     db.session.commit()
 
     # 2. Prepariamo la richiesta PUT con i dati aggiornati
@@ -281,9 +280,9 @@ def test_delete_campus_success(client):
     """Verifica l'eliminazione fisica di un campus da parte dell'amministratore."""
     campus_uuid = str(uuid.uuid4())
     db.session.execute(text(
-        "INSERT INTO campus (id, name, description, geom) "
-        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))"
-    ), {"id": campus_uuid, "name": "Campus Da Eliminare", "desc": "Elimina"})
+        "INSERT INTO campus (id, name, description, geom, admin_id) "
+        "VALUES (:id, :name, :desc, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), :admin_id)"
+    ), {"id": campus_uuid, "name": "Campus Da Eliminare", "desc": "Elimina", "admin_id": "admin-123"})
     db.session.commit()
 
     headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}

@@ -95,11 +95,11 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
             <div className="flex flex-col gap-3 pt-2">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input type="checkbox" checked={attrData.required} onChange={e => setAttrData({...attrData, required: e.target.checked})} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Campo Obbligatorio</span>
+                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Campo obbligatorio</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input type="checkbox" checked={attrData.filterable} onChange={e => setAttrData({...attrData, filterable: e.target.checked})} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Abilita come Filtro Ricerca</span>
+                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Abilita come filtro ricerca</span>
               </label>
             </div>
           </form>
