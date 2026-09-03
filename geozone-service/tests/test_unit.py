@@ -78,7 +78,7 @@ def test_create_campus_success(client, sample_polygon_geojson):
     """Verifica la creazione corretta di un campus da parte di un Amministratore delegando i calcoli a PostGIS."""
     headers = {
         'X-User-Role': 'AMMINISTRATORE',
-        'X-User-Id': 'admin-123'
+        'X-User-Id': '00000000-0000-0000-0000-000000000000'
     }
     payload = {
         "name": "Campus Centrale",
@@ -97,7 +97,7 @@ def test_create_campus_unauthorized(client, sample_polygon_geojson):
     """Verifica che un utente non amministratore non possa creare un campus."""
     headers = {
         'X-User-Role': 'OPERATORE',
-        'X-User-Id': 'op-123'
+        'X-User-Id': '11111111-1111-1111-1111-111111111111'
     }
     payload = {
         "name": "Campus Scientifico",
@@ -110,14 +110,14 @@ def test_create_campus_unauthorized(client, sample_polygon_geojson):
 
 def test_create_campus_missing_payload(client):
     """Verifica la gestione dell'errore in caso di payload mancante o vuoto."""
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     response = client.post('/api/geozones/campuses', json={}, headers=headers)
     assert response.status_code == 400
     assert "Payload mancante" in response.json['error']
 
 def test_create_campus_invalid_geometry_type(client):
     """Verifica che il sistema rifiuti geometrie diverse da un Polygon."""
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     payload = {
         "name": "Campus Lineare",
         "geometry": {"type": "LineString", "coordinates": [[10.0, 45.0], [11.0, 45.0]]}
@@ -129,7 +129,7 @@ def test_create_campus_invalid_geometry_type(client):
 
 def test_create_campus_invalid_topology(client):
     """Verifica che PostGIS rifiuti poligoni non validi topologicamente (auto-intersezioni a farfalla)."""
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     payload = {
         "name": "Campus Errato",
         "geometry": {
@@ -152,7 +152,7 @@ def test_create_campus_duplicate_name(client, sample_polygon_geojson):
     ), {"id": campus_uuid, "name": "Campus Esistente", "desc": "Test", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     payload = {
         "name": "cAmPuS eSIsTeNtE", # Testiamo anche il case-insensitive inserendo maiuscole alternate
         "geometry": sample_polygon_geojson
@@ -171,7 +171,7 @@ def test_create_campus_overlapping_area(client, sample_polygon_geojson):
     ), {"id": campus_uuid, "name": "Polo Originale", "desc": "Test", "geojson": json.dumps(sample_polygon_geojson), "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     payload = {
         "name": "Nome Completamente Diverso", # Il nome passa il primo controllo
         "geometry": sample_polygon_geojson    # L'area scatena il secondo blocco
@@ -251,7 +251,7 @@ def test_update_campus_success(client, sample_polygon_geojson):
     db.session.commit()
 
     # 2. Prepariamo la richiesta PUT con i dati aggiornati
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     payload = {
         "name": "Nuovo Nome Campus",
         "geometry": sample_polygon_geojson
@@ -267,7 +267,7 @@ def test_update_campus_success(client, sample_polygon_geojson):
     
 def test_update_campus_unauthorized(client, sample_polygon_geojson):
     """Verifica che un operatore non possa aggiornare o modificare un campus."""
-    headers = {'X-User-Role': 'OPERATORE', 'X-User-Id': 'op-123'}
+    headers = {'X-User-Role': 'OPERATORE', 'X-User-Id': '11111111-1111-1111-1111-111111111111'}
     response = client.put(f'/api/geozones/campuses/{str(uuid.uuid4())}', json={"name": "Test"}, headers=headers)
     assert response.status_code == 403
     assert "Accesso negato" in response.json['error']
@@ -285,7 +285,7 @@ def test_delete_campus_success(client):
     ), {"id": campus_uuid, "name": "Campus Da Eliminare", "desc": "Elimina", "admin_id": "00000000-0000-0000-0000-000000000000"})
     db.session.commit()
 
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     response = client.delete(f'/api/geozones/campuses/{campus_uuid}', headers=headers)
     
     assert response.status_code == 200
@@ -293,7 +293,7 @@ def test_delete_campus_success(client):
 
 def test_delete_campus_not_found(client):
     """Verifica la gestione dell'errore 404 se si tenta di eliminare un campus inesistente."""
-    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': 'admin-123'}
+    headers = {'X-User-Role': 'AMMINISTRATORE', 'X-User-Id': '00000000-0000-0000-0000-000000000000'}
     random_uuid = str(uuid.uuid4())
     response = client.delete(f'/api/geozones/campuses/{random_uuid}', headers=headers)
     assert response.status_code == 404

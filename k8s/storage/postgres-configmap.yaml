@@ -63,7 +63,7 @@ data:
       PRIMARY KEY (user_id, category_id)
     );
     -- ==========================================
-    -- 2. GEOZONE SERVICE DATABASE 
+    -- 2. GEOZONE SERVICE DATABASE
     -- ==========================================
     \c geo_db;
     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
