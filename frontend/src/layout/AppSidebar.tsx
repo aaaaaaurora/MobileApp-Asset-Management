@@ -47,12 +47,6 @@ const CampusIcon = (
   </svg>
 );
 
-const AssetIcon = (
-  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" />
-  </svg>
-);
-
 const HistoryIcon = (
   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
@@ -95,7 +89,7 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
         { icon: UsersIcon, name: "Gestione Operatori", path: "/admin/operators" },
         { icon: CategoryIcon, name: "Gestione Categorie Asset", path: "/admin/categories" },
         { icon: CampusIcon, name: "Gestione Campus", path: "/admin/campuses" },
-        { icon: AssetIcon, name: "Lista Assets", path: "/assets/list" },
+        { icon: ListIcon, name: "Lista Assets", path: "/assets/list" },
         { icon: HistoryIcon, name: "Storico Operazioni", path: "/admin/history" }
       ];
     case "OPERATORE":

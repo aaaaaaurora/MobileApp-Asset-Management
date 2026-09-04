@@ -233,16 +233,18 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const handleDeleteCategory = async () => {
     if (!currentCategory) return;
     setIsSubmitting(true);
+    setDeleteCategoryAlert(false); // <--- SPOSTATO QUI: Chiude immediatamente il popup di conferma
+    
     try {
       const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error((await res.json()).error || "Impossibile eliminare");
-      setDeleteCategoryAlert(false); 
+      
       onRefresh(); 
       onClose();
     } catch (err: any) { 
       setError(err.message); 
     } finally {
-      setIsSubmitting(false); // <-- FIX
+      setIsSubmitting(false); 
     }
   };
 
