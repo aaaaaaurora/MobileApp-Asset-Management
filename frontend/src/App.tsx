@@ -44,9 +44,7 @@ export default function App() {
               <Route path="/admin/categories" element={<CategoriesManagement />} />
               <Route path="/admin/history" element={<SystemLogs />} />
               <Route path="/admin/campus/new" element={<NewCampus />} />
-              <Route path="admin/campuses" element={<CampusList />} />
-              <Route path="/assets/list" element={<AssetList />} />
-              
+              <Route path="/admin/campuses" element={<CampusList />} />
             </Route>
           </Route>
 
@@ -57,6 +55,14 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/assets/new" element={<CreateAsset />} />
               <Route path="/operator/tickets" element={<TicketSegnalazioni />} />
+            </Route>
+          </Route>
+
+          {/* ========================================== */}
+          {/* ROTTE CONDIVISE (Admin + Operatore)        */}
+          {/* ========================================== */}
+          <Route element={<ProtectedRoute allowedRoles={['AMMINISTRATORE', 'OPERATORE']} />}>
+            <Route element={<AppLayout />}>
               <Route path="/assets/list" element={<AssetList />} />
             </Route>
           </Route>
