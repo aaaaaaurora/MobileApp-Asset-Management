@@ -98,7 +98,7 @@ export default function CreateCampusPage() {
         throw new Error(data.error || "Errore sconosciuto durante il salvataggio.");
       }
 
-      setSuccessMsg("Nuovo campus registrato con successo. Il perimetro è ora attivo.");
+      setSuccessMsg("Nuovo campus registrato con successo. Il perimetro è ora attivo. Attendere...");
       
       // Redirect temporizzato verso la lista dei campus
       setTimeout(() => {

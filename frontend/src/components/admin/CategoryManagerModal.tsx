@@ -38,6 +38,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     if (isOpen) {
       setError("");
       setSuccessMsg("");
+      setIsSubmitting(false); // <-- FIX: Resetta sempre lo stato di caricamento all'apertura
       setCurrentCategory(category);
       if (category) {
         setCatName(category.name || "");
@@ -105,7 +106,9 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   // ==========================================
   const handleCreateFullCategory = async () => {
     if (localAttributes.length === 0) return setError("Aggiungi almeno un attributo.");
-    setIsSubmitting(true); setError(""); setSuccessMsg("");
+    setIsSubmitting(true); 
+    setError(""); 
+    setSuccessMsg("");
 
     try {
       const catRes = await fetch(`${baseUrl}/asset/api/categories`, {
@@ -123,8 +126,13 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         });
         if (!attrRes.ok) throw new Error((await attrRes.json()).error || `Errore salvataggio ${attr.name}`);
       }
-      onRefresh(); onClose();
-    } catch (err: any) { setError(err.message); setIsSubmitting(false); }
+      onRefresh(); 
+      onClose();
+    } catch (err: any) { 
+      setError(err.message); 
+    } finally { 
+      setIsSubmitting(false); // <-- FIX: Assicura che il bottone venga sempre sbloccato
+    }
   };
 
   // ==========================================
@@ -219,8 +227,14 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     try {
       const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error((await res.json()).error || "Impossibile eliminare");
-      setDeleteCategoryAlert(false); onRefresh(); onClose();
-    } catch (err: any) { setError(err.message); setIsSubmitting(false); }
+      setDeleteCategoryAlert(false); 
+      onRefresh(); 
+      onClose();
+    } catch (err: any) { 
+      setError(err.message); 
+    } finally {
+      setIsSubmitting(false); // <-- FIX
+    }
   };
 
   const handleResolveConflict = async () => {
@@ -238,7 +252,11 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       
       setConflictPrompt({ isOpen: false, pendingAttr: null });
       await refreshCurrentCategory();
-    } catch(err: any) { setError(err.message); } finally { setIsSubmitting(false); }
+    } catch(err: any) { 
+      setError(err.message); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   return (
@@ -260,8 +278,8 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
           <div className="flex-none px-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex gap-6 pt-2">
             {!currentCategory ? (
               <>
-                <div className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${creationStep === 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>1. Informazioni Base</div>
-                <div className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${creationStep === 2 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>2. Configura Attributi</div>
+                <div className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${creationStep === 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>1. Informazioni base</div>
+                <div className={`pb-3 border-b-2 text-sm font-semibold transition-colors ${creationStep === 2 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>2. Configura attributi</div>
               </>
             ) : (
               <>
@@ -302,9 +320,9 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             {(!currentCategory && creationStep === 2) || (currentCategory && activeTab === 'attributes') ? (
               <div className="max-w-2xl mx-auto">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-semibold text-slate-800 dark:text-white">Lista Metadati</h4>
+                  <h4 className="font-semibold text-slate-800 dark:text-white">Lista attributi</h4>
                   <button onClick={() => { setEditingAttr(null); setAttrFormOpen(true); }} className="px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors">
-                    + Aggiungi Attributo
+                    + Aggiungi attributo
                   </button>
                 </div>
                 
