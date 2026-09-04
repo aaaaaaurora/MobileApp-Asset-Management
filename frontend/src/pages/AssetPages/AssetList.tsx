@@ -8,6 +8,7 @@ interface CategoryAttribute {
   required: boolean;
   filterable: boolean;
   options?: string[];
+  status: string; // <-- AGGIUNTO: Necessario per filtrare gli attributi deprecati
 }
 
 interface Category {
@@ -251,8 +252,9 @@ export default function AssetList() {
 
   const activeCategory = selectedAsset ? categories.find(c => c._id === selectedAsset.category_id) : null;
   
+  // <-- MODIFICA QUI: Aggiunto attr.status !== 'unavailable' per nascondere i filtri deprecati
   const filterableAttributes = selectedCategory 
-    ? categories.find(c => c._id === selectedCategory)?.attributes.filter(attr => attr.filterable) || []
+    ? categories.find(c => c._id === selectedCategory)?.attributes.filter(attr => attr.filterable && attr.status !== 'unavailable') || []
     : [];
 
   return (
@@ -349,7 +351,7 @@ export default function AssetList() {
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Categoria</th>
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">ID Seriale</th>
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Data Creazione</th>
-                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right"></th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
