@@ -56,6 +56,8 @@ export default function AssetList() {
   // Controllo Ruolo
   const isAdmin = user?.role === 'AMMINISTRATORE';
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
   useEffect(() => {
     fetchStaticData();
   }, [token]);
@@ -165,6 +167,7 @@ export default function AssetList() {
     setSelectedAsset(null);
     setPendingUploads([]);
     setPendingDeletes([]);
+    setShowDeleteConfirm(false); 
   };
 
   const handleUpdate = async () => {
@@ -228,9 +231,8 @@ export default function AssetList() {
     }
   };
 
-  const handleDelete = async () => {
+  const confirmDelete = async () => {
     if (!selectedAsset) return;
-    if (!window.confirm("Sei sicuro di voler eliminare questo asset? Verrà conservato nello storico ma rimosso dalla mappa.")) return;
     
     setIsProcessing(true);
     try {
@@ -240,7 +242,9 @@ export default function AssetList() {
       });
 
       if (!res.ok) throw new Error("Errore durante l'eliminazione");
+      
       alert("Asset eliminato con successo!");
+      setShowDeleteConfirm(false);
       closeModal();
       fetchAssets();
     } catch (error: any) {
@@ -505,42 +509,37 @@ export default function AssetList() {
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       ) : (
-                        Object.keys(formData.metadata)
-                          .filter(key => {
-                            const isDeprecated = categories.some(cat => 
-                              cat.attributes.some(attr => attr.name === key && attr.status === 'unavailable')
-                            );
-                            return !isDeprecated;
-                          })
-                          .map(key => (
-                          <div key={key}>
-                            <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400 capitalize">{key.replace('_', ' ')}</label>
-                            <input 
-                              type="text" 
-                              value={formData.metadata[key]} 
-                              disabled={isAdmin}
-                              onChange={e => handleMetadataChange(key, e.target.value)} 
-                              className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
-                            />
-                          </div>
-                        ))
+                        <input 
+                          type={attr.type === 'number' ? 'number' : 'text'} 
+                          value={formData.metadata[attr.name] || ''} 
+                          disabled={isAdmin}
+                          onChange={e => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)} 
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
+                        />
                       )}
                     </div>
                   ))
-                ) : (
-                  Object.keys(formData.metadata).map(key => (
-                    <div key={key}>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400 capitalize">{key.replace('_', ' ')}</label>
-                      <input 
-                        type="text" 
-                        value={formData.metadata[key]} 
-                        disabled={isAdmin}
-                        onChange={e => handleMetadataChange(key, e.target.value)} 
-                        className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
-                      />
-                    </div>
-                  ))
-                )}
+                  ) : (
+                    Object.keys(formData.metadata)
+                      .filter(key => {
+                        const isDeprecated = categories.some(cat => 
+                          cat.attributes.some(attr => attr.name === key && attr.status === 'unavailable')
+                        );
+                        return !isDeprecated;
+                      })
+                      .map(key => (
+                      <div key={key}>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400 capitalize">{key.replace('_', ' ')}</label>
+                        <input 
+                          type="text" 
+                          value={formData.metadata[key]} 
+                          disabled={isAdmin}
+                          onChange={e => handleMetadataChange(key, e.target.value)} 
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
+                        />
+                      </div>
+                    ))
+                  )}
               </div>
             </div>
 
@@ -548,7 +547,7 @@ export default function AssetList() {
               {isAdmin ? (
                 <>
                   <button 
-                    onClick={handleDelete}
+                    onClick={() => setShowDeleteConfirm(true)}
                     disabled={isProcessing}
                     className="w-full sm:w-auto inline-flex items-center justify-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors disabled:opacity-50"
                   >
@@ -570,7 +569,7 @@ export default function AssetList() {
               ) : (
                 <>
                   <button 
-                    onClick={handleDelete}
+                    onClick={() => setShowDeleteConfirm(true)}
                     disabled={isProcessing}
                     className="w-full sm:w-auto inline-flex items-center justify-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors disabled:opacity-50"
                   >
@@ -602,6 +601,47 @@ export default function AssetList() {
           </div>
         </div>, document.body
       )}
+
+
+      {/* MODALE DI CONFERMA ELIMINAZIONE */}
+      {showDeleteConfirm && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
+            
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Conferma Eliminazione</h3>
+            </div>
+            
+            <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">
+              Sei sicuro di voler eliminare questo asset? Verrà conservato nello storico ma rimosso dalla mappa. Questa azione non può essere annullata.
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isProcessing}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
+              >
+                Annulla
+              </button>
+              <button 
+                onClick={confirmDelete}
+                disabled={isProcessing}
+                className="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-rose-500 focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                {isProcessing ? 'Eliminazione...' : 'Sì, Elimina'}
+              </button>
+            </div>
+
+          </div>
+        </div>, document.body
+      )}
+
     </>
   );
 }
