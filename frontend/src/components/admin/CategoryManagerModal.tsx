@@ -3,6 +3,8 @@ import { Category, CategoryAttribute } from "../../pages/Admin/CategoriesManagem
 import { useAuth } from "../../context/AuthContext";
 import AttributeFormModal from "./AttributeFormModal";
 import ConfirmAlertModal from "./ConfirmAlertModal";
+import Picker from '@emoji-mart/react';
+import * as data from '@emoji-mart/data';
 
 interface Props {
   isOpen: boolean;
@@ -25,6 +27,8 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   
   const [catName, setCatName] = useState("");
   const [catDesc, setCatDesc] = useState("");
+  const [catIcon, setCatIcon] = useState("📍");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
   // Utilizzato sia per creare da zero, sia come "Standby" per le modifiche in edit
   const [localAttributes, setLocalAttributes] = useState<CategoryAttribute[]>([]);
@@ -43,12 +47,14 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       if (category) {
         setCatName(category.name || "");
         setCatDesc(category.description || "");
+        setCatIcon(category.icon || "📍");
         // In edit, carichiamo gli attributi in memoria aggiungendo un tag per ricordare il nome originale
         setLocalAttributes(category.attributes.map(a => ({ ...a, _originalName: a.name })));
         setActiveTab('general');
       } else {
         setCatName("");
         setCatDesc("");
+        setCatIcon("📍");
         setLocalAttributes([]);
         setCreationStep(1);
       }
@@ -76,13 +82,14 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   // ==========================================
   const safeOriginalName = currentCategory?.name || "";
   const safeOriginalDesc = currentCategory?.description || "";
+  const safeOriginalIcon = currentCategory?.icon || "📍";
   
   const cleanAttr = (attr: any) => {
     const { _originalName, ...rest } = attr;
     return rest;
   };
 
-  const hasGeneralChanges = currentCategory && (catName !== safeOriginalName || catDesc !== safeOriginalDesc);
+  const hasGeneralChanges = currentCategory && (catName !== safeOriginalName || catDesc !== safeOriginalDesc || catIcon !== safeOriginalIcon);
   const hasAttributeChanges = currentCategory && (
     JSON.stringify(localAttributes.map(cleanAttr)) !== JSON.stringify(currentCategory.attributes)
   );
@@ -113,7 +120,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     try {
       const catRes = await fetch(`${baseUrl}/asset/api/categories`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: catName, description: catDesc }),
+        body: JSON.stringify({ name: catName, description: catDesc, icon: catIcon }),
       });
       const catData = await catRes.json();
       if (!catRes.ok) throw new Error(catData.error || "Errore creazione categoria");
@@ -146,7 +153,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       if (hasGeneralChanges) {
         const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
           method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ name: catName, description: catDesc }),
+          body: JSON.stringify({ name: catName, description: catDesc, icon: catIcon }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "Errore aggiornamento info generali");
       }
@@ -305,9 +312,36 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             {/* TAB INFORMAZIONI */}
             {(!currentCategory && creationStep === 1) || (currentCategory && activeTab === 'general') ? (
               <div className="max-w-xl mx-auto space-y-5 mt-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Nome Categoria</label>
-                  <input type="text" value={catName} onChange={e => setCatName(e.target.value)} placeholder="Es. Macchinari" className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Nome Categoria</label>
+                    <input type="text" value={catName} onChange={e => setCatName(e.target.value)} placeholder="Es. Macchinari" className="w-full rounded-md border border-slate-300 py-2.5 px-3 text-sm outline-none focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                  </div>
+                  
+                  <div className="relative">
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider text-center">Icona</label>
+                    <button 
+                      type="button"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className="w-12 h-[42px] flex items-center justify-center rounded-md border border-slate-300 bg-white text-xl shadow-sm hover:bg-slate-50 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600"
+                    >
+                      {catIcon}
+                    </button>
+                    
+                    {showEmojiPicker && (
+                      <div className="absolute top-full mt-2 right-0 z-50 shadow-2xl">
+                        <Picker 
+                          data={data} 
+                          onEmojiSelect={(emoji: any) => {
+                            setCatIcon(emoji.native);
+                            setShowEmojiPicker(false);
+                          }} 
+                          theme="light"
+                          locale="it"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Descrizione</label>

@@ -18,6 +18,7 @@ export interface CategoryAttribute {
 export interface Category {
   _id: string;
   name: string;
+  icon?: string;  
   description: string;
   attributes: CategoryAttribute[];
   created_at: string;

@@ -89,12 +89,12 @@ export default function SignInForm() {
         <div>
           <div className="mb-5 sm:mb-8">
             <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              {step === 1 ? "Accesso" : "Autenticazione a Due Fattori"}
+              {step === 1 ? "Login" : "Autenticazione a Due Fattori"}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {step === 1 
-                ? "Accedi utilizzando il tuo account Google per entrare nella dashboard." 
-                : "Scansiona il codice QR e inserisci il codice a 6 cifre di Microsoft Authenticator."}
+                ? "Accedi utilizzando il tuo account Google per entrare nella piattaforma." 
+                : "Inserisci il codice a 6 cifre di Microsoft Authenticator."}
             </p>
           </div>
 

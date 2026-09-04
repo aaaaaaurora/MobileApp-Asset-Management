@@ -5,6 +5,7 @@ import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 import WarningFormModal from '../../components/guest/WarningFormModal'; 
+
 export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
@@ -17,6 +18,9 @@ export default function CampusMap() {
   const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 15, pitch: 45, bearing: 0 });
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
+  
+  // Aggiunto stato per le categorie
+  const [categories, setCategories] = useState<any[]>([]);
   
   // Stati per gestire il blocco dinamico dello zoom
   const [dynamicMinZoom, setDynamicMinZoom] = useState(10);
@@ -37,7 +41,7 @@ export default function CampusMap() {
     }
   }, [user]);
 
-  // 2. Fetch Campus
+  // 2. Fetch Campus e Fetch Categorie
   useEffect(() => {
     if (user) {
       const fetchCampuses = async () => {
@@ -56,7 +60,20 @@ export default function CampusMap() {
           }
         } catch (error) { console.error("Errore recupero campus:", error); }
       };
+
+      const fetchCategories = async () => {
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/categories`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            setCategories(await response.json());
+          }
+        } catch (error) { console.error("Errore recupero categorie:", error); }
+      };
+
       fetchCampuses();
+      fetchCategories(); // Recupero parallelo delle categorie per le icone dinamiche
     }
   }, [user, token, focusCampusId]);
 
@@ -124,11 +141,10 @@ export default function CampusMap() {
     }
   }, [selectedCampus, campuses]);
 
+  // NUOVA FUNZIONE getAssetIcon: 100% dinamica basata sul DB
   const getAssetIcon = (asset: any) => {
-    const type = asset.metadata?.tipologia?.toLowerCase() || '';
-    if (type.includes('alber') || type.includes('pin')) return '🌲';
-    if (type.includes('illuminazione') || type.includes('pal')) return '💡';
-    return '📍';
+    const category = categories.find(c => c._id === asset.category_id);
+    return category?.icon || '📍'; 
   };
 
   const activeCampusData = campuses.find(c => c.id === selectedCampus)?.geometry 

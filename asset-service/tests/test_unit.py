@@ -3,7 +3,7 @@ import mongomock
 from unittest.mock import patch
 from bson import ObjectId
 import json
-import app as asset_service  # Assumendo che il file principale si chiami app.py
+import app as asset_service  
 
 # ============================================================================
 # FIXTURES E SETUP
@@ -55,10 +55,11 @@ def test_health_check(client):
     assert res.json['status'] == 'healthy'
 
 def test_create_category_admin(client, mock_rabbitmq):
-    payload = {"name": "Veicoli", "description": "Categoria mezzi"}
+    payload = {"name": "Veicoli", "description": "Categoria mezzi", "icon": "🚜"}
     res = client.post('/api/categories', json=payload, headers=ADMIN_HEADERS)
     assert res.status_code == 201
     assert res.json['category']['name'] == "Veicoli"
+    assert res.json['category']['icon'] == "🚜"
     mock_rabbitmq.assert_called_once()
 
 def test_create_category_operator_forbidden(client):
@@ -84,7 +85,7 @@ def test_get_categories(client):
 
 @pytest.fixture
 def base_category(client):
-    res = client.post('/api/categories', json={"name": "Informatica"}, headers=ADMIN_HEADERS)
+    res = client.post('/api/categories', json={"name": "Informatica", "icon": "💻"}, headers=ADMIN_HEADERS)
     return res.json['category']['_id']
 
 def test_add_attribute_success(client, base_category):

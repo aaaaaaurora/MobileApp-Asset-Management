@@ -144,9 +144,11 @@ def create_category():
         return error_response("Categoria già esistente", 409)
 
     # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
+    # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
     new_category = {
         "name": category_name,
         "description": data.get('description', ''),
+        "icon": data.get('icon', '📍'), 
         "attributes": [], # Inizialmente vuoto, popolato dinamicamente in seguito
         "created_by": auth.get('user_id'),
         "created_at": datetime.datetime.utcnow().isoformat(),
@@ -255,6 +257,10 @@ def update_category(category_id):
     # 2. Aggiornamento Descrizione
     if 'description' in data:
         update_fields['description'] = data['description']
+
+    # 3. Aggiornamento Icona
+    if 'icon' in data:
+        update_fields['icon'] = data['icon']
 
     if not update_fields:
         return error_response("Nessun campo valido fornito per l'aggiornamento", 400)
