@@ -365,33 +365,75 @@ class LogService:
         filters = LogService._extract_filters(query_params)
         logs = AuditLogRepository.get_all_logs(filters)
 
-        dynamic_keys = set()
-        for log in logs:
-            if log.payload and isinstance(log.payload, dict):
-                dynamic_keys.update(log.payload.keys())
-        dynamic_keys = sorted(list(dynamic_keys))
-
-        standard_headers = ['id', 'created_at', 'service_name', 'action', 'actor_id', 'entity_id', 'correlation_id']
-        all_headers = standard_headers + dynamic_keys
+        # Definiamo uno schema fisso, pulito e leggibile per le colonne del CSV
+        headers = [
+            'Data e Ora', 
+            'Servizio', 
+            'Azione', 
+            'Utente (Email o ID)', 
+            'Oggetto Coinvolto', 
+            'Dettagli Aggiuntivi'
+        ]
 
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=all_headers)
+        writer = csv.DictWriter(output, fieldnames=headers)
         writer.writeheader()
 
         for log in logs:
-            row = {
-                'id': str(log.id),
-                'created_at': log.created_at.isoformat() if log.created_at else '',
-                'service_name': log.service_name,
-                'action': log.action,
-                'actor_id': str(log.actor_id) if log.actor_id else '',
-                'entity_id': str(log.entity_id) if log.entity_id else '',
-                'correlation_id': str(log.correlation_id) if log.correlation_id else ''
+            payload = log.payload if isinstance(log.payload, dict) else {}
+            
+            # Formattazione Data
+            data_ora = log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else 'Data Sconosciuta'
+            
+            # Estrazione Identificativo Utente (Diamo priorità all'email se presente, altrimenti ID)
+            utente = payload.get('email') or str(log.actor_id) if log.actor_id else 'Sistema / Sconosciuto'
+
+            # Estrazione Intelligente dell'Oggetto Coinvolto
+            # Controlliamo in ordine di preferenza se abbiamo un nome leggibile, altrimenti usiamo l'ID
+            oggetto = ''
+            if payload.get('campus_name'):
+                oggetto += f"Campus: {payload.get('campus_name')} "
+            if payload.get('category_name'):
+                oggetto += f"Categoria: {payload.get('category_name')} "
+            if payload.get('asset_name'):
+                oggetto += f"Asset: {payload.get('asset_name')} "
+            elif log.entity_id:
+                oggetto += f"Entity ID: {str(log.entity_id)}"
+            
+            oggetto = oggetto.strip() if oggetto else 'Operazione Generica'
+
+            # Costruzione Dettagli Aggiuntivi
+            # Filtriamo via dal payload le chiavi ridondanti che abbiamo già usato nelle colonne principali
+            keys_to_ignore = {
+                'email', 'autore_id', 'actor_id', 'service_name', 'azione', 'action', 
+                'timestamp', 'correlation_id', 'entity_id', 'campus_name', 
+                'category_name', 'asset_name'
             }
-            if log.payload and isinstance(log.payload, dict):
-                for k in dynamic_keys:
-                    val = log.payload.get(k, '')
-                    row[k] = json.dumps(val) if isinstance(val, (dict, list)) else str(val)
+            
+            dettagli_list = []
+            for key, val in payload.items():
+                if key not in keys_to_ignore and val not in [None, '', [], {}]:
+                    # Formattiamo le liste o dizionari annidati per essere leggibili come stringa
+                    if isinstance(val, (dict, list)):
+                        clean_val = json.dumps(val, ensure_ascii=False)
+                    else:
+                        clean_val = str(val)
+                    
+                    # Puliamo leggermente il nome della chiave (es. "updated_fields" -> "Updated Fields")
+                    clean_key = key.replace('_', ' ').title()
+                    dettagli_list.append(f"{clean_key}: {clean_val}")
+
+            dettagli_stringa = " | ".join(dettagli_list) if dettagli_list else "Nessun dettaglio aggiuntivo"
+
+            # Scrittura riga consolidata
+            row = {
+                'Data e Ora': data_ora,
+                'Servizio': log.service_name,
+                'Azione': log.action,
+                'Utente (Email o ID)': utente,
+                'Oggetto Coinvolto': oggetto,
+                'Dettagli Aggiuntivi': dettagli_stringa
+            }
             writer.writerow(row)
 
         return output.getvalue()

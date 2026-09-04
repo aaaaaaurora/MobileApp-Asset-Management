@@ -415,9 +415,9 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
               ) : (
                  <>
                    <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50">Annulla</button>
-                   <button onClick={handleSaveGeneralEdits} disabled={isSubmitting || !hasChanges} className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors ${hasChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed dark:bg-slate-600 dark:text-slate-400'}`}>
-                     {isSubmitting ? "Attendere..." : "Aggiorna Info"}
-                   </button>
+                   <button onClick={handleSaveGeneralEdits} disabled={isSubmitting || !hasChanges} className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${hasChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 dark:bg-slate-600 dark:text-slate-400'}`}>
+                    {isSubmitting ? "Salvataggio in corso..." : "Applica modifiche"}
+                  </button>
                  </>
               )}
             </div>
