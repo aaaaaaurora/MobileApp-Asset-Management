@@ -281,7 +281,7 @@ def verify_2fa():
         totp = pyotp.TOTP(totp_secret)
         
         # Validazione del codice prima di toccare il DB
-        if not totp.verify(totp_code, valid_window=4):
+        if not totp.verify(totp_code, valid_window=0):
             return error_response("INVALID_CODE", 401)
             
         # 1. Il codice è corretto! Ora possiamo creare l'utente nel Database
