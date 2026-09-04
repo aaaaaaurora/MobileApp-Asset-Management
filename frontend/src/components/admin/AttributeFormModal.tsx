@@ -10,7 +10,8 @@ interface Props {
 }
 
 export default function AttributeFormModal({ isOpen, initialData, onClose, onSave, isSubmitting }: Props) {
-  const defaultAttr: CategoryAttribute = { name: "", type: "string", required: false, filterable: true, editable: true, visible: true, options: [], status: "active" };
+  // NOTA: filterable ora è false di default per evitare l'affollamento dei filtri
+  const defaultAttr: CategoryAttribute = { name: "", type: "string", required: false, filterable: false, editable: true, visible: true, options: [], status: "active" };
   const [attrData, setAttrData] = useState<CategoryAttribute>(defaultAttr);
   const [optionInput, setOptionInput] = useState("");
 
@@ -33,6 +34,16 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
       setAttrData({ ...attrData, options: [...attrData.options, optionInput.trim()] });
       setOptionInput("");
     }
+  };
+
+  // Funzione per gestire il cambio del tipo di dato e l'autofill intelligente
+  const handleTypeChange = (newType: string) => {
+    setAttrData(prev => ({
+      ...prev,
+      type: newType as CategoryAttribute["type"], 
+      // Se l'utente seleziona enum o boolean, suggeriamo automaticamente l'uso come filtro
+      filterable: newType === 'enum' || newType === 'boolean' ? true : prev.filterable
+    }));
   };
 
   return (
@@ -63,7 +74,11 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
             
             <div>
               <label className="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Tipo di Dato</label>
-              <select value={attrData.type} onChange={e => setAttrData({...attrData, type: e.target.value as any})} className="w-full rounded-md border border-slate-300 py-2 px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-600 dark:text-white transition-colors">
+              <select 
+                value={attrData.type} 
+                onChange={e => handleTypeChange(e.target.value)} 
+                className="w-full rounded-md border border-slate-300 py-2 px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-600 dark:text-white transition-colors"
+              >
                 <option value="string">Testo (Stringa)</option>
                 <option value="number">Numero</option>
                 <option value="boolean">Vero/Falso (Boolean)</option>

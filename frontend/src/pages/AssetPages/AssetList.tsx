@@ -52,6 +52,9 @@ export default function AssetList() {
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
+  // Controllo Ruolo
+  const isAdmin = user?.role === 'AMMINISTRATORE';
+
   useEffect(() => {
     fetchStaticData();
   }, [token]);
@@ -164,7 +167,7 @@ export default function AssetList() {
   };
 
   const handleUpdate = async () => {
-    if (!selectedAsset) return;
+    if (!selectedAsset || isAdmin) return;
     setIsProcessing(true);
 
     try {
@@ -225,7 +228,7 @@ export default function AssetList() {
   };
 
   const handleDelete = async () => {
-    if (!selectedAsset) return;
+    if (!selectedAsset || isAdmin) return;
     if (!window.confirm("Sei sicuro di voler eliminare questo asset? Verrà conservato nello storico ma rimosso dalla mappa.")) return;
     
     setIsProcessing(true);
@@ -265,12 +268,10 @@ export default function AssetList() {
         </div>
       </div>
 
-      {/* --- SEZIONE FILTRI COMPATTA --- */}
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div className="flex flex-col sm:flex-row gap-4">
-          
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Campus</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Campus</label>
             <select 
               value={selectedCampus}
               onChange={(e) => setSelectedCampus(e.target.value)}
@@ -284,7 +285,7 @@ export default function AssetList() {
           </div>
 
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
             <select 
               value={selectedCategory}
               onChange={(e) => handleCategoryFilterChange(e.target.value)}
@@ -298,52 +299,48 @@ export default function AssetList() {
           </div>
         </div>
 
-        {/* Filtri Avanzati (Solo se ci sono attributi filtrabili) */}
         {selectedCategory && filterableAttributes.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-            <div className="flex flex-wrap gap-4">
-              {filterableAttributes.map(attr => (
-                <div key={attr.name} className="min-w-[140px] flex-1 sm:flex-none">
-                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300 capitalize">
-                    {attr.name.replace('_', ' ')}
-                  </label>
-                  
-                  {attr.type === 'enum' ? (
-                    <select 
-                      value={dynamicFilters[attr.name] || ''}
-                      onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                      className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                    >
-                      <option value="">Tutti</option>
-                      {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  ) : attr.type === 'boolean' ? (
-                     <select 
-                      value={dynamicFilters[attr.name] || ''}
-                      onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                      className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                    >
-                      <option value="">Tutti</option>
-                      <option value="true">Sì</option>
-                      <option value="false">No</option>
-                    </select>
-                  ) : (
-                    <input 
-                      type={attr.type === 'number' ? 'number' : 'text'}
-                      value={dynamicFilters[attr.name] || ''}
-                      onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                      placeholder="Cerca..."
-                      className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-end gap-3">
+            {filterableAttributes.map(attr => (
+              <div key={attr.name} className="w-[150px]">
+                <label className="mb-1.5 block text-[11px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wide truncate">
+                  {attr.name.replace('_', ' ')}
+                </label>
+                
+                {attr.type === 'enum' ? (
+                  <select 
+                    value={dynamicFilters[attr.name] || ''}
+                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  >
+                    <option value="">Tutti</option>
+                    {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                ) : attr.type === 'boolean' ? (
+                   <select 
+                    value={dynamicFilters[attr.name] || ''}
+                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  >
+                    <option value="">Tutti</option>
+                    <option value="true">Sì</option>
+                    <option value="false">No</option>
+                  </select>
+                ) : (
+                  <input 
+                    type={attr.type === 'number' ? 'number' : 'text'}
+                    value={dynamicFilters[attr.name] || ''}
+                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
+                    placeholder="Cerca..."
+                    className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  />
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* --- TABELLA ASSET --- */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden dark:border-slate-700 dark:bg-slate-800">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
@@ -383,9 +380,9 @@ export default function AssetList() {
                     <td className="py-3 px-6 text-right">
                       <button 
                         onClick={() => openEditModal(asset)} 
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
-                        Gestisci
+                        {isAdmin ? 'Visualizza' : 'Gestisci'}
                       </button>
                     </td>
                   </tr>
@@ -396,18 +393,21 @@ export default function AssetList() {
         </div>
       </div>
 
-      {/* --- MODALE DI GESTIONE --- */}
       {selectedAsset && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto transform transition-all">
             
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">Gestione Asset</h3>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                {isAdmin ? 'Dettagli Asset' : 'Gestione Asset'}
+              </h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-bold transition-colors">✕</button>
             </div>
 
             <div className="mb-6">
-              <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Gestione Foto</h4>
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">
+                {isAdmin ? 'Foto dell\'Asset' : 'Gestione Foto'}
+              </h4>
               <div className="flex gap-3 overflow-x-auto pb-2">
                 
                 {formData.media_ids.map(mediaId => (
@@ -417,17 +417,19 @@ export default function AssetList() {
                       className="w-full h-full object-cover rounded-lg border border-slate-200 dark:border-slate-600"
                       alt="Asset Media" 
                     />
-                    <button 
-                      onClick={() => handleDeleteExistingImage(mediaId)} 
-                      className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-md hover:bg-rose-700 transition opacity-0 group-hover:opacity-100"
-                      title="Elimina foto"
-                    >
-                      ✕
-                    </button>
+                    {!isAdmin && (
+                      <button 
+                        onClick={() => handleDeleteExistingImage(mediaId)} 
+                        className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-md hover:bg-rose-700 transition opacity-0 group-hover:opacity-100"
+                        title="Elimina foto"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
                 
-                {pendingUploads.map((item, index) => (
+                {!isAdmin && pendingUploads.map((item, index) => (
                   <div key={`new-${index}`} className="relative min-w-[120px] h-28 flex-shrink-0">
                     <img 
                       src={item.preview} 
@@ -444,11 +446,13 @@ export default function AssetList() {
                   </div>
                 ))}
 
-                <label className="min-w-[120px] h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition">
-                  <span className="text-2xl text-slate-400">+</span>
-                  <span className="text-[11px] font-medium text-slate-500 mt-1">Carica Foto</span>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
-                </label>
+                {!isAdmin && (
+                  <label className="min-w-[120px] h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                    <span className="text-2xl text-slate-400">+</span>
+                    <span className="text-[11px] font-medium text-slate-500 mt-1">Carica Foto</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
+                  </label>
+                )}
               </div>
             </div>
 
@@ -460,8 +464,9 @@ export default function AssetList() {
                   <input 
                     type="number" step="any" 
                     value={formData.lat} 
+                    disabled={isAdmin}
                     onChange={e => setFormData(p => ({...p, lat: parseFloat(e.target.value)}))} 
-                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800" 
+                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
                   />
                 </div>
                 <div className="w-1/2">
@@ -469,8 +474,9 @@ export default function AssetList() {
                   <input 
                     type="number" step="any" 
                     value={formData.lng} 
+                    disabled={isAdmin}
                     onChange={e => setFormData(p => ({...p, lng: parseFloat(e.target.value)}))} 
-                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800" 
+                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
                   />
                 </div>
               </div>
@@ -489,8 +495,9 @@ export default function AssetList() {
                       {attr.type === 'enum' ? (
                         <select 
                           value={formData.metadata[attr.name] || ''} 
+                          disabled={isAdmin}
                           onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900"
                         >
                           <option value="">Seleziona...</option>
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -499,8 +506,9 @@ export default function AssetList() {
                         <input 
                           type={attr.type === 'number' ? 'number' : 'text'} 
                           value={formData.metadata[attr.name] || ''} 
+                          disabled={isAdmin}
                           onChange={e => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)} 
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800" 
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
                         />
                       )}
                     </div>
@@ -512,8 +520,9 @@ export default function AssetList() {
                       <input 
                         type="text" 
                         value={formData.metadata[key]} 
+                        disabled={isAdmin}
                         onChange={e => handleMetadataChange(key, e.target.value)} 
-                        className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800" 
+                        className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
                       />
                     </div>
                   ))
@@ -521,37 +530,48 @@ export default function AssetList() {
               </div>
             </div>
 
-            {(user?.role === 'OPERATORE' || user?.role === 'AMMINISTRATORE') && (
-              <div className="flex flex-col-reverse sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-5 mt-2 gap-4">
-                <button 
-                  onClick={handleDelete}
-                  disabled={isProcessing}
-                  className="w-full sm:w-auto inline-flex items-center justify-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors disabled:opacity-50"
-                >
-                  <svg className="mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  {isProcessing ? 'Elaborazione...' : 'Elimina Asset'}
-                </button>
-                
-                <div className="flex w-full sm:w-auto gap-3">
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-5 mt-2 gap-4">
+              {isAdmin ? (
+                <div className="flex w-full justify-end">
                   <button 
                     onClick={closeModal} 
-                    disabled={isProcessing} 
-                    className="flex-1 sm:flex-none rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    className="rounded-lg px-6 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
                   >
-                    Annulla
-                  </button>
-                  <button 
-                    onClick={handleUpdate} 
-                    disabled={isProcessing} 
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-                  >
-                    Salva Modifiche
+                    Chiudi
                   </button>
                 </div>
-              </div>
-            )}
+              ) : (
+                <>
+                  <button 
+                    onClick={handleDelete}
+                    disabled={isProcessing}
+                    className="w-full sm:w-auto inline-flex items-center justify-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors disabled:opacity-50"
+                  >
+                    <svg className="mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    {isProcessing ? 'Elaborazione...' : 'Elimina Asset'}
+                  </button>
+                  
+                  <div className="flex w-full sm:w-auto gap-3">
+                    <button 
+                      onClick={closeModal} 
+                      disabled={isProcessing} 
+                      className="flex-1 sm:flex-none rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    >
+                      Annulla
+                    </button>
+                    <button 
+                      onClick={handleUpdate} 
+                      disabled={isProcessing} 
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                    >
+                      Salva Modifiche
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>, document.body
       )}

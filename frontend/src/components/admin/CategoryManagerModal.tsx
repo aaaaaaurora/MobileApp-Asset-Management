@@ -31,7 +31,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const [attrFormOpen, setAttrFormOpen] = useState(false);
   const [editingAttr, setEditingAttr] = useState<CategoryAttribute | null>(null);
   const [conflictPrompt, setConflictPrompt] = useState<{isOpen: boolean, pendingAttr: CategoryAttribute | null, oldName?: string}>({ isOpen: false, pendingAttr: null });
-  const [deprecateAlert, setDeprecateAlert] = useState<{isOpen: boolean, attrName: string, attrType: string} | null>(null);
   const [deleteCategoryAlert, setDeleteCategoryAlert] = useState(false);
 
   useEffect(() => {
@@ -55,8 +54,8 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
 
   if (!isOpen) return null;
 
-  // Renderizziamo sempre gli attributi "in standby" nascondendo quelli deprecati
-  const visibleAttributes = localAttributes.filter(attr => attr.status !== 'unavailable');
+  // Renderizziamo sempre tutti gli attributi, anche quelli in standby per l'eliminazione
+  const visibleAttributes = localAttributes;
 
   // ==========================================
   // CONTROLLO MODIFICHE IN STANDBY PER ABILITARE IL TASTO
@@ -166,9 +165,9 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         }
       }
       
-      await refreshCurrentCategory();
-      setError("Tutte le modifiche sono state salvate!");
-      setTimeout(() => setError(""), 3000);
+      onRefresh(); 
+      onClose(); // CHIUSURA DEL POPUP IN CASO DI SUCCESSO
+      
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -194,12 +193,8 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     setAttrFormOpen(false);
   };
 
-  const confirmDeprecate = () => {
-    if (deprecateAlert) {
-      // Imposta su unavailable solo nello stato locale
-      setLocalAttributes(prev => prev.map(a => a.name === deprecateAlert.attrName ? { ...a, status: 'unavailable' } : a));
-      setDeprecateAlert(null);
-    }
+  const setAttrDeprecationStatus = (attrName: string, deprecate: boolean) => {
+    setLocalAttributes(prev => prev.map(a => a.name === attrName ? { ...a, status: deprecate ? 'unavailable' : 'active' } : a));
   };
 
   // ==========================================
@@ -236,7 +231,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
-        {/* Modale più basso e stretto (max-w-2xl, h-[65vh]) */}
         <div className="w-full max-w-2xl flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700" style={{ height: '65vh', minHeight: '450px' }}>
           
           {/* HEADER FISSO */}
@@ -303,28 +297,37 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {visibleAttributes.map((attr) => (
-                      <div key={attr.name} className="flex items-center justify-between p-3.5 rounded-lg border bg-white border-slate-200 dark:bg-slate-700 dark:border-slate-600 shadow-sm transition-all hover:border-blue-200">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-slate-800 dark:text-white">{attr.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-semibold">{attr.type}</span>
-                            {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-semibold">Obbligatorio</span>}
+                    {visibleAttributes.map((attr) => {
+                      const isDeprecated = attr.status === 'unavailable';
+                      return (
+                        <div key={attr.name} className={`flex items-center justify-between p-3.5 rounded-lg border shadow-sm transition-all ${isDeprecated ? 'bg-slate-50 border-slate-200 opacity-60 dark:bg-slate-800 dark:border-slate-700' : 'bg-white border-slate-200 dark:bg-slate-700 dark:border-slate-600 hover:border-blue-200'}`}>
+                          <div className={isDeprecated ? 'line-through text-slate-400' : ''}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-slate-800 dark:text-white">{attr.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-semibold">{attr.type}</span>
+                              {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-semibold">Obbligatorio</span>}
+                              {isDeprecated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold ml-2">IN ELIMINAZIONE</span>}
+                            </div>
+                            {attr.type === 'enum' && <p className="text-xs mt-1 truncate max-w-[200px]">[{attr.options.join(', ')}]</p>}
                           </div>
-                          {attr.type === 'enum' && <p className="text-xs text-slate-400 mt-1 truncate max-w-[200px]">[{attr.options.join(', ')}]</p>}
+                          
+                          <div className="flex items-center gap-3">
+                            {isDeprecated ? (
+                              <button onClick={() => setAttrDeprecationStatus(attr.name, false)} className="text-xs font-bold text-slate-600 hover:text-slate-800">Ripristina</button>
+                            ) : (
+                              <>
+                                <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800">Modifica</button>
+                                {!currentCategory || !(attr as any)._originalName ? (
+                                  <button onClick={() => setLocalAttributes(prev => prev.filter(a => a.name !== attr.name))} className="text-xs font-bold text-rose-600 hover:text-rose-800">Rimuovi</button>
+                                ) : (
+                                  <button onClick={() => setAttrDeprecationStatus(attr.name, true)} className="text-xs font-bold text-rose-600 hover:text-rose-800">Elimina</button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800">Modifica</button>
-                          {/* Se l'attributo non ha un nome originale, significa che è appena stato creato localmente -> Elimina */}
-                          {!currentCategory || !(attr as any)._originalName ? (
-                            <button onClick={() => setLocalAttributes(prev => prev.filter(a => a.name !== attr.name))} className="text-xs font-bold text-rose-600 hover:text-rose-800">Rimuovi</button>
-                          ) : (
-                            <button onClick={() => setDeprecateAlert({isOpen: true, attrName: attr.name, attrType: attr.type})} className="text-xs font-bold text-rose-600 hover:text-rose-800">Depreca</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -380,8 +383,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       <AttributeFormModal isOpen={attrFormOpen} initialData={editingAttr} onClose={() => setAttrFormOpen(false)} onSave={handleSaveAttribute} isSubmitting={false} />
       
       <ConfirmAlertModal isOpen={conflictPrompt.isOpen} title="Conflitto Dati Storici" confirmText="Depreca e Genera Nuovo" confirmColor="amber" onClose={() => setConflictPrompt({isOpen: false, pendingAttr: null})} onConfirm={handleResolveConflict} isSubmitting={isSubmitting} message={<>Esistono già vecchi asset salvati con questo formato.<br/><br/>Vuoi <strong>deprecare</strong> il vecchio attributo (mantenendo lo storico intatto) e generarne automaticamente uno nuovo?</>} />
-      
-      <ConfirmAlertModal isOpen={!!deprecateAlert} title="Conferma Deprecazione" confirmText="Metti in Standby" confirmColor="rose" onClose={() => setDeprecateAlert(null)} onConfirm={confirmDeprecate} isSubmitting={false} message={<>Sei sicuro di voler deprecare l'attributo?<br/>Cliccando Conferma, la rimozione verrà messa in standby. <strong>Dovrai poi cliccare su "Aggiorna Info"</strong> per rendere la modifica definitiva sul database.</>} />
       
       <ConfirmAlertModal isOpen={deleteCategoryAlert} title="Elimina Categoria" confirmText="Sì, Elimina Definitivamente" confirmColor="rose" onClose={() => setDeleteCategoryAlert(false)} onConfirm={handleDeleteCategory} isSubmitting={isSubmitting} message={<>Sei sicuro di voler eliminare l'intera categoria e tutti i suoi metadati?<br/><br/><em>Questa operazione è irreversibile.</em></>} />
     </>
