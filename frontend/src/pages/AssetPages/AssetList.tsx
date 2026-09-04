@@ -349,7 +349,7 @@ export default function AssetList() {
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Categoria</th>
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">ID Seriale</th>
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Data Creazione</th>
-                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">

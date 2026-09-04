@@ -20,6 +20,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const [activeTab, setActiveTab] = useState<'general' | 'attributes'>('general');
   
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [catName, setCatName] = useState("");
@@ -36,6 +37,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   useEffect(() => {
     if (isOpen) {
       setError("");
+      setSuccessMsg("");
       setCurrentCategory(category);
       if (category) {
         setCatName(category.name || "");
@@ -54,8 +56,19 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
 
   if (!isOpen) return null;
 
-  // Renderizziamo sempre tutti gli attributi, anche quelli in standby per l'eliminazione
-  const visibleAttributes = localAttributes;
+  // Ordiniamo gli attributi per mostrare i deprecati ("unavailable" ma già salvati) in fondo alla lista
+  const sortedAttributes = [...localAttributes].sort((a, b) => {
+    // Controlliamo se un attributo era GIA' stato deprecato nel database
+    const originalA = currentCategory?.attributes.find(attr => attr.name === (a as any)._originalName);
+    const originalB = currentCategory?.attributes.find(attr => attr.name === (b as any)._originalName);
+    
+    const isADeprecatedInDb = originalA?.status === 'unavailable';
+    const isBDeprecatedInDb = originalB?.status === 'unavailable';
+
+    if (isADeprecatedInDb && !isBDeprecatedInDb) return 1;
+    if (!isADeprecatedInDb && isBDeprecatedInDb) return -1;
+    return 0;
+  });
 
   // ==========================================
   // CONTROLLO MODIFICHE IN STANDBY PER ABILITARE IL TASTO
@@ -92,7 +105,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   // ==========================================
   const handleCreateFullCategory = async () => {
     if (localAttributes.length === 0) return setError("Aggiungi almeno un attributo.");
-    setIsSubmitting(true); setError("");
+    setIsSubmitting(true); setError(""); setSuccessMsg("");
 
     try {
       const catRes = await fetch(`${baseUrl}/asset/api/categories`, {
@@ -111,18 +124,17 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         if (!attrRes.ok) throw new Error((await attrRes.json()).error || `Errore salvataggio ${attr.name}`);
       }
       onRefresh(); onClose();
-    } catch (err: any) { setError(err.message); } finally { setIsSubmitting(false); }
+    } catch (err: any) { setError(err.message); setIsSubmitting(false); }
   };
 
   // ==========================================
-  // SALVATAGGIO IN MASSA DI TUTTE LE MODIFICHE (Il Nuovo "Aggiorna Info")
+  // SALVATAGGIO IN MASSA DI TUTTE LE MODIFICHE
   // ==========================================
   const handleSaveGeneralEdits = async () => {
     if (!currentCategory || !hasChanges) return;
-    setIsSubmitting(true); setError("");
+    setIsSubmitting(true); setError(""); setSuccessMsg("");
     
     try {
-      // 1. Salva Info Generali se modificate
       if (hasGeneralChanges) {
         const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, {
           method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -131,7 +143,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         if (!res.ok) throw new Error((await res.json()).error || "Errore aggiornamento info generali");
       }
 
-      // 2. Salva le modifiche agli Attributi
       if (hasAttributeChanges) {
         for (const attr of localAttributes) {
           const isNew = !(attr as any)._originalName;
@@ -139,14 +150,12 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
           const cleanAttrData = cleanAttr(attr);
 
           if (isNew) {
-            // Nuovissimo attributo
             const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes`, {
               method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify(cleanAttrData),
             });
             if (!res.ok) throw new Error((await res.json()).error || `Errore salvataggio ${attr.name}`);
           } else if (originalAttr && JSON.stringify(cleanAttrData) !== JSON.stringify(originalAttr)) {
-            // Attributo Esistente Modificato
             const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}/attributes/${(attr as any)._originalName}`, {
               method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify(cleanAttrData),
@@ -157,7 +166,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
               if (data.error?.includes("incompatibilità")) {
                 setConflictPrompt({ isOpen: true, pendingAttr: cleanAttrData, oldName: (attr as any)._originalName });
                 setIsSubmitting(false);
-                return; // Ferma il salvataggio massivo in attesa di risoluzione utente
+                return; 
               }
             }
             if (!res.ok) throw new Error((await res.json()).error || `Errore aggiornamento ${attr.name}`);
@@ -166,11 +175,16 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       }
       
       onRefresh(); 
-      onClose(); // CHIUSURA DEL POPUP IN CASO DI SUCCESSO
+      setSuccessMsg("Tutte le modifiche sono state salvate con successo!");
+      
+      // Chiusura automatica dopo il successo
+      setTimeout(() => {
+        onClose();
+        setIsSubmitting(false);
+      }, 1500);
       
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -179,12 +193,11 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   // AZIONI IN STANDBY (Modifiche Locali)
   // ==========================================
   const handleSaveAttribute = (attrData: CategoryAttribute) => {
-    setError("");
+    setError(""); setSuccessMsg("");
     if (localAttributes.some(a => a.name.toLowerCase() === attrData.name.toLowerCase() && (!editingAttr || editingAttr.name !== a.name))) {
       return setError("Un attributo con questo nome esiste già in memoria.");
     }
     
-    // Aggiorna lo stato locale senza chiamare il database
     if (editingAttr) {
       setLocalAttributes(prev => prev.map(a => a.name === editingAttr.name ? { ...attrData, _originalName: (a as any)._originalName } : a));
     } else {
@@ -238,7 +251,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             <h3 className="text-lg font-bold text-slate-800 dark:text-white">
               {currentCategory ? `Gestione Categoria: ${currentCategory.name}` : "Nuova Categoria"}
             </h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700">
+            <button onClick={onClose} disabled={isSubmitting} className="text-slate-400 hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
@@ -263,6 +276,11 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             {error && (
               <div className="mb-5 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">
                 {error}
+              </div>
+            )}
+            {successMsg && (
+              <div className="mb-5 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400">
+                {successMsg}
               </div>
             )}
 
@@ -290,30 +308,46 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                   </button>
                 </div>
                 
-                {visibleAttributes.length === 0 ? (
+                {sortedAttributes.length === 0 ? (
                   <div className="text-center py-10 border border-dashed border-slate-300 rounded-lg bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
                     <p className="text-sm font-medium text-slate-500">Nessun metadato disponibile.</p>
                     {!currentCategory && <p className="text-xs text-rose-500 font-semibold mt-1">Aggiungine almeno uno per completare la configurazione.</p>}
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {visibleAttributes.map((attr) => {
-                      const isDeprecated = attr.status === 'unavailable';
+                    {sortedAttributes.map((attr) => {
+                      const originalDbAttr = currentCategory?.attributes.find(a => a.name === (attr as any)._originalName);
+                      
+                      const isDeprecatedInDb = originalDbAttr?.status === 'unavailable';
+                      const isPendingDeletion = !isDeprecatedInDb && attr.status === 'unavailable';
+                      const isEffectivelyDeprecated = isDeprecatedInDb && attr.status === 'unavailable';
+                      const isPendingRestore = isDeprecatedInDb && attr.status === 'active';
+
+                      const isDimmed = isEffectivelyDeprecated || isPendingDeletion;
+
                       return (
-                        <div key={attr.name} className={`flex items-center justify-between p-3.5 rounded-lg border shadow-sm transition-all ${isDeprecated ? 'bg-slate-50 border-slate-200 opacity-60 dark:bg-slate-800 dark:border-slate-700' : 'bg-white border-slate-200 dark:bg-slate-700 dark:border-slate-600 hover:border-blue-200'}`}>
-                          <div className={isDeprecated ? 'line-through text-slate-400' : ''}>
+                        <div key={attr.name} className={`flex items-center justify-between p-3.5 rounded-lg border shadow-sm transition-all ${isDimmed ? 'bg-slate-50 border-slate-200 opacity-60 dark:bg-slate-800 dark:border-slate-700' : 'bg-white border-slate-200 dark:bg-slate-700 dark:border-slate-600 hover:border-blue-200'}`}>
+                          <div className={isDimmed ? 'line-through text-slate-400' : ''}>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-sm text-slate-800 dark:text-white">{attr.name}</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-semibold">{attr.type}</span>
                               {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-semibold">Obbligatorio</span>}
-                              {isDeprecated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold ml-2">IN ELIMINAZIONE</span>}
+                              
+                              {/* BADGES ESPLICITI E DISTINTI */}
+                              {isPendingDeletion && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300 font-bold ml-2">IN ELIMINAZIONE</span>}
+                              {isEffectivelyDeprecated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold ml-2">DEPRECATO</span>}
+                              {isPendingRestore && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold ml-2">IN RIPRISTINO</span>}
                             </div>
                             {attr.type === 'enum' && <p className="text-xs mt-1 truncate max-w-[200px]">[{attr.options.join(', ')}]</p>}
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            {isDeprecated ? (
-                              <button onClick={() => setAttrDeprecationStatus(attr.name, false)} className="text-xs font-bold text-slate-600 hover:text-slate-800">Ripristina</button>
+                            {isEffectivelyDeprecated ? (
+                               <button onClick={() => setAttrDeprecationStatus(attr.name, false)} className="text-xs font-bold text-slate-600 hover:text-slate-800">Ripristina</button>
+                            ) : isPendingDeletion ? (
+                               <button onClick={() => setAttrDeprecationStatus(attr.name, false)} className="text-xs font-bold text-slate-600 hover:text-slate-800">Annulla Eliminazione</button>
+                            ) : isPendingRestore ? (
+                               <button onClick={() => setAttrDeprecationStatus(attr.name, true)} className="text-xs font-bold text-rose-600 hover:text-rose-800">Annulla Ripristino</button>
                             ) : (
                               <>
                                 <button onClick={() => { setEditingAttr(attr); setAttrFormOpen(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800">Modifica</button>
@@ -334,10 +368,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             ) : null}
           </div>
 
-          {/* FOOTER FISSO & UNIFICATO */}
           <div className="flex-none h-16 px-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
-            
-            {/* LATO SINISTRO */}
             <div>
               {!currentCategory && creationStep === 2 ? (
                 <button onClick={() => setCreationStep(1)} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors">
@@ -351,7 +382,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
               ) : null}
             </div>
 
-            {/* LATO DESTRO */}
             <div className="flex gap-2">
               {!currentCategory ? (
                  creationStep === 1 ? (
@@ -366,8 +396,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                  )
               ) : (
                  <>
-                   {/* FOOTER UGUALE IN EDITING (Innesca il salvataggio massivo) */}
-                   <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Annulla</button>
+                   <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50">Annulla</button>
                    <button onClick={handleSaveGeneralEdits} disabled={isSubmitting || !hasChanges} className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors ${hasChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed dark:bg-slate-600 dark:text-slate-400'}`}>
                      {isSubmitting ? "Attendere..." : "Aggiorna Info"}
                    </button>
@@ -379,7 +408,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
         </div>
       </div>
 
-      {/* POPUP SUB-MODALI (Usano onSubmit interno) */}
       <AttributeFormModal isOpen={attrFormOpen} initialData={editingAttr} onClose={() => setAttrFormOpen(false)} onSave={handleSaveAttribute} isSubmitting={false} />
       
       <ConfirmAlertModal isOpen={conflictPrompt.isOpen} title="Conflitto Dati Storici" confirmText="Depreca e Genera Nuovo" confirmColor="amber" onClose={() => setConflictPrompt({isOpen: false, pendingAttr: null})} onConfirm={handleResolveConflict} isSubmitting={isSubmitting} message={<>Esistono già vecchi asset salvati con questo formato.<br/><br/>Vuoi <strong>deprecare</strong> il vecchio attributo (mantenendo lo storico intatto) e generarne automaticamente uno nuovo?</>} />
