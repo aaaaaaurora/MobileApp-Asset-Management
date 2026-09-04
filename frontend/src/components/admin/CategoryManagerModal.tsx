@@ -4,7 +4,8 @@ import { useAuth } from "../../context/AuthContext";
 import AttributeFormModal from "./AttributeFormModal";
 import ConfirmAlertModal from "./ConfirmAlertModal";
 import Picker from '@emoji-mart/react';
-import * as data from '@emoji-mart/data';
+// @ts-ignore
+import data from '@emoji-mart/data';
 
 interface Props {
   isOpen: boolean;
