@@ -66,7 +66,7 @@ export default function CategoriesManagement() {
   };
 
   const handleOpenEdit = (category: Category) => {
-    setSelectedCategory(category); // Modalità Gestione Avanzata
+    setSelectedCategory(category); 
     setIsModalOpen(true);
   };
 

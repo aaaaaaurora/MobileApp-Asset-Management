@@ -245,7 +245,7 @@ def update_category(category_id):
     # 1. Validazione e aggiornamento Nome
     if 'name' in data and data['name'].strip():
         new_name = data['name'].strip()
-        # Assicuriamoci che il nuovo nome non vada in conflitto con un'altra categoria esistente  
+        # Assicuriamoci che il nuovo nome non vada in conflitto con un'altra categoria esistente
         existing = categories_col.find_one({
             "name": {"$regex": f"^{new_name}$", "$options": "i"}, 
             "_id": {"$ne": ObjectId(category_id)}
