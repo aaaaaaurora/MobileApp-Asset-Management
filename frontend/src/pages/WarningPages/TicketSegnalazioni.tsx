@@ -12,26 +12,77 @@ interface Ticket {
   created_at: string;
 }
 
+interface Campus {
+  id: string;
+  name: string;
+}
+
+interface Category {
+  _id: string;
+  name: string;
+}
+
 export default function TicketSegnalazioni() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Stati per i filtri
+  const [selectedCampus, setSelectedCampus] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
   
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [notaIntervento, setNotaIntervento] = useState('');
   const [isResolving, setIsResolving] = useState(false);
 
+  // Recupero dati statici per i filtri (Campus e Categorie)
+  useEffect(() => {
+    const fetchStaticData = async () => {
+      try {
+        const [campRes, catRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/campuses`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`${import.meta.env.VITE_API_URL}/asset/api/categories`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ]);
+        
+        if (campRes.ok) setCampuses(await campRes.json());
+        if (catRes.ok) setCategories(await catRes.json());
+      } catch (error) {
+        console.error("Errore nel recupero dati statici:", error);
+      }
+    };
+
+    if (token) fetchStaticData();
+  }, [token]);
+
+  // Recupero Ticket con l'applicazione dei filtri
   useEffect(() => {
     fetchTickets();
-  }, [token]);
+  }, [token, selectedCampus, selectedCategory, selectedStatus]);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/warning/warnings`, {
+      
+      const params = new URLSearchParams();
+      if (selectedCampus) params.append('campus_id', selectedCampus);
+      if (selectedCategory) params.append('category_id', selectedCategory);
+      if (selectedStatus) params.append('status', selectedStatus);
+
+      const url = `${import.meta.env.VITE_API_URL}/warning/warnings${params.toString() ? `?${params.toString()}` : ''}`;
+      
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       if (!response.ok) throw new Error('Errore nel recupero dei ticket');
       const data = await response.json();
       setTickets(data);
@@ -58,7 +109,7 @@ export default function TicketSegnalazioni() {
 
       if (!response.ok) throw new Error('Errore durante la chiusura del ticket');
 
-      // L'aggiornamento avviene dinamicamente nello stato senza ricaricare la pagina
+      // Aggiornamento dinamico senza ricaricare
       setTickets(prev => prev.map(t => 
         t.id === selectedTicket.id ? { ...t, status: 'chiusa' } : t
       ));
@@ -79,7 +130,7 @@ export default function TicketSegnalazioni() {
 
   return (
     <>
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
             Segnalazioni
@@ -87,6 +138,52 @@ export default function TicketSegnalazioni() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Gestisci i ticket aperti e visualizza lo storico degli interventi registrati.
           </p>
+        </div>
+      </div>
+
+      {/* SEZIONE FILTRI COMPATTA */}
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Campus</label>
+            <select 
+              value={selectedCampus}
+              onChange={(e) => setSelectedCampus(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+            >
+              <option value="">Tutti i Campus</option>
+              {campuses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
+            <select 
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+            >
+              <option value="">Tutte le Categorie</option>
+              {categories.map(c => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Stato Ticket</label>
+            <select 
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+            >
+              <option value="">Tutti gli Stati</option>
+              <option value="aperta">Solo Aperti</option>
+              <option value="chiusa">Solo Chiusi</option>
+            </select>
+          </div>
         </div>
       </div>
 

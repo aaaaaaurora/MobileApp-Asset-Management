@@ -351,7 +351,7 @@ export default function AssetList() {
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Categoria</th>
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">ID Seriale</th>
                 <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Data Creazione</th>
-                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -505,13 +505,25 @@ export default function AssetList() {
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       ) : (
-                        <input 
-                          type={attr.type === 'number' ? 'number' : 'text'} 
-                          value={formData.metadata[attr.name] || ''} 
-                          disabled={isAdmin}
-                          onChange={e => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)} 
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
-                        />
+                        Object.keys(formData.metadata)
+                          .filter(key => {
+                            const isDeprecated = categories.some(cat => 
+                              cat.attributes.some(attr => attr.name === key && attr.status === 'unavailable')
+                            );
+                            return !isDeprecated;
+                          })
+                          .map(key => (
+                          <div key={key}>
+                            <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400 capitalize">{key.replace('_', ' ')}</label>
+                            <input 
+                              type="text" 
+                              value={formData.metadata[key]} 
+                              disabled={isAdmin}
+                              onChange={e => handleMetadataChange(key, e.target.value)} 
+                              className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
+                            />
+                          </div>
+                        ))
                       )}
                     </div>
                   ))

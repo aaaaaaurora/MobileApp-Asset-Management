@@ -257,7 +257,15 @@ export default function CampusMap() {
                 )}
 
                 <div className="flex flex-col gap-2 text-sm mb-5">
-                  {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
+                  {Object.entries(selectedAsset.metadata || {})
+                    .filter(([key]) => {
+                      // Esclude la riga se la chiave risulta 'unavailable' in una qualsiasi categoria
+                      const isDeprecated = categories.some(cat => 
+                        cat.attributes?.some((attr: any) => attr.name === key && attr.status === 'unavailable')
+                      );
+                      return !isDeprecated;
+                    })
+                    .map(([key, val]) => (
                     <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
                       <span className="font-semibold text-body capitalize">{key.replace('_', ' ')}</span>
                       <span className="text-black dark:text-white font-medium">{String(val)}</span>
@@ -266,7 +274,7 @@ export default function CampusMap() {
                 </div>
               </div>
 
-              {(user?.role === 'OPERATORE' || user?.role === 'GUEST') && (
+              {(user?.role === 'GUEST') && (
                 <div className="p-5 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
                   <button 
                     onClick={() => setIsWarningModalOpen(true)} 
