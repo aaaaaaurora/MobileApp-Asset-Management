@@ -30,7 +30,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const [catIcon, setCatIcon] = useState("📍");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
-  // Utilizzato sia per creare da zero, sia come "Standby" per le modifiche in edit
+  // Utilizzato sia per creare da zero, sia come "Standby" per le modifiche in edit 
   const [localAttributes, setLocalAttributes] = useState<CategoryAttribute[]>([]);
   
   const [attrFormOpen, setAttrFormOpen] = useState(false);
