@@ -58,6 +58,7 @@ export default function TicketSegnalazioni() {
 
       if (!response.ok) throw new Error('Errore durante la chiusura del ticket');
 
+      // L'aggiornamento avviene dinamicamente nello stato senza ricaricare la pagina
       setTickets(prev => prev.map(t => 
         t.id === selectedTicket.id ? { ...t, status: 'chiusa' } : t
       ));
@@ -77,66 +78,77 @@ export default function TicketSegnalazioni() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-title-md2 font-semibold text-black dark:text-white">Ticket Segnalazioni</h2>
-        <button onClick={fetchTickets} className="text-sm text-blue-600 hover:underline">Aggiorna Lista</button>
+    <>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            Segnalazioni
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Gestisci i ticket aperti e visualizza lo storico degli interventi registrati.
+          </p>
+        </div>
       </div>
 
-      <div className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
-        <div className="max-w-full overflow-x-auto">
-          <table className="w-full table-auto">
-            <thead>
-              <tr className="bg-gray-2 text-left dark:bg-meta-4">
-                <th className="py-4 px-4 font-medium text-black dark:text-white xl:pl-11">Data</th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">Descrizione Problema</th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">Stato</th>
-                {/* Nuova colonna per la Posizione */}
-                <th className="py-4 px-4 font-medium text-black dark:text-white">Posizione</th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">Azioni</th>
+      <div className="rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden dark:border-slate-700 dark:bg-slate-800">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 dark:bg-slate-700 dark:text-white dark:border-slate-600">
+              <tr>
+                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Data</th>
+                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Descrizione Problema</th>
+                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-center">Stato</th>
+                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-center">Posizione</th>
+                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {loading ? (
-                <tr><td colSpan={5} className="py-5 text-center text-gray-500">Caricamento ticket in corso...</td></tr>
+                <tr>
+                  <td colSpan={5} className="py-12 text-center">
+                    <div className="flex justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-solid border-blue-600 border-t-transparent"></div></div>
+                  </td>
+                </tr>
               ) : tickets.length === 0 ? (
-                <tr><td colSpan={5} className="py-5 text-center text-gray-500">Nessuna segnalazione.</td></tr>
+                <tr>
+                  <td colSpan={5} className="py-12 text-center font-medium text-slate-500">
+                    Nessuna segnalazione trovata.
+                  </td>
+                </tr>
               ) : (
                 tickets.map((ticket) => (
-                  <tr key={ticket.id}>
-                    <td className="border-b border-[#eee] py-5 px-4 pl-9 dark:border-strokedark xl:pl-11">
-                      <p className="text-sm text-black dark:text-white">{new Date(ticket.created_at).toLocaleDateString('it-IT')}</p>
-                      <p className="text-xs text-gray-500">{new Date(ticket.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute:'2-digit' })}</p>
+                  <tr key={ticket.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <td className="py-4 px-6">
+                      <p className="font-bold text-slate-800 dark:text-slate-200">{new Date(ticket.created_at).toLocaleDateString('it-IT')}</p>
+                      <p className="text-xs font-medium text-slate-500">{new Date(ticket.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute:'2-digit' })}</p>
                     </td>
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <p className="text-sm text-black dark:text-white truncate max-w-xs" title={ticket.descrizione}>{ticket.descrizione}</p>
-                      <p className="text-xs text-gray-400 mt-1">Asset: {ticket.asset_id.substring(0, 8)}...</p>
+                    <td className="py-4 px-6">
+                      <p className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-xs" title={ticket.descrizione}>{ticket.descrizione}</p>
+                      <p className="text-xs text-slate-500 mt-1 font-mono">Asset: {ticket.asset_id.substring(0, 8)}...</p>
                     </td>
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <span className={`inline-flex rounded-full bg-opacity-10 py-1 px-3 text-sm font-medium ${ticket.status === 'aperta' ? 'bg-yellow-500 text-yellow-600' : 'bg-green-500 text-green-600'}`}>
-                        {ticket.status.toUpperCase()}
+                    <td className="py-4 px-6 text-center">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${ticket.status === 'aperta' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                        {ticket.status}
                       </span>
                     </td>
-                    {/* Cella separata per la navigazione in mappa */}
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                    <td className="py-4 px-6 text-center">
                       <button
                         onClick={() => navigate('/map', { state: { focusAssetId: ticket.asset_id, focusCampusId: ticket.campus_id } })}
-                        className="rounded border border-blue-600 text-blue-600 py-1 px-3 text-xs font-medium hover:bg-blue-600 hover:text-white transition inline-flex items-center gap-1"
+                        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
                       >
                         📍 Mappa
                       </button>
                     </td>
-                    {/* Cella dedicata esclusivamente alla risoluzione */}
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                    <td className="py-4 px-6 text-right">
                       {ticket.status === 'aperta' ? (
                         <button
                           onClick={() => setSelectedTicket(ticket)}
-                          className="rounded bg-blue-600 py-1 px-4 text-xs font-medium text-white hover:bg-blue-700 transition"
+                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                         >
                           Gestisci
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-500 font-medium">Risolto</span>
+                        <span className="text-xs font-semibold text-slate-400 italic">Risolto</span>
                       )}
                     </td>
                   </tr>
@@ -148,27 +160,59 @@ export default function TicketSegnalazioni() {
       </div>
 
       {selectedTicket && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark">
-            <div className="flex justify-between items-center mb-4 border-b border-stroke dark:border-strokedark pb-3">
-              <h3 className="font-bold text-lg text-black dark:text-white">Risoluzione Ticket</h3>
-              <button onClick={closeModal} className="text-gray-500 hover:text-black dark:hover:text-white font-bold">✕</button>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
+            
+            <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">Risoluzione Ticket</h3>
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-bold transition-colors">✕</button>
             </div>
-            <div className="mb-4">
-              <span className="block text-xs font-semibold text-gray-500 mb-1">Descrizione Utente:</span>
-              <p className="text-sm text-black dark:text-white p-3 bg-gray-100 dark:bg-meta-4 rounded border border-stroke dark:border-strokedark">{selectedTicket.descrizione}</p>
-            </div>
+            
             <div className="mb-5">
-              <label className="mb-2 block text-sm font-bold text-blue-600 dark:text-blue-500">Nota Tecnica di Intervento (Correttivo) *</label>
-              <textarea rows={4} value={notaIntervento} onChange={(e) => setNotaIntervento(e.target.value)} className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-4 font-medium outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input dark:focus:border-blue-500" />
+              <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Descrizione Utente:</span>
+              <p className="text-sm text-slate-700 dark:text-slate-300 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 leading-relaxed">
+                {selectedTicket.descrizione}
+              </p>
             </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={closeModal} disabled={isResolving} className="rounded border border-stroke py-2 px-6 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white transition">Annulla</button>
-              <button onClick={handleResolve} disabled={isResolving || !notaIntervento.trim()} className="rounded bg-blue-600 py-2 px-6 font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition">{isResolving ? 'Chiusura in corso...' : 'Conferma e Chiudi'}</button>
+            
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-bold text-blue-600 dark:text-blue-400">Nota Tecnica di Intervento (Correttivo) <span className="text-rose-500">*</span></label>
+              <textarea 
+                rows={4} 
+                value={notaIntervento} 
+                onChange={(e) => setNotaIntervento(e.target.value)} 
+                placeholder="Descrivi dettagliatamente l'intervento effettuato per risolvere il problema..."
+                className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800" 
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <button 
+                onClick={closeModal} 
+                disabled={isResolving} 
+                className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button 
+                onClick={handleResolve} 
+                disabled={isResolving || !notaIntervento.trim()} 
+                className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                {isResolving ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Chiusura...
+                  </>
+                ) : 'Conferma e Chiudi'}
+              </button>
             </div>
           </div>
         </div>, document.body
       )}
-    </div>
+    </>
   );
 }

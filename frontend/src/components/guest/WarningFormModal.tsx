@@ -64,7 +64,7 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
       <div className="w-full max-w-md p-6 mx-4 bg-white rounded-xl shadow-2xl dark:bg-gray-800">
         
         <div className="flex items-center justify-between mb-5">
@@ -88,12 +88,6 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Display informativo sull'asset (Opzionale, ma utile per l'UX) */}
-            <div className="p-3 text-sm text-blue-800 bg-blue-50 rounded-lg dark:bg-blue-900/30 dark:text-blue-300">
-              Stai aprendo un ticket per l'Asset ID: <strong>{assetId || "Non specificato"}</strong>
-            </div>
-
             <div>
               <label htmlFor="descrizione" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Descrizione del problema <span className="text-red-500">*</span>

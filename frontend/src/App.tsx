@@ -40,16 +40,12 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['AMMINISTRATORE']} />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Home />} />
-              
               <Route path="/admin/operators" element={<OperatorsManagement />} />
-              
               <Route path="/admin/categories" element={<CategoriesManagement />} />
-
               <Route path="/admin/history" element={<SystemLogs />} />
-              
               <Route path="/admin/campus/new" element={<NewCampus />} />
-
               <Route path="admin/campuses" element={<CampusList />} />
+              <Route path="/assets/list" element={<AssetList />} />
               
             </Route>
           </Route>

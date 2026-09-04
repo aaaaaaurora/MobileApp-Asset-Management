@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
-
+import WarningFormModal from '../../components/guest/WarningFormModal'; 
 export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
@@ -18,14 +18,15 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
-  // NUOVO: Stati per gestire il blocco dinamico dello zoom
+  // Stati per gestire il blocco dinamico dello zoom
   const [dynamicMinZoom, setDynamicMinZoom] = useState(10);
   const isFittingBounds = useRef(false);
   
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
-  const [formText, setFormText] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Stato per l'apertura del modale di segnalazione
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   // 1. Geolocalizzazione Utente
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function CampusMap() {
         if (assetToFocus) {
           setSelectedAsset(assetToFocus);
           
-          // NUOVO: Svuota lo state della rotta così non lo riapre cambiando campus!
+          // Svuota lo state della rotta così non lo riapre cambiando campus
           navigate(location.pathname, { replace: true, state: {} });
         }
       }
@@ -123,36 +124,6 @@ export default function CampusMap() {
     }
   }, [selectedCampus, campuses]);
 
-  // 5. Invio Modulo
-  const handleActionSubmit = async () => {
-    if (!formText.trim() || !selectedAsset) return;
-    setIsSubmitting(true);
-    
-    try {
-      const isOperator = user?.role === 'OPERATORE';
-      const endpoint = isOperator ? '/warning/maintenances' : '/warning/warnings';
-      
-      const payload = isOperator 
-        ? { asset_id: selectedAsset._id, tipo_intervento: 'preventiva', nota_intervento: formText }
-        : { asset_id: selectedAsset._id, descrizione: formText };
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) throw new Error('Errore salvataggio');
-      alert(isOperator ? 'Intervento Preventivo registrato!' : 'Segnalazione inviata!');
-      setFormText('');
-      setSelectedAsset(null);
-    } catch (error) {
-      alert("Errore durante l'operazione.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const getAssetIcon = (asset: any) => {
     const type = asset.metadata?.tipologia?.toLowerCase() || '';
     if (type.includes('alber') || type.includes('pin')) return '🌲';
@@ -186,11 +157,9 @@ export default function CampusMap() {
           {...viewState} 
           onMove={evt => setViewState(evt.viewState)} 
           
-          // NUOVO: Intercettiamo la fine dell'animazione
           onMoveEnd={(evt) => {
             if (isFittingBounds.current) {
               isFittingBounds.current = false;
-              // Catturiamo lo zoom calcolato e blocchiamo la mappa!
               setDynamicMinZoom(evt.viewState.zoom);
             }
           }}
@@ -199,8 +168,6 @@ export default function CampusMap() {
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
           dragPan={false}
-          
-          // NUOVO: Limite di zoom in uscita dinamico
           minZoom={dynamicMinZoom} 
         >
           {activeCampusData && (
@@ -218,7 +185,6 @@ export default function CampusMap() {
               onClick={(e) => { 
                 e.originalEvent.stopPropagation(); 
                 setSelectedAsset(asset);
-                setFormText(''); 
               }}
             >
               <div className="text-2xl cursor-pointer hover:scale-125 transition-transform">
@@ -231,92 +197,67 @@ export default function CampusMap() {
 
       {/* MODALE GLOBALE CON REACT PORTAL */}
       {selectedAsset && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="relative flex flex-col w-full max-w-md max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden">
-            
-            <div className="flex justify-between items-center p-5 border-b border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
-              <h3 className="font-bold text-xl text-black dark:text-white">
-                Dettagli Asset
-              </h3>
-              <button 
-                onClick={() => setSelectedAsset(null)} 
-                className="text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5">
+        <>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="relative flex flex-col w-full max-w-md max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden">
               
-              {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
-                <div className="mb-5 flex gap-2 overflow-x-auto pb-2">
-                  {selectedAsset.media_ids.map((mediaId: string) => (
-                    <img
-                      key={mediaId}
-                      src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
-                      alt="Errore di rete con MinIO (Vedi Console)"
-                      className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
-                    />
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2 text-sm mb-5">
-                {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
-                  <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
-                    <span className="font-semibold text-body capitalize">{key.replace('_', ' ')}</span>
-                    <span className="text-black dark:text-white font-medium">{String(val)}</span>
-                  </div>
-                ))}
-              </div>
-
-              {user?.role === 'OPERATORE' && (
-                <div>
-                  <span className="block text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">
-                    Registra Manutenzione Preventiva
-                  </span>
-                  <textarea 
-                    value={formText} 
-                    onChange={(e) => setFormText(e.target.value)} 
-                    placeholder="Scrivi qui la nota tecnica di intervento..." 
-                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
-                    rows={4} 
-                  />
-                </div>
-              )}
-
-              {user?.role === 'GUEST' && (
-                <div>
-                  <span className="block text-xs font-bold text-red-600 mb-2 uppercase tracking-wider">
-                    Invia Segnalazione Guasto
-                  </span>
-                  <textarea 
-                    value={formText} 
-                    onChange={(e) => setFormText(e.target.value)} 
-                    placeholder="Descrivi dettagliatamente il problema riscontrato..." 
-                    className="w-full rounded border border-stroke bg-transparent py-2.5 px-3 text-sm outline-none transition focus:border-red-600 active:border-red-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white resize-none" 
-                    rows={4} 
-                  />
-                </div>
-              )}
-            </div>
-
-            {(user?.role === 'OPERATORE' || user?.role === 'GUEST') && (
-              <div className="p-5 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
+              <div className="flex justify-between items-center p-5 border-b border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
+                <h3 className="font-bold text-xl text-black dark:text-white">
+                  Dettagli Asset
+                </h3>
                 <button 
-                  onClick={handleActionSubmit} 
-                  disabled={isSubmitting || !formText.trim()} 
-                  className={`flex w-full justify-center rounded p-3 font-medium text-white transition ${user?.role === 'OPERATORE' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}
+                  onClick={() => setSelectedAsset(null)} 
+                  className="text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
                 >
-                  {isSubmitting 
-                    ? 'Operazione in corso...' 
-                    : user?.role === 'OPERATORE' ? 'Conferma e Registra Intervento' : 'Invia Segnalazione'}
+                  ✕
                 </button>
               </div>
-            )}
 
+              <div className="flex-1 overflow-y-auto p-5">
+                
+                {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
+                  <div className="mb-5 flex gap-2 overflow-x-auto pb-2">
+                    {selectedAsset.media_ids.map((mediaId: string) => (
+                      <img
+                        key={mediaId}
+                        src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
+                        alt="Errore di rete con MinIO (Vedi Console)"
+                        className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2 text-sm mb-5">
+                  {Object.entries(selectedAsset.metadata || {}).map(([key, val]) => (
+                    <div key={key} className="flex justify-between items-center border-b border-stroke dark:border-strokedark pb-1">
+                      <span className="font-semibold text-body capitalize">{key.replace('_', ' ')}</span>
+                      <span className="text-black dark:text-white font-medium">{String(val)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {(user?.role === 'OPERATORE' || user?.role === 'GUEST') && (
+                <div className="p-5 border-t border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
+                  <button 
+                    onClick={() => setIsWarningModalOpen(true)} 
+                    className="flex w-full justify-center rounded p-3 font-medium text-white transition bg-red-600 hover:bg-red-700"
+                  >
+                    Segnala un problema
+                  </button>
+                </div>
+              )}
+
+            </div>
           </div>
-        </div>,
+          
+          <WarningFormModal 
+            isOpen={isWarningModalOpen} 
+            onClose={() => setIsWarningModalOpen(false)} 
+            assetId={selectedAsset._id} 
+          />
+        </>,
         document.body
       )}
     </div>

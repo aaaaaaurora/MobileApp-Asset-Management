@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PageMeta from '../../components/common/PageMeta';
-import PageBreadcrumb from '../../components/common/PageBreadCrumb';
 import { useAuth } from '../../context/AuthContext'; 
 
 interface Attribute {
@@ -129,7 +128,6 @@ const CreateAsset: React.FC = () => {
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // ROLLBACK: Se cambiamo idea e scattiamo una nuova foto, cancelliamo la vecchia da MinIO
       if (mediaId) {
         fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
           method: 'DELETE',
@@ -142,7 +140,6 @@ const CreateAsset: React.FC = () => {
     }
   };
 
-  // NUOVO: Annullamento volontario dell'intera procedura
   const handleCancelProcess = async () => {
     if (window.confirm("Sei sicuro di voler annullare? Tutti i dati non salvati andranno persi.")) {
       if (mediaId) {
@@ -174,7 +171,6 @@ const CreateAsset: React.FC = () => {
     let currentMediaId = mediaId;
 
     try {
-      // ROLLBACK: Se andiamo avanti e indietro tra i passaggi 2 e 3, non carichiamo duplicati
       if (!currentMediaId) {
         setLoading('Upload in corso...');
         const formData = new FormData();
@@ -274,148 +270,189 @@ const CreateAsset: React.FC = () => {
   return (
     <>
       <PageMeta title="Nuovo Asset | Asset Management UNISA" description='' />
-      <PageBreadcrumb pageTitle="Censimento Nuovo Asset" />
 
-      <div className="grid grid-cols-1 gap-9">
-        <div className="flex flex-col gap-9">
-          <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="border-b border-stroke py-4 px-6.5 dark:border-strokedark flex justify-between items-center">
-              <h3 className="font-medium text-black dark:text-white">Fase {step} di 3</h3>
-              <div className="flex gap-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className={`h-2 w-8 rounded-full ${step >= i ? 'bg-blue-600' : 'bg-stroke dark:bg-strokedark'}`}></div>
-                ))}
-              </div>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            Censimento Nuovo Asset
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Registra un nuovo elemento sul territorio con l'ausilio dell'Intelligenza Artificiale.
+          </p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-3xl">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 overflow-hidden">
+          
+          <div className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 py-4 px-6 flex justify-between items-center">
+            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Fase {step} di 3</h3>
+            <div className="flex gap-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className={`h-2.5 w-10 rounded-full transition-colors ${step >= i ? 'bg-blue-600 shadow-sm' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+              ))}
             </div>
+          </div>
 
-            <div className="p-6.5">
-              {error && (
-                <div className="mb-6 flex w-full border-l-6 border-danger bg-danger/20 px-7 py-3 shadow-md">
-                  <p className="text-danger font-medium">{error}</p>
+          <div className="p-6 sm:p-8">
+            {error && (
+              <div className="mb-6 rounded-lg border-l-4 border-rose-500 bg-rose-50 p-4 text-rose-800 shadow-sm dark:bg-rose-900/20 dark:text-rose-400">
+                <p className="font-semibold text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* STEP 1 */}
+            {step === 1 && (
+              <div className="space-y-8">
+                <div>
+                  <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                    1. Posizione GPS e Validazione
+                  </label>
+                  {location ? (
+                    <div className="w-full rounded-lg border border-emerald-500 bg-emerald-50 py-3.5 px-4 text-emerald-700 font-semibold shadow-sm flex items-center gap-2 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      Coordinate acquisite: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={captureLocation}
+                      disabled={!!loading}
+                      className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-3.5 text-sm font-bold text-white transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      {loading === 'Acquisizione e validazione GPS...' ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Validazione in corso...
+                        </span>
+                      ) : 'Ottieni Posizione GPS'}
+                    </button>
+                  )}
                 </div>
-              )}
 
-              {/* STEP 1 */}
-              {step === 1 && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">1. Posizione GPS e Validazione Campus</label>
-                    {location ? (
-                      <div className="w-full rounded border border-success bg-success/10 py-3 px-4 text-success font-medium">
-                        ✓ Coordinate acquisite: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={captureLocation}
-                        disabled={!!loading}
-                        className="flex w-full justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-blue-700 disabled:opacity-70"
-                      >
-                        {loading === 'Acquisizione e validazione GPS...' ? 'Validazione su PostGIS...' : 'Ottieni Posizione e Valida'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">2. Foto dell'Asset</label>
-                    <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handlePhotoCapture} className="hidden" />
-                    {photoPreview ? (
-                      <div className="mt-2">
-                        <img src={photoPreview} alt="Anteprima" className="w-full h-48 object-cover rounded-md border border-stroke mb-3" />
-                        <button onClick={() => fileInputRef.current?.click()} className="text-blue-600 hover:underline text-sm font-medium">
+                <div>
+                  <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                    2. Foto dell'Asset
+                  </label>
+                  <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handlePhotoCapture} className="hidden" />
+                  
+                  {photoPreview ? (
+                    <div className="mt-2 relative group">
+                      <img src={photoPreview} alt="Anteprima" className="w-full h-56 object-cover rounded-lg border border-slate-200 shadow-sm dark:border-slate-700" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                        <button onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-100 transition-colors">
                           Scatta un'altra foto
                         </button>
                       </div>
-                    ) : (
-                      <button 
-                        onClick={() => fileInputRef.current?.click()} 
-                        className="flex w-full justify-center rounded border border-blue-600 text-blue-600 p-3 font-medium hover:bg-blue-50"
-                      >
-                        Apri Fotocamera
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => fileInputRef.current?.click()} 
+                      className="flex flex-col w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+                    >
+                      <svg className="h-10 w-10 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Apri Fotocamera</span>
+                    </button>
+                  )}
+                </div>
 
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                   <button 
                     disabled={!location || !photoFile} 
                     onClick={() => setStep(2)} 
-                    className="mt-6 flex w-full justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Avanti
                   </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* STEP 2 */}
-              {step === 2 && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">Seleziona Categoria</label>
-                    <select 
-                      value={selectedCategory}
-                      onChange={(e) => {
-                        const catId = e.target.value;
-                        setSelectedCategory(catId);
-                        setSelectedCategoryObj(categories.find(c => c._id === catId) || null);
-                      }}
-                      className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-blue-600 dark:border-form-strokedark dark:text-white"
-                    >
-                      <option value="" disabled>Seleziona...</option>
-                      {categories.map((cat) => (
-                        <option key={cat._id} value={cat._id}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex gap-4 mt-6">
-                    <button onClick={() => setStep(1)} className="flex w-1/3 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
-                      Indietro
-                    </button>
-                    <button 
-                      onClick={triggerAIAnalysis} 
-                      disabled={!!loading || !selectedCategory} 
-                      className="flex w-2/3 justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {loading ? loading : 'Carica Immagine e Analizza'}
-                    </button>
-                  </div>
+            {/* STEP 2 */}
+            {step === 2 && (
+              <div className="space-y-6">
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-300">Seleziona Categoria Strutturale</label>
+                  <select 
+                    value={selectedCategory}
+                    onChange={(e) => {
+                      const catId = e.target.value;
+                      setSelectedCategory(catId);
+                      setSelectedCategoryObj(categories.find(c => c._id === catId) || null);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  >
+                    <option value="" disabled>Seleziona una categoria...</option>
+                    {categories.map((cat) => (
+                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              {/* STEP 3 */}
-              {step === 3 && (
-                <div className="space-y-6">
-                  
-                  {aiSuggestions && (
-                    <div className="rounded border-l-4 border-blue-600 bg-blue-600/5 p-4 dark:bg-meta-4">
-                      <h5 className="font-semibold text-blue-600 mb-2 flex items-center gap-2">
-                        <span>🧠</span> Analisi Cloud Vision Completata
-                      </h5>
-                      <p className="text-sm text-black dark:text-white mb-1">
-                        <strong>Rilevamento primario:</strong> {aiSuggestions.suggested_title} 
-                        <span className="text-xs text-body ml-2">(Affidabilità: {(aiSuggestions.confidence_score * 100).toFixed(0)}%)</span>
-                      </p>
-                      <p className="text-sm text-black dark:text-white">
-                        <strong>Tag estratti:</strong> {aiSuggestions.tags.join(', ')}
-                      </p>
-                    </div>
-                  )}
+                <div className="flex flex-col-reverse sm:flex-row gap-3 pt-6 border-t border-slate-100 dark:border-slate-700 mt-6">
+                  <button 
+                    onClick={() => setStep(1)} 
+                    className="w-full sm:w-1/3 rounded-lg px-4 py-3 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    Indietro
+                  </button>
+                  <button 
+                    onClick={triggerAIAnalysis} 
+                    disabled={!!loading || !selectedCategory} 
+                    className="flex w-full sm:w-2/3 justify-center items-center rounded-lg bg-blue-600 p-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        {loading}
+                      </span>
+                    ) : 'Carica Immagine e Analizza'}
+                  </button>
+                </div>
+              </div>
+            )}
 
-                  <div className="mb-5">
-                    <h4 className="text-lg font-semibold text-black dark:text-white">Revisione Dati</h4>
-                    <p className="text-sm text-body dark:text-bodydark">Categoria: <span className="font-bold">{selectedCategoryObj?.name}</span></p>
+            {/* STEP 3 */}
+            {step === 3 && (
+              <div className="space-y-6">
+                
+                {aiSuggestions && (
+                  <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4 shadow-sm dark:bg-blue-900/20 dark:border-blue-400">
+                    <h5 className="font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2 text-sm uppercase tracking-wide">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      Analisi Cloud Vision
+                    </h5>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 mb-1">
+                      <strong className="font-semibold text-slate-900 dark:text-white">Rilevamento primario:</strong> {aiSuggestions.suggested_title} 
+                      <span className="text-xs text-slate-500 ml-2 font-medium">(Affidabilità: {(aiSuggestions.confidence_score * 100).toFixed(0)}%)</span>
+                    </p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                      <strong className="font-semibold text-slate-900 dark:text-white">Tag estratti:</strong> {aiSuggestions.tags.join(', ')}
+                    </p>
                   </div>
+                )}
 
+                <div className="mb-4">
+                  <h4 className="text-lg font-bold text-slate-800 dark:text-white">Revisione Dati</h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Compila i metadati per la categoria <span className="font-bold text-slate-700 dark:text-slate-300">"{selectedCategoryObj?.name}"</span>.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
                   {selectedCategoryObj?.attributes.map((attr) => (
-                    <div key={attr.name} className="mb-4">
-                      <label className="mb-2.5 block font-medium text-black dark:text-white capitalize">
-                        {attr.name.replace('_', ' ')} {attr.required && <span className="text-meta-1">*</span>}
+                    <div key={attr.name}>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                        {attr.name.replace('_', ' ')} {attr.required && <span className="text-rose-500">*</span>}
                       </label>
                       
                       {attr.type === 'enum' ? (
                         <select 
                           value={metadata[attr.name] || ''} 
                           onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                          className="w-full rounded border border-stroke bg-transparent py-3 px-5 outline-none focus:border-blue-600 dark:border-form-strokedark dark:text-white"
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                         >
                           <option value="">Seleziona...</option>
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -425,27 +462,39 @@ const CreateAsset: React.FC = () => {
                           type={attr.type === 'number' ? 'number' : 'text'}
                           value={metadata[attr.name] || ''}
                           onChange={(e) => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                          className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 outline-none focus:border-blue-600 dark:border-form-strokedark dark:text-white"
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                         />
                       )}
                     </div>
                   ))}
+                </div>
 
-                  <div className="flex gap-4 mt-6">
-                    <button onClick={() => setStep(2)} className="flex w-1/4 justify-center rounded border border-stroke p-3 font-medium hover:shadow-1 dark:text-white">
+                <div className="flex flex-col sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-6 mt-6 gap-4">
+                  <button 
+                    onClick={handleCancelProcess} 
+                    className="w-full sm:w-auto rounded-lg border border-rose-600 text-rose-600 px-5 py-2.5 text-sm font-bold hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                  >
+                    Annulla Censimento
+                  </button>
+                  
+                  <div className="flex w-full sm:w-auto gap-3">
+                    <button 
+                      onClick={() => setStep(2)} 
+                      className="flex-1 sm:flex-none rounded-lg px-5 py-2.5 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
+                    >
                       Indietro
                     </button>
-                    {/* NUOVO BOTTONE: ANNULLA TUTTO E PULISCE IL DB */}
-                    <button onClick={handleCancelProcess} className="flex w-1/4 justify-center rounded border border-red-600 text-red-600 p-3 font-medium hover:bg-red-50 dark:hover:bg-red-900/20">
-                      Annulla
-                    </button>
-                    <button onClick={submitAsset} disabled={!!loading} className="flex w-2/4 justify-center rounded bg-blue-600 p-3 font-medium text-white hover:bg-opacity-90 disabled:opacity-50">
+                    <button 
+                      onClick={submitAsset} 
+                      disabled={!!loading} 
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       {loading ? 'Salvataggio...' : 'Conferma e Salva'}
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

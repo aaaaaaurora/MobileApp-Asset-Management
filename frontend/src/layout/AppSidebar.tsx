@@ -95,16 +95,16 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
         { icon: UsersIcon, name: "Gestione Operatori", path: "/admin/operators" },
         { icon: CategoryIcon, name: "Gestione Categorie Asset", path: "/admin/categories" },
         { icon: CampusIcon, name: "Gestione Campus", path: "/admin/campuses" },
-        { icon: AssetIcon, name: "Lista Asset", path: "/admin/assets" },
+        { icon: AssetIcon, name: "Lista Assets", path: "/assets/list" },
         { icon: HistoryIcon, name: "Storico Operazioni", path: "/admin/history" }
       ];
     case "OPERATORE":
       return [
         ...baseMenu,
-        { icon: TicketIcon, name: "Ticket Segnalazioni", path: "/operator/tickets" },
+        { icon: TicketIcon, name: "Segnalazioni", path: "/operator/tickets" },
         { icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" },
         // Aggiunta la voce "Lista Asset" per la gestione massiva
-        { icon: ListIcon, name: "Lista Asset", path: "/assets/list" }, 
+        { icon: ListIcon, name: "Lista Assets", path: "/assets/list" }, 
       ];
     case "UTENTE":
     default:
