@@ -52,25 +52,21 @@ export default function AssetList() {
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
-  // Caricamento dei dati "fissi" (Campuses e Categorie) all'avvio
   useEffect(() => {
     fetchStaticData();
   }, [token]);
 
-  // Caricamento degli Asset (scatta all'avvio e ad ogni cambio dei filtri)
   useEffect(() => {
     fetchAssets();
   }, [token, selectedCampus, selectedCategory, dynamicFilters]);
 
   const fetchStaticData = async () => {
     try {
-      // Caricamento Categorie
       const catRes = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/categories`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (catRes.ok) setCategories(await catRes.json());
 
-      // Caricamento Campus autorizzati per l'utente corrente
       const campRes = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/campuses`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -85,12 +81,10 @@ export default function AssetList() {
     try {
       setLoading(true);
       
-      // Costruzione dinamica della Query String per supportare filtri avanzati
       const params = new URLSearchParams();
       if (selectedCampus) params.append('campus_id', selectedCampus);
       if (selectedCategory) params.append('category_id', selectedCategory);
       
-      // Appende gli attributi dinamici solo se sono stati valorizzati
       Object.entries(dynamicFilters).forEach(([key, value]) => {
         if (value) params.append(`attr_${key}`, value);
       });
@@ -114,7 +108,6 @@ export default function AssetList() {
 
   const handleCategoryFilterChange = (categoryId: string) => {
     setSelectedCategory(categoryId);
-    // Reset dei filtri dinamici ogni volta che si cambia categoria
     setDynamicFilters({});
   };
 
@@ -255,53 +248,47 @@ export default function AssetList() {
 
   const activeCategory = selectedAsset ? categories.find(c => c._id === selectedAsset.category_id) : null;
   
-  // Identifica gli attributi filtrabili per la categoria attualmente selezionata nei filtri generali
   const filterableAttributes = selectedCategory 
     ? categories.find(c => c._id === selectedCategory)?.attributes.filter(attr => attr.filterable) || []
     : [];
 
   return (
     <>
-      {/* --- HEADER --- */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
             Lista Assets Censiti
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Cerca, filtra e gestisci gli elementi registrati nei campus di tua competenza.
+            Cerca, filtra e gestisci gli elementi registrati nei campus.
           </p>
         </div>
       </div>
 
-      {/* --- SEZIONE FILTRI --- */}
-      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h3 className="mb-4 text-lg font-bold text-slate-800 dark:text-white">Pannello di Ricerca</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* --- SEZIONE FILTRI COMPATTA --- */}
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col sm:flex-row gap-4">
           
-          {/* Filtro Campus */}
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Filtro Campus</label>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Campus</label>
             <select 
               value={selectedCampus}
               onChange={(e) => setSelectedCampus(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
             >
-              <option value="">Tutti i tuoi Campus</option>
+              <option value="">Tutti i Campus</option>
               {campuses.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Filtro Categoria Strutturale */}
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Filtro Categoria</label>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
             <select 
               value={selectedCategory}
               onChange={(e) => handleCategoryFilterChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
             >
               <option value="">Tutte le Categorie</option>
               {categories.map(c => (
@@ -311,16 +298,13 @@ export default function AssetList() {
           </div>
         </div>
 
-        {/* Filtri Avanzati (Dinamici) */}
+        {/* Filtri Avanzati (Solo se ci sono attributi filtrabili) */}
         {selectedCategory && filterableAttributes.length > 0 && (
-          <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
-            <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-4">
-              Filtri Avanzati ({categories.find(c => c._id === selectedCategory)?.name})
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+            <div className="flex flex-wrap gap-4">
               {filterableAttributes.map(attr => (
-                <div key={attr.name}>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                <div key={attr.name} className="min-w-[140px] flex-1 sm:flex-none">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300 capitalize">
                     {attr.name.replace('_', ' ')}
                   </label>
                   
@@ -328,7 +312,7 @@ export default function AssetList() {
                     <select 
                       value={dynamicFilters[attr.name] || ''}
                       onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                      className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                     >
                       <option value="">Tutti</option>
                       {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -337,11 +321,11 @@ export default function AssetList() {
                      <select 
                       value={dynamicFilters[attr.name] || ''}
                       onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                      className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                     >
                       <option value="">Tutti</option>
-                      <option value="true">Sì / Vero</option>
-                      <option value="false">No / Falso</option>
+                      <option value="true">Sì</option>
+                      <option value="false">No</option>
                     </select>
                   ) : (
                     <input 
@@ -349,7 +333,7 @@ export default function AssetList() {
                       value={dynamicFilters[attr.name] || ''}
                       onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
                       placeholder="Cerca..."
-                      className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                      className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                     />
                   )}
                 </div>
@@ -365,41 +349,41 @@ export default function AssetList() {
           <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 dark:bg-slate-700 dark:text-white dark:border-slate-600">
               <tr>
-                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Categoria</th>
-                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">ID Seriale</th>
-                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Data Creazione</th>
-                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Categoria</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">ID Seriale</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Data Creazione</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center">
-                    <div className="flex justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-solid border-blue-600 border-t-transparent"></div></div>
+                  <td colSpan={4} className="py-8 text-center">
+                    <div className="flex justify-center"><div className="h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-600 border-t-transparent"></div></div>
                   </td>
                 </tr>
               ) : assets.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center font-medium text-slate-500">
+                  <td colSpan={4} className="py-8 text-center font-medium text-slate-500">
                     La ricerca non ha prodotto alcun risultato.
                   </td>
                 </tr>
               ) : (
                 assets.map((asset) => (
                   <tr key={asset._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    <td className="py-4 px-6 font-bold text-slate-800 dark:text-slate-200 uppercase">
+                    <td className="py-3 px-6 font-bold text-slate-800 dark:text-slate-200 uppercase">
                       {getCategoryName(asset.category_id)}
                     </td>
-                    <td className="py-4 px-6 font-mono text-slate-500 dark:text-slate-400 text-xs">
+                    <td className="py-3 px-6 font-mono text-slate-500 dark:text-slate-400 text-xs">
                       {asset._id}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-3 px-6">
                       {new Date(asset.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="py-3 px-6 text-right">
                       <button 
                         onClick={() => openEditModal(asset)} 
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                       >
                         Gestisci
                       </button>
@@ -422,7 +406,6 @@ export default function AssetList() {
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-bold transition-colors">✕</button>
             </div>
 
-            {/* SEZIONE FOTO (DEFERRED) */}
             <div className="mb-6">
               <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Gestione Foto</h4>
               <div className="flex gap-3 overflow-x-auto pb-2">
@@ -469,7 +452,6 @@ export default function AssetList() {
               </div>
             </div>
 
-            {/* Sezione Coordinate */}
             <div className="mb-6">
               <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Coordinate Geografiche</h4>
               <div className="flex gap-4">
@@ -494,7 +476,6 @@ export default function AssetList() {
               </div>
             </div>
 
-            {/* Sezione Metadati Dinamici */}
             <div className="mb-8">
               <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Metadati Categoria</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -540,7 +521,6 @@ export default function AssetList() {
               </div>
             </div>
 
-            {/* Pulsanti Azione */}
             {(user?.role === 'OPERATORE' || user?.role === 'AMMINISTRATORE') && (
               <div className="flex flex-col-reverse sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-5 mt-2 gap-4">
                 <button 
