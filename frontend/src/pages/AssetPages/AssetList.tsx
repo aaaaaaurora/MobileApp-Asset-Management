@@ -57,6 +57,13 @@ export default function AssetList() {
   const isAdmin = user?.role === 'AMMINISTRATORE';
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3000);
+  }
   
   useEffect(() => {
     fetchStaticData();
@@ -221,11 +228,11 @@ export default function AssetList() {
         throw new Error(err.error || "Errore durante l'aggiornamento dell'asset");
       }
 
-      alert("Asset aggiornato con successo!");
+      showNotification('success', "Asset aggiornato con successo!");
       closeModal();
       fetchAssets(); 
     } catch (error: any) {
-      alert(error.message);
+      showNotification('error', error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -243,12 +250,12 @@ export default function AssetList() {
 
       if (!res.ok) throw new Error("Errore durante l'eliminazione");
       
-      alert("Asset eliminato con successo!");
+      showNotification('success', "Asset eliminato con successo!");
       setShowDeleteConfirm(false);
       closeModal();
       fetchAssets();
     } catch (error: any) {
-      alert(error.message);
+      showNotification('error', error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -386,7 +393,7 @@ export default function AssetList() {
                     <td className="py-3 px-6 text-right">
                       <button 
                         onClick={() => openEditModal(asset)} 
-                        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        className="inline-flex items-center justify-center rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-blue-400"
                       >
                         {isAdmin ? 'Visualizza' : 'Gestisci'}
                       </button>
@@ -640,6 +647,31 @@ export default function AssetList() {
 
           </div>
         </div>, document.body
+      )}
+
+      {/* MODALE DI NOTIFICA (TOAST) */}
+      {notification && createPortal(
+        <div className="fixed top-5 right-5 z-[10001] animate-fade-in-up">
+          <div className={`flex items-center gap-3 rounded-lg px-5 py-3 shadow-xl text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+            {notification.type === 'success' ? (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="font-semibold text-sm">{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)} 
+              className="ml-2 font-bold text-white/80 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
 
     </>
