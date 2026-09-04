@@ -61,7 +61,7 @@ export default function CategoriesManagement() {
   }, [token]);
 
   const handleOpenCreate = () => {
-    setSelectedCategory(null); // Modalità Creazione Nuova Categoria
+    setSelectedCategory(null); 
     setIsModalOpen(true);
   };
 
