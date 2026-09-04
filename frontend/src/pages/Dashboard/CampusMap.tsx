@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Map, { Source, Layer, MapRef, Marker } from 'react-map-gl/maplibre';
@@ -141,15 +141,27 @@ export default function CampusMap() {
     }
   }, [selectedCampus, campuses]);
 
-  // NUOVA FUNZIONE getAssetIcon: 100% dinamica basata sul DB
+  // 1. Crea un "Dizionario" { id_categoria: icona } calcolato una sola volta
+  const categoryIconMap = useMemo(() => {
+    const dict: Record<string, string> = {};
+    categories.forEach(c => {
+      dict[c._id] = c.icon || '📍';
+    });
+    return dict;
+  }, [categories]);
+
+  // 2. Lettura istantanea senza fare cicli di ricerca
   const getAssetIcon = (asset: any) => {
-    const category = categories.find(c => c._id === asset.category_id);
-    return category?.icon || '📍'; 
+    return categoryIconMap[asset.category_id] || '📍';
   };
 
-  const activeCampusData = campuses.find(c => c.id === selectedCampus)?.geometry 
-    ? { type: 'Feature', geometry: campuses.find(c => c.id === selectedCampus).geometry } 
-    : null;
+  // 3. Memorizziamo anche il perimetro del campus per evitare che venga ricalcolato 60 volte al secondo
+  const activeCampusData = useMemo(() => {
+    const campus = campuses.find(c => c.id === selectedCampus);
+    return campus?.geometry 
+      ? { type: 'Feature', geometry: campus.geometry } 
+      : null;
+  }, [campuses, selectedCampus]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] w-full relative">
