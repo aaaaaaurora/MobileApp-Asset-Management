@@ -3,8 +3,7 @@ import { Category, CategoryAttribute } from "../../pages/Admin/CategoriesManagem
 import { useAuth } from "../../context/AuthContext";
 import AttributeFormModal from "./AttributeFormModal";
 import ConfirmAlertModal from "./ConfirmAlertModal";
-import Picker from '@emoji-mart/react';
-import i18n from '@emoji-mart/data/i18n/it.json'; 
+import EmojiPicker from 'emoji-picker-react';
 
 interface Props {
   isOpen: boolean;
@@ -30,7 +29,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
   const [catIcon, setCatIcon] = useState("📍");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
-  // Utilizzato sia per creare da zero, sia come "Standby" per le modifiche in edit 
   const [localAttributes, setLocalAttributes] = useState<CategoryAttribute[]>([]);
   
   const [attrFormOpen, setAttrFormOpen] = useState(false);
@@ -42,13 +40,12 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     if (isOpen) {
       setError("");
       setSuccessMsg("");
-      setIsSubmitting(false); // <-- FIX: Resetta sempre lo stato di caricamento all'apertura
+      setIsSubmitting(false); 
       setCurrentCategory(category);
       if (category) {
         setCatName(category.name || "");
         setCatDesc(category.description || "");
         setCatIcon(category.icon || "📍");
-        // In edit, carichiamo gli attributi in memoria aggiungendo un tag per ricordare il nome originale
         setLocalAttributes(category.attributes.map(a => ({ ...a, _originalName: a.name })));
         setActiveTab('general');
       } else {
@@ -63,9 +60,7 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
 
   if (!isOpen) return null;
 
-  // Ordiniamo gli attributi per mostrare i deprecati ("unavailable" ma già salvati) in fondo alla lista
   const sortedAttributes = [...localAttributes].sort((a, b) => {
-    // Controlliamo se un attributo era GIA' stato deprecato nel database
     const originalA = currentCategory?.attributes.find(attr => attr.name === (a as any)._originalName);
     const originalB = currentCategory?.attributes.find(attr => attr.name === (b as any)._originalName);
     
@@ -77,9 +72,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     return 0;
   });
 
-  // ==========================================
-  // CONTROLLO MODIFICHE IN STANDBY PER ABILITARE IL TASTO
-  // ==========================================
   const safeOriginalName = currentCategory?.name || "";
   const safeOriginalDesc = currentCategory?.description || "";
   const safeOriginalIcon = currentCategory?.icon || "📍";
@@ -108,9 +100,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     } catch (e) { console.error(e); }
   };
 
-  // ==========================================
-  // SALVATAGGIO CREAZIONE CATEGORIA
-  // ==========================================
   const handleCreateFullCategory = async () => {
     if (localAttributes.length === 0) return setError("Aggiungi almeno un attributo.");
     setIsSubmitting(true); 
@@ -138,13 +127,10 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     } catch (err: any) { 
       setError(err.message); 
     } finally { 
-      setIsSubmitting(false); // <-- FIX: Assicura che il bottone venga sempre sbloccato
+      setIsSubmitting(false); 
     }
   };
 
-  // ==========================================
-  // SALVATAGGIO IN MASSA DI TUTTE LE MODIFICHE
-  // ==========================================
   const handleSaveGeneralEdits = async () => {
     if (!currentCategory || !hasChanges) return;
     setIsSubmitting(true); setError(""); setSuccessMsg("");
@@ -192,7 +178,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       onRefresh(); 
       setSuccessMsg("Tutte le modifiche sono state salvate con successo!");
       
-      // Chiusura automatica dopo il successo
       setTimeout(() => {
         onClose();
         setIsSubmitting(false);
@@ -204,9 +189,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     }
   };
 
-  // ==========================================
-  // AZIONI IN STANDBY (Modifiche Locali)
-  // ==========================================
   const handleSaveAttribute = (attrData: CategoryAttribute) => {
     setError(""); setSuccessMsg("");
     if (localAttributes.some(a => a.name.toLowerCase() === attrData.name.toLowerCase() && (!editingAttr || editingAttr.name !== a.name))) {
@@ -225,13 +207,10 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
     setLocalAttributes(prev => prev.map(a => a.name === attrName ? { ...a, status: deprecate ? 'unavailable' : 'active' } : a));
   };
 
-  // ==========================================
-  // ELIMINAZIONE CATEGORIA E RISOLUZIONE CONFLITTO API
-  // ==========================================
   const handleDeleteCategory = async () => {
     if (!currentCategory) return;
     setIsSubmitting(true);
-    setDeleteCategoryAlert(false); // <--- SPOSTATO QUI: Chiude immediatamente il popup di conferma
+    setDeleteCategoryAlert(false); 
     
     try {
       const res = await fetch(`${baseUrl}/asset/api/categories/${currentCategory._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
@@ -273,7 +252,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
         <div className="w-full max-w-2xl flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700" style={{ height: '65vh', minHeight: '450px' }}>
           
-          {/* HEADER FISSO */}
           <div className="flex-none h-16 px-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white">
               {currentCategory ? `Gestione Categoria: ${currentCategory.name}` : "Nuova Categoria"}
@@ -283,7 +261,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             </button>
           </div>
 
-          {/* NAVIGAZIONE FISSA */}
           <div className="flex-none px-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex gap-6 pt-2">
             {!currentCategory ? (
               <>
@@ -298,7 +275,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
             )}
           </div>
 
-          {/* AREA SCROLLABILE (Contenuto Interno) */}
           <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-800">
             {error && (
               <div className="mb-5 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">
@@ -311,7 +287,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
               </div>
             )}
 
-            {/* TAB INFORMAZIONI */}
             {(!currentCategory && creationStep === 1) || (currentCategory && activeTab === 'general') ? (
               <div className="max-w-xl mx-auto space-y-5 mt-2">
                 <div className="flex gap-4">
@@ -330,14 +305,12 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                       {catIcon}
                     </button>
                     
+                    {/* NUOVO COMPONENTE CON RICERCA IN ITALIANO */}
                     {showEmojiPicker && (
                       <div className="absolute top-full mt-2 right-0 z-50 shadow-2xl">
-                        <Picker 
-                          i18n={i18n} 
-                          locale="it"
-                          theme="light"
-                          onEmojiSelect={(emoji: any) => {
-                            setCatIcon(emoji.native);
+                        <EmojiPicker 
+                          onEmojiClick={(emojiData) => {
+                            setCatIcon(emojiData.emoji);
                             setShowEmojiPicker(false);
                           }} 
                         />
@@ -352,7 +325,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
               </div>
             ) : null}
 
-            {/* TAB ATTRIBUTI */}
             {(!currentCategory && creationStep === 2) || (currentCategory && activeTab === 'attributes') ? (
               <div className="max-w-2xl mx-auto">
                 <div className="flex justify-between items-center mb-4">
@@ -387,7 +359,6 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase font-semibold">{attr.type}</span>
                               {attr.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 uppercase font-semibold">Obbligatorio</span>}
                               
-                              {/* BADGES ESPLICITI E DISTINTI */}
                               {isPendingDeletion && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300 font-bold ml-2">IN ELIMINAZIONE</span>}
                               {isEffectivelyDeprecated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-300 font-bold ml-2">DEPRECATO</span>}
                               {isPendingRestore && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold ml-2">IN RIPRISTINO</span>}

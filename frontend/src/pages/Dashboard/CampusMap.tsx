@@ -165,19 +165,29 @@ export default function CampusMap() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] w-full relative">
-      <div className="flex flex-row items-center justify-between mb-4">
-        <h2 className="font-semibold text-title-md2 text-black dark:text-white">Mappa del Campus</h2>
-        
-        {campuses.length > 0 && (
-          <select 
-            value={selectedCampus} 
-            onChange={(e) => { setSelectedCampus(e.target.value); setSelectedAsset(null); }} 
-            className="px-4 py-2 bg-white border rounded-lg shadow-sm border-stroke text-black dark:bg-boxdark dark:border-strokedark dark:text-white"
-          >
-            {campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
-          </select>
-        )}
-      </div>
+      
+      {campuses.length > 0 && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Filtro Campus
+              </label>
+              <select
+                value={selectedCampus}
+                onChange={(e) => { setSelectedCampus(e.target.value); setSelectedAsset(null); }}
+                className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+              >
+                {campuses.map(campus => (
+                  <option key={campus.id} value={campus.id}>
+                    {campus.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="relative flex-1 w-full overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
         <Map 
