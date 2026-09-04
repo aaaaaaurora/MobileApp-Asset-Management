@@ -273,10 +273,10 @@ const CreateAsset: React.FC = () => {
 
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
             Censimento Nuovo Asset
           </h2>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Registra un nuovo elemento sul territorio con l'ausilio dell'Intelligenza Artificiale.
           </p>
         </div>

@@ -245,7 +245,7 @@ export default function TicketSegnalazioni() {
                         Gestisci
                       </button>
                       ) : (
-                        <span className="text-xs font-semibold text-slate-400 italic">Risolto</span>
+                        <span className="text-xs font-semibold text-slate-400 italic">Problema risolto</span>
                       )}
                     </td>
                   </tr>

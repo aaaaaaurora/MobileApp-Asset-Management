@@ -263,10 +263,17 @@ export default function AssetList() {
 
   const activeCategory = selectedAsset ? categories.find(c => c._id === selectedAsset.category_id) : null;
   
-  // <-- MODIFICA QUI: Aggiunto attr.status !== 'unavailable' per nascondere i filtri deprecati
   const filterableAttributes = selectedCategory 
     ? categories.find(c => c._id === selectedCategory)?.attributes.filter(attr => attr.filterable && attr.status !== 'unavailable') || []
     : [];
+
+    const hasChanges = selectedAsset ? (
+      pendingUploads.length > 0 ||
+      pendingDeletes.length > 0 ||
+      formData.lat !== selectedAsset.geometry.coordinates[1] ||
+      formData.lng !== selectedAsset.geometry.coordinates[0] ||
+      JSON.stringify(formData.metadata) !== JSON.stringify(selectedAsset.metadata)
+    ) : false;
 
   return (
     <>
@@ -596,7 +603,7 @@ export default function AssetList() {
                     </button>
                     <button 
                       onClick={handleUpdate} 
-                      disabled={isProcessing} 
+                      disabled={isProcessing || !hasChanges} 
                       className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
                     >
                       Salva Modifiche
