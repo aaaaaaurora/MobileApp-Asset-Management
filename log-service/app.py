@@ -365,31 +365,52 @@ class LogService:
         filters = LogService._extract_filters(query_params)
         logs = AuditLogRepository.get_all_logs(filters)
 
-        # Definiamo uno schema fisso, pulito e leggibile per le colonne del CSV
         headers = [
             'Data e Ora', 
             'Servizio', 
             'Azione', 
-            'Utente (Email o ID)', 
+            'Utente', 
             'Oggetto Coinvolto', 
             'Dettagli Aggiuntivi'
         ]
 
+        # 1. DIZIONARI DI TRADUZIONE PER UN LINGUAGGIO NATURALE
+        action_map = {
+            'UPDATE_OPERATOR_PROFILE': 'Aggiornamento Profilo Operatore',
+            '2FA_SUCCESS_LOGIN': 'Accesso con 2FA',
+            'GOOGLE_LOGIN_SUCCESS': 'Accesso con Google',
+            'CATEGORY_DELETED': 'Eliminazione Categoria',
+            'CATEGORY_CREATED': 'Creazione Categoria',
+            'ASSET_CREATED': 'Creazione Asset',
+            'ASSET_UPDATED': 'Aggiornamento Asset',
+            'ASSET_DELETED': 'Eliminazione Asset'
+        }
+        
+        service_map = {
+            'auth-service': 'Autenticazione',
+            'asset-service': 'Gestione Asset',
+            'log-service': 'Audit Log',
+            'geozone-service': 'Gestione Mappe',
+            'media-service': 'Gestione Media',
+            'warning-service': 'Gestione Segnalazioni'
+        }
+
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=headers)
+        output.write('\ufeff')  # Aggiunge il BOM (Byte Order Mark) per la codifica nativa di Excel
+        writer = csv.DictWriter(output, fieldnames=headers, delimiter=';') # Forza il punto e virgola
         writer.writeheader()
 
         for log in logs:
             payload = log.payload if isinstance(log.payload, dict) else {}
             
-            # Formattazione Data
             data_ora = log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else 'Data Sconosciuta'
             
-            # Estrazione Identificativo Utente (Diamo priorità all'email se presente, altrimenti ID)
+            # Applichiamo le traduzioni (se non c'è traduzione, formatta il nome originale)
+            azione_pulita = action_map.get(log.action, log.action.replace('_', ' ').title())
+            servizio_pulito = service_map.get(log.service_name, log.service_name)
+            
             utente = payload.get('email') or str(log.actor_id) if log.actor_id else 'Sistema / Sconosciuto'
 
-            # Estrazione Intelligente dell'Oggetto Coinvolto
-            # Controlliamo in ordine di preferenza se abbiamo un nome leggibile, altrimenti usiamo l'ID
             oggetto = ''
             if payload.get('campus_name'):
                 oggetto += f"Campus: {payload.get('campus_name')} "
@@ -398,39 +419,39 @@ class LogService:
             if payload.get('asset_name'):
                 oggetto += f"Asset: {payload.get('asset_name')} "
             elif log.entity_id:
-                oggetto += f"Entity ID: {str(log.entity_id)}"
+                oggetto += f"ID: {str(log.entity_id)[:8]}..." # Mostra solo i primi 8 caratteri
             
-            oggetto = oggetto.strip() if oggetto else 'Operazione Generica'
+            oggetto = oggetto.strip() if oggetto else 'Operazione di Sistema'
 
-            # Costruzione Dettagli Aggiuntivi
-            # Filtriamo via dal payload le chiavi ridondanti che abbiamo già usato nelle colonne principali
+            # 2. NASCONDIAMO GLI UUID ILLEGGIBILI DAI DETTAGLI
             keys_to_ignore = {
                 'email', 'autore_id', 'actor_id', 'service_name', 'azione', 'action', 
                 'timestamp', 'correlation_id', 'entity_id', 'campus_name', 
-                'category_name', 'asset_name'
+                'category_name', 'asset_name',
+                'campus_id', 'category_id', 'media_id', 'asset_id'  # <--- Nascondiamo i codici lunghi!
             }
             
             dettagli_list = []
             for key, val in payload.items():
                 if key not in keys_to_ignore and val not in [None, '', [], {}]:
-                    # Formattiamo le liste o dizionari annidati per essere leggibili come stringa
-                    if isinstance(val, (dict, list)):
-                        clean_val = json.dumps(val, ensure_ascii=False)
+                    # Rendi dizionari/liste più discorsivi
+                    if isinstance(val, dict):
+                        clean_val = ", ".join([f"{k}: {v}" for k, v in val.items()])
+                    elif isinstance(val, list):
+                        clean_val = ", ".join(map(str, val))
                     else:
                         clean_val = str(val)
                     
-                    # Puliamo leggermente il nome della chiave (es. "updated_fields" -> "Updated Fields")
                     clean_key = key.replace('_', ' ').title()
                     dettagli_list.append(f"{clean_key}: {clean_val}")
 
-            dettagli_stringa = " | ".join(dettagli_list) if dettagli_list else "Nessun dettaglio aggiuntivo"
+            dettagli_stringa = " | ".join(dettagli_list) if dettagli_list else "-"
 
-            # Scrittura riga consolidata
             row = {
                 'Data e Ora': data_ora,
-                'Servizio': log.service_name,
-                'Azione': log.action,
-                'Utente (Email o ID)': utente,
+                'Servizio': servizio_pulito,
+                'Azione': azione_pulita,
+                'Utente': utente,
                 'Oggetto Coinvolto': oggetto,
                 'Dettagli Aggiuntivi': dettagli_stringa
             }
