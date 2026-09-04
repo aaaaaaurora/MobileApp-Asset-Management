@@ -3,7 +3,9 @@ import { Category, CategoryAttribute } from "../../pages/Admin/CategoriesManagem
 import { useAuth } from "../../context/AuthContext";
 import AttributeFormModal from "./AttributeFormModal";
 import ConfirmAlertModal from "./ConfirmAlertModal";
-import EmojiPicker from 'emoji-picker-react';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
+import i18n from '@emoji-mart/data/i18n/it.json'; 
 
 interface Props {
   isOpen: boolean;
@@ -305,12 +307,14 @@ export default function CategoryManagerModal({ isOpen, category, onClose, onRefr
                       {catIcon}
                     </button>
                     
-                    {/* NUOVO COMPONENTE CON RICERCA IN ITALIANO */}
                     {showEmojiPicker && (
                       <div className="absolute top-full mt-2 right-0 z-50 shadow-2xl">
-                        <EmojiPicker 
-                          onEmojiClick={(emojiData) => {
-                            setCatIcon(emojiData.emoji);
+                        <Picker 
+                          data={data}
+                          i18n={i18n}
+                          theme="light"
+                          onEmojiSelect={(emoji: any) => {
+                            setCatIcon(emoji.native);
                             setShowEmojiPicker(false);
                           }} 
                         />

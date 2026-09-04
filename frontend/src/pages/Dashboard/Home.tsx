@@ -136,16 +136,17 @@ export default function Home() {
             <AssetMetrics totals={metrics?.totals} />
           </div>
 
-          <div className="col-span-12 xl:col-span-8">
+          {/* Aggiunto [&>*]:h-full per forzare l'altezza massima del componente figlio */}
+          <div className="col-span-12 xl:col-span-8 [&>*]:h-full">
             <TimeSeriesChart timeSeries={charts?.time_series} />
           </div>
           
-          <div className="col-span-12 xl:col-span-4">
+          <div className="col-span-12 xl:col-span-4 [&>*]:h-full">
             <CategoryDistributionChart distributionData={metrics?.distributions?.by_category} />
           </div>
 
           {selectedCampus === "" && (
-            <div className="col-span-12">
+            <div className="col-span-12 [&>*]:h-full">
               <CampusDistributionChart distributionData={metrics?.distributions?.by_campus} />
             </div>
           )}
