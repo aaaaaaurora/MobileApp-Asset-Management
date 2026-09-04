@@ -271,12 +271,12 @@ const CreateAsset: React.FC = () => {
     <>
       <PageMeta title="Nuovo Asset | Asset Management UNISA" description='' />
 
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+          <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
             Censimento Nuovo Asset
           </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Registra un nuovo elemento sul territorio con l'ausilio dell'Intelligenza Artificiale.
           </p>
         </div>
@@ -285,39 +285,39 @@ const CreateAsset: React.FC = () => {
       <div className="mx-auto max-w-3xl">
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 overflow-hidden">
           
-          <div className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 py-4 px-6 flex justify-between items-center">
-            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Fase {step} di 3</h3>
+          <div className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 py-2.5 px-4 flex justify-between items-center">
+            <h3 className="font-bold text-base text-slate-800 dark:text-white">Fase {step} di 3</h3>
             <div className="flex gap-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className={`h-2.5 w-10 rounded-full transition-colors ${step >= i ? 'bg-blue-600 shadow-sm' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                <div key={i} className={`h-2 w-8 rounded-full transition-colors ${step >= i ? 'bg-blue-600 shadow-sm' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
               ))}
             </div>
           </div>
 
-          <div className="p-6 sm:p-8">
+          <div className="p-4 sm:p-5">
             {error && (
-              <div className="mb-6 rounded-lg border-l-4 border-rose-500 bg-rose-50 p-4 text-rose-800 shadow-sm dark:bg-rose-900/20 dark:text-rose-400">
-                <p className="font-semibold text-sm">{error}</p>
+              <div className="mb-4 rounded-lg border-l-4 border-rose-500 bg-rose-50 p-3 text-rose-800 shadow-sm dark:bg-rose-900/20 dark:text-rose-400">
+                <p className="font-semibold text-xs">{error}</p>
               </div>
             )}
 
             {/* STEP 1 */}
             {step === 1 && (
-              <div className="space-y-8">
+              <div className="space-y-5">
                 <div>
-                  <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                     1. Posizione GPS e Validazione
                   </label>
                   {location ? (
-                    <div className="w-full rounded-lg border border-emerald-500 bg-emerald-50 py-3.5 px-4 text-emerald-700 font-semibold shadow-sm flex items-center gap-2 dark:bg-emerald-900/20 dark:text-emerald-400">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <div className="w-full rounded-lg border border-emerald-500 bg-emerald-50 py-2 px-3 text-emerald-700 text-sm font-semibold shadow-sm flex items-center gap-2 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                       Coordinate acquisite: {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                     </div>
                   ) : (
                     <button 
                       onClick={captureLocation}
                       disabled={!!loading}
-                      className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-3.5 text-sm font-bold text-white transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-2 text-sm font-bold text-white transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                       {loading === 'Acquisizione e validazione GPS...' ? (
                         <span className="flex items-center gap-2">
@@ -330,16 +330,16 @@ const CreateAsset: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                     2. Foto dell'Asset
                   </label>
                   <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handlePhotoCapture} className="hidden" />
                   
                   {photoPreview ? (
-                    <div className="mt-2 relative group">
-                      <img src={photoPreview} alt="Anteprima" className="w-full h-56 object-cover rounded-lg border border-slate-200 shadow-sm dark:border-slate-700" />
+                    <div className="mt-1 relative group">
+                      <img src={photoPreview} alt="Anteprima" className="w-full h-36 object-cover rounded-lg border border-slate-200 shadow-sm dark:border-slate-700" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                        <button onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-100 transition-colors">
+                        <button onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-100 transition-colors">
                           Scatta un'altra foto
                         </button>
                       </div>
@@ -347,22 +347,22 @@ const CreateAsset: React.FC = () => {
                   ) : (
                     <button 
                       onClick={() => fileInputRef.current?.click()} 
-                      className="flex flex-col w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+                      className="flex flex-col w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
                     >
-                      <svg className="h-10 w-10 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="h-8 w-8 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Apri Fotocamera</span>
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Apri Fotocamera</span>
                     </button>
                   )}
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
                   <button 
                     disabled={!location || !photoFile} 
                     onClick={() => setStep(2)} 
-                    className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Avanti
                   </button>
@@ -372,9 +372,9 @@ const CreateAsset: React.FC = () => {
 
             {/* STEP 2 */}
             {step === 2 && (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-300">Seleziona Categoria Strutturale</label>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">Seleziona Categoria Strutturale</label>
                   <select 
                     value={selectedCategory}
                     onChange={(e) => {
@@ -382,7 +382,7 @@ const CreateAsset: React.FC = () => {
                       setSelectedCategory(catId);
                       setSelectedCategoryObj(categories.find(c => c._id === catId) || null);
                     }}
-                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                    className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                   >
                     <option value="" disabled>Seleziona una categoria...</option>
                     {categories.map((cat) => (
@@ -391,17 +391,17 @@ const CreateAsset: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row gap-3 pt-6 border-t border-slate-100 dark:border-slate-700 mt-6">
+                <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4 border-t border-slate-100 dark:border-slate-700 mt-4">
                   <button 
                     onClick={() => setStep(1)} 
-                    className="w-full sm:w-1/3 rounded-lg px-4 py-3 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
+                    className="w-full sm:w-1/3 rounded-lg px-3 py-2 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
                   >
                     Indietro
                   </button>
                   <button 
                     onClick={triggerAIAnalysis} 
                     disabled={!!loading || !selectedCategory} 
-                    className="flex w-full sm:w-2/3 justify-center items-center rounded-lg bg-blue-600 p-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex w-full sm:w-2/3 justify-center items-center rounded-lg bg-blue-600 p-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <span className="flex items-center gap-2">
@@ -416,35 +416,35 @@ const CreateAsset: React.FC = () => {
 
             {/* STEP 3 */}
             {step === 3 && (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 
                 {aiSuggestions && (
-                  <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4 shadow-sm dark:bg-blue-900/20 dark:border-blue-400">
-                    <h5 className="font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2 text-sm uppercase tracking-wide">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-3 shadow-sm dark:bg-blue-900/20 dark:border-blue-400">
+                    <h5 className="font-bold text-blue-700 dark:text-blue-400 mb-1 flex items-center gap-1.5 text-xs uppercase tracking-wide">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                       Analisi Cloud Vision
                     </h5>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 mb-1">
+                    <p className="text-xs text-slate-700 dark:text-slate-300 mb-0.5">
                       <strong className="font-semibold text-slate-900 dark:text-white">Rilevamento primario:</strong> {aiSuggestions.suggested_title} 
-                      <span className="text-xs text-slate-500 ml-2 font-medium">(Affidabilità: {(aiSuggestions.confidence_score * 100).toFixed(0)}%)</span>
+                      <span className="text-[10px] text-slate-500 ml-1.5 font-medium">(Affidabilità: {(aiSuggestions.confidence_score * 100).toFixed(0)}%)</span>
                     </p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                    <p className="text-xs text-slate-700 dark:text-slate-300">
                       <strong className="font-semibold text-slate-900 dark:text-white">Tag estratti:</strong> {aiSuggestions.tags.join(', ')}
                     </p>
                   </div>
                 )}
 
-                <div className="mb-4">
-                  <h4 className="text-lg font-bold text-slate-800 dark:text-white">Revisione Dati</h4>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                <div className="mb-2">
+                  <h4 className="text-base font-bold text-slate-800 dark:text-white">Revisione Dati</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Compila i metadati per la categoria <span className="font-bold text-slate-700 dark:text-slate-300">"{selectedCategoryObj?.name}"</span>.
                   </p>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {selectedCategoryObj?.attributes.map((attr) => (
                     <div key={attr.name}>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                      <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize">
                         {attr.name.replace('_', ' ')} {attr.required && <span className="text-rose-500">*</span>}
                       </label>
                       
@@ -452,7 +452,7 @@ const CreateAsset: React.FC = () => {
                         <select 
                           value={metadata[attr.name] || ''} 
                           onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                         >
                           <option value="">Seleziona...</option>
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -462,32 +462,32 @@ const CreateAsset: React.FC = () => {
                           type={attr.type === 'number' ? 'number' : 'text'}
                           value={metadata[attr.name] || ''}
                           onChange={(e) => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
                         />
                       )}
                     </div>
                   ))}
                 </div>
 
-                <div className="flex flex-col sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-6 mt-6 gap-4">
+                <div className="flex flex-col sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-4 mt-4 gap-3">
                   <button 
                     onClick={handleCancelProcess} 
-                    className="w-full sm:w-auto rounded-lg border border-rose-600 text-rose-600 px-5 py-2.5 text-sm font-bold hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                    className="w-full sm:w-auto rounded-lg border border-rose-600 text-rose-600 px-4 py-2 text-sm font-bold hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                   >
                     Annulla Censimento
                   </button>
                   
-                  <div className="flex w-full sm:w-auto gap-3">
+                  <div className="flex w-full sm:w-auto gap-2">
                     <button 
                       onClick={() => setStep(2)} 
-                      className="flex-1 sm:flex-none rounded-lg px-5 py-2.5 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
+                      className="flex-1 sm:flex-none rounded-lg px-4 py-2 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
                     >
                       Indietro
                     </button>
                     <button 
                       onClick={submitAsset} 
                       disabled={!!loading} 
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loading ? 'Salvataggio...' : 'Conferma e Salva'}
                     </button>

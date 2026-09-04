@@ -63,8 +63,8 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
                             const cName = rawCampus ? rawCampus.name : `Campus (${id.substring(0, 5)}...)`;
                             
                             return (
-                              <span key={id} title={cName} className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200 shadow-sm max-w-full">
-                                <span className="truncate max-w-[150px] sm:max-w-[250px]">{cName}</span>
+                              <span key={id} className="inline-flex items-center text-center whitespace-normal break-words rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200 shadow-sm">
+                                {cName}
                               </span>
                             );
                           })}

@@ -7,7 +7,6 @@ import AssetMetrics from "../../components/dashboard/AssetMetrics";
 import CategoryDistributionChart from "../../components/dashboard/CategoryDistributionChart";
 import TimeSeriesChart from "../../components/dashboard/TimeSeriesChart";
 import CampusDistributionChart from "../../components/dashboard/CampusDistributionChart";
-import DynamicAttributeChart from "../../components/dashboard/DynamicAttributeChart";
 
 const getGreeting = (name?: string) => {
   if (!name) return 'Benvenuta'; 
@@ -33,7 +32,6 @@ export default function Home() {
   const { token, user } = useAuth();
   
   const [selectedCampus, setSelectedCampus] = useState<string>(""); 
-  const [dynamicAttr, setDynamicAttr] = useState<string>("stato_salute"); 
   
   const [availableCampuses, setAvailableCampuses] = useState<Campus[]>([]);
   const [metrics, setMetrics] = useState<any>(null);
@@ -70,12 +68,9 @@ export default function Home() {
         const baseParams = new URLSearchParams();
         if (selectedCampus) baseParams.append('campus_id', selectedCampus);
 
-        const chartParams = new URLSearchParams(baseParams.toString());
-        chartParams.append('dynamic_attribute', dynamicAttr);
-
         const [metricsRes, chartsRes] = await Promise.all([
           fetch(`${baseUrl}/log/api/dashboard/metrics?${baseParams.toString()}`, { headers }),
-          fetch(`${baseUrl}/log/api/dashboard/charts?${chartParams.toString()}`, { headers })
+          fetch(`${baseUrl}/log/api/dashboard/charts?${baseParams.toString()}`, { headers })
         ]);
 
         if (metricsRes.ok) setMetrics(await metricsRes.json());
@@ -88,7 +83,7 @@ export default function Home() {
     };
 
     fetchDashboardData();
-  }, [token, selectedCampus, dynamicAttr]);
+  }, [token, selectedCampus]);
 
   return (
     <>
@@ -144,23 +139,16 @@ export default function Home() {
           <div className="col-span-12 xl:col-span-8">
             <TimeSeriesChart timeSeries={charts?.time_series} />
           </div>
+          
           <div className="col-span-12 xl:col-span-4">
             <CategoryDistributionChart distributionData={metrics?.distributions?.by_category} />
           </div>
 
           {selectedCampus === "" && (
-            <div className="col-span-12 xl:col-span-6">
+            <div className="col-span-12">
               <CampusDistributionChart distributionData={metrics?.distributions?.by_campus} />
             </div>
           )}
-          
-          <div className={`col-span-12 ${selectedCampus === "" ? 'xl:col-span-6' : 'xl:col-span-12'}`}>
-            <DynamicAttributeChart 
-              attributeName={dynamicAttr} 
-              onAttributeChange={setDynamicAttr}
-              distributionData={charts?.dynamic_distribution?.data} 
-            />
-          </div>
 
         </div>
       )}
