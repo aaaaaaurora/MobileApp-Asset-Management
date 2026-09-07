@@ -901,23 +901,23 @@ def get_assets():
     # Inizializzazione della query vuota per MongoDB
     mongo_query = {}
 
-    # 1. Filtro di Sicurezza Territoriale (US 5-3, US 5-4)
-    if user_role == 'OPERATORE':
-        # Un operatore vede SOLO ed ESCLUSIVAMENTE gli asset dei suoi campus autorizzati
+    # 1. Filtro di Sicurezza Territoriale (Applicato ora anche agli Amministratori)
+    if user_role in ['OPERATORE', 'AMMINISTRATORE']:
         if not user_campuses:
-            # Se un operatore non ha campus assegnati, la query restituirebbe tutto. 
-            # Dobbiamo bloccare restituendo array vuoto.
             return jsonify({"assets": [], "pagination": {}}), 200 
             
-        mongo_query['campus_id'] = {'$in': user_campuses}
-        
-    elif user_role == 'AMMINISTRATORE':
-        # Un amministratore vede tutto di default, ma può filtrare volontariamente per campus
         requested_campus = request.args.get('campus_id')
         if requested_campus:
-            mongo_query['campus_id'] = requested_campus
+            # Verifica che il campus richiesto sia tra quelli di pertinenza
+            if requested_campus in user_campuses:
+                mongo_query['campus_id'] = requested_campus
+            else:
+                return jsonify({"assets": [], "pagination": {}}), 200
+        else:
+            # Forza la query a restituire solo gli asset dei propri campus
+            mongo_query['campus_id'] = {'$in': user_campuses}
 
-    # 2. Filtro per Categoria Strutturale (US 5-2)
+    # 2. Filtro per Categoria Strutturale
     category_id = request.args.get('category_id')
     if category_id:
         if not ObjectId.is_valid(category_id):

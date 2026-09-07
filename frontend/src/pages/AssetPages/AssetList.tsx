@@ -109,7 +109,15 @@ export default function AssetList() {
       const campRes = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/campuses`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (campRes.ok) setCampuses(await campRes.json());
+      
+      if (campRes.ok) {
+        const allCampuses = await campRes.json();
+        // Filtra la select in modo che Admin e Operatori vedano solo i campus a loro assegnati
+        const userAllowedCampuses = allCampuses.filter((c: Campus) => 
+          user?.campus_ids?.includes(c.id)
+        );
+        setCampuses(userAllowedCampuses);
+      }
 
     } catch (error) {
       console.error("Errore nel recupero dati statici:", error);
