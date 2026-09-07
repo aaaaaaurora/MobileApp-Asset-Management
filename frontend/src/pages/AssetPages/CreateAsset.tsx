@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useAuth } from '../../context/AuthContext'; 
 
@@ -36,6 +37,8 @@ const CreateAsset: React.FC = () => {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [metadata, setMetadata] = useState<Record<string, any>>({});
+
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -140,28 +143,29 @@ const CreateAsset: React.FC = () => {
     }
   };
 
-  const handleCancelProcess = async () => {
-    if (window.confirm("Sei sicuro di voler annullare? Tutti i dati non salvati andranno persi.")) {
-      if (mediaId) {
-        try {
-          await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-        } catch (e) { console.error("Errore pulizia file:", e); }
-      }
-      
-      setStep(1);
-      setLocation(null);
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      setMediaId(null);
-      setAiSuggestions(null);
-      setMetadata({});
-      setSelectedCategory('');
-      setSelectedCategoryObj(null);
-      setMatchedCampusId(null);
+  // MODIFICATO: Rimosso il window.confirm. Esegue direttamente l'annullamento quando chiamato dal modale.
+  const executeCancelProcess = async () => {
+    setIsCancelModalOpen(false); // Chiude il modale
+    
+    if (mediaId) {
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (e) { console.error("Errore pulizia file:", e); }
     }
+    
+    setStep(1);
+    setLocation(null);
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setMediaId(null);
+    setAiSuggestions(null);
+    setMetadata({});
+    setSelectedCategory('');
+    setSelectedCategoryObj(null);
+    setMatchedCampusId(null);
   };
 
   const triggerAIAnalysis = async () => {
@@ -471,7 +475,7 @@ const CreateAsset: React.FC = () => {
 
                 <div className="flex flex-col sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-4 mt-4 gap-3">
                   <button 
-                    onClick={handleCancelProcess} 
+                    onClick={() => setIsCancelModalOpen(true)} 
                     className="w-full sm:w-auto rounded-lg border border-rose-600 text-rose-600 px-4 py-2 text-sm font-bold hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                   >
                     Annulla Censimento
@@ -498,6 +502,38 @@ const CreateAsset: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MODALE DI CONFERMA ANNULLAMENTO */}
+      {isCancelModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 text-center">
+              <svg className="mx-auto mb-4 w-12 h-12 text-rose-600 dark:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <h3 className="mb-2 text-lg font-bold text-slate-800 dark:text-white">Annullare l'operazione?</h3>
+              <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+                Sei sicuro di voler annullare? Tutti i dati inseriti e le foto acquisite andranno persi in modo irreversibile.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <button 
+                  onClick={() => setIsCancelModalOpen(false)} 
+                  className="rounded-lg px-4 py-2 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
+                >
+                  No, continua
+                </button>
+                <button 
+                  onClick={executeCancelProcess} 
+                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-rose-700 focus:ring-2 focus:ring-rose-500 focus:ring-offset-2"
+                >
+                  Sì, annulla tutto
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };
