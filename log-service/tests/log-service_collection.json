@@ -373,8 +373,8 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "X-User-Role",
-								"value": "AMMINISTRATORE"
+								"key": "X-Campus-Ids",
+								"value": "campus-uuid-123"
 							}
 						],
 						"url": {
@@ -415,8 +415,8 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "X-User-Role",
-								"value": "AMMINISTRATORE"
+								"key": "X-Campus-Ids",
+								"value": "campus-uuid-123"
 							}
 						],
 						"url": {

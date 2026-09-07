@@ -461,16 +461,34 @@ class LogService:
 
     @staticmethod
     def get_dashboard_stats(auth_context: dict, query_params: dict) -> dict:
-        if auth_context.get('role') != 'AMMINISTRATORE':
+        user_role = auth_context.get('role')
+        user_campuses = auth_context.get('campus_ids', [])
+
+        if user_role != 'AMMINISTRATORE':
             raise PermissionError("Accesso negato. Solo gli Amministratori possono visualizzare la dashboard.")
-            
+
+        if not user_campuses:
+            return {
+                "totals": {"assets": 0, "interventions": 0, "tickets": 0},
+                "distributions": {"by_campus": {}, "by_category": {}}
+            }
+
         filters = {
             'start_date': query_params.get('start_date'),
             'end_date': query_params.get('end_date')
         }
+
         requested_campus = query_params.get('campus_id')
         if requested_campus:
-            filters['campus_ids'] = [requested_campus]
+            if requested_campus in user_campuses:
+                filters['campus_ids'] = [requested_campus]
+            else:
+                return {
+                    "totals": {"assets": 0, "interventions": 0, "tickets": 0},
+                    "distributions": {"by_campus": {}, "by_category": {}}
+                }
+        else:
+            filters['campus_ids'] = user_campuses
             
         return AuditLogRepository.get_dashboard_metrics(filters)
 

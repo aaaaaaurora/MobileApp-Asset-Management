@@ -119,7 +119,8 @@ def test_get_logs_unauthorized(client, sample_log):
     """Verifica che un utente non amministratore riceva 403 Forbidden."""
     response = client.get('/api/logs', headers={
         "X-User-Role": "OPERATORE",
-        "X-User-Id": "user-123"
+        "X-User-Id": "user-123",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 403
 
@@ -128,7 +129,8 @@ def test_get_logs_success(client, sample_log):
     """Verifica la consultazione dello storico con successo per l'Amministratore."""
     response = client.get('/api/logs?limit=10&page=1', headers={
         "X-User-Role": "AMMINISTRATORE",
-        "X-User-Id": "admin-123"
+        "X-User-Id": "admin-123",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 200
     data = response.get_json()
@@ -141,14 +143,16 @@ def test_get_logs_with_filters(client, sample_log):
     """Verifica i filtri per service_name e campus_id (JSONB)."""
     # Filtro corretto
     response = client.get('/api/logs?service_name=asset-service&campus_id=campus-uuid-123', headers={
-        "X-User-Role": "AMMINISTRATORE"
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 200
     assert response.get_json()["total_items"] == 1
 
-    # Filtro con campus inesistente
+    # Filtro con campus inesistente o non autorizzato
     response_empty = client.get('/api/logs?campus_id=campus-inesistente', headers={
-        "X-User-Role": "AMMINISTRATORE"
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response_empty.status_code == 200
     assert response_empty.get_json()["total_items"] == 0
@@ -161,7 +165,8 @@ def test_get_logs_with_filters(client, sample_log):
 def test_get_log_detail_success(client, sample_log):
     """Verifica il recupero del dettaglio di un singolo log tramite UUID."""
     response = client.get(f'/api/logs/{sample_log.id}', headers={
-        "X-User-Role": "AMMINISTRATORE"
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 200
     data = response.get_json()
@@ -173,7 +178,8 @@ def test_get_log_detail_not_found(client):
     """Verifica che un UUID inesistente restituisca 404 Not Found."""
     fake_uuid = "00000000-0000-0000-0000-000000000000"
     response = client.get(f'/api/logs/{fake_uuid}', headers={
-        "X-User-Role": "AMMINISTRATORE"
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 404
 
@@ -183,23 +189,25 @@ def test_get_log_detail_not_found(client):
 # ============================================================================
 
 def test_export_logs_csv(client, sample_log):
-        """Verifica l'esportazione dinamica in formato CSV."""
-        response = client.get('/api/logs/export', headers={
-            "X-User-Role": "AMMINISTRATORE"
-        })
-        assert response.status_code == 200
-        assert response.headers["Content-Type"] == "text/csv; charset=utf-8"
-        assert "attachment" in response.headers["Content-Disposition"]
-        
-        csv_content = response.data.decode('utf-8')
-        
-        # Verifica intestazioni base
-        assert "Servizio" in csv_content
-        assert "Azione" in csv_content
-        assert "Utente" in csv_content
-        
-        # Verifica che il log di test non generi errori fatali
-        assert len(csv_content.splitlines()) > 1
+    """Verifica l'esportazione dinamica in formato CSV."""
+    response = client.get('/api/logs/export', headers={
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
+    })
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "text/csv; charset=utf-8"
+    assert "attachment" in response.headers["Content-Disposition"]
+    
+    csv_content = response.data.decode('utf-8')
+    
+    # Verifica intestazioni base
+    assert "Servizio" in csv_content
+    assert "Azione" in csv_content
+    assert "Utente" in csv_content
+    
+    # Verifica che il log di test non generi errori fatali
+    assert len(csv_content.splitlines()) > 1
+
 
 # ============================================================================
 # 6. TEST DASHBOARD METRICHE E GRAFICI (US 7-3 / UC-AMM-07)
@@ -208,7 +216,8 @@ def test_export_logs_csv(client, sample_log):
 def test_dashboard_metrics(client, sample_log):
     """Verifica il calcolo delle metriche KPI e distribuzioni."""
     response = client.get('/api/dashboard/metrics', headers={
-        "X-User-Role": "AMMINISTRATORE"
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 200
     data = response.get_json()
@@ -223,7 +232,8 @@ def test_dashboard_metrics(client, sample_log):
 def test_dashboard_charts(client, sample_log):
     """Verifica la generazione dei dati per i grafici (Time-Series e attributi custom)."""
     response = client.get('/api/dashboard/charts?dynamic_attribute=status', headers={
-        "X-User-Role": "AMMINISTRATORE"
+        "X-User-Role": "AMMINISTRATORE",
+        "X-Campus-Ids": "campus-uuid-123"
     })
     assert response.status_code == 200
     data = response.get_json()
