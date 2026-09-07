@@ -19,22 +19,15 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
-  // Aggiunto stato per le categorie
   const [categories, setCategories] = useState<any[]>([]);
-  
-  // Stato UNICO per limitare fisicamente mappa e zoom out
   const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
-  
-  // Stato per la posizione dell'utente
   const [userLocation, setUserLocation] = useState<{longitude: number, latitude: number} | null>(null);
 
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   
-  // Stato per l'apertura del modale di segnalazione
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
-  // 1. Geolocalizzazione Utente e Fallback Permessi
   useEffect(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -45,7 +38,6 @@ export default function CampusMap() {
         },
         (error) => {
           console.warn("Geolocalizzazione negata o fallita. Uso coordinate di default.", error);
-          // Fallback di Default
           const defaultCoords = { longitude: 14.7900, latitude: 40.7700 };
           setViewState(prev => ({ ...prev, ...defaultCoords }));
         }
@@ -53,7 +45,6 @@ export default function CampusMap() {
     }
   }, []);
 
-  // 2. Fetch Campus e Fetch Categorie
   useEffect(() => {
     if (user) {
       const fetchCampuses = async () => {
@@ -89,7 +80,6 @@ export default function CampusMap() {
     }
   }, [user, token, focusCampusId]);
 
-  // 3. Fetch Asset Dinamico
   useEffect(() => {
     const fetchAssets = async () => {
       try {
@@ -108,7 +98,6 @@ export default function CampusMap() {
     if (selectedCampus) fetchAssets();
   }, [selectedCampus, token]);
 
-  // 3.5. Focus automatico su Asset da Ticket
   useEffect(() => {
       if (focusAssetId && assets.length > 0) {
         const assetToFocus = assets.find(a => a._id === focusAssetId);
@@ -119,7 +108,6 @@ export default function CampusMap() {
       }
     }, [focusAssetId, assets, navigate, location.pathname]);
 
-  // 4. INQUADRATURA MAPPA E RECINZIONE FLUIDA
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
@@ -143,7 +131,6 @@ export default function CampusMap() {
         const lngBuffer = (maxLng - minLng) * 0.10;
         const latBuffer = (maxLat - minLat) * 0.10;
         
-        // Limiti nativi di MapLibre ([ovest, sud, est, nord])
         const bounds: [number, number, number, number] = [
           minLng - lngBuffer, 
           minLat - latBuffer, 
@@ -161,7 +148,6 @@ export default function CampusMap() {
     }
   }, [selectedCampus, campuses]);
 
-  // 1. Crea un "Dizionario" { id_categoria: icona }
   const categoryIconMap = useMemo(() => {
     const dict: Record<string, string> = {};
     categories.forEach(c => {
@@ -170,12 +156,10 @@ export default function CampusMap() {
     return dict;
   }, [categories]);
 
-  // 2. Lettura istantanea
   const getAssetIcon = (asset: any) => {
     return categoryIconMap[asset.category_id] || '📍';
   };
 
-  // 3. Memorizziamo il perimetro del campus
   const activeCampusData = useMemo(() => {
     const campus = campuses.find(c => c.id === selectedCampus);
     return campus?.geometry 
@@ -217,7 +201,7 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          maxBounds={maxBounds} // <- Questo attiva la "recinzione" fluida
+          maxBounds={maxBounds} 
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -242,7 +226,6 @@ export default function CampusMap() {
             </Marker>
           ))}
 
-          {/* Posizione Utente Attuale (Pallino Blu) */}
           {userLocation && (
             <Marker longitude={userLocation.longitude} latitude={userLocation.latitude}>
               <div className="relative flex h-5 w-5 items-center justify-center">
@@ -253,7 +236,6 @@ export default function CampusMap() {
           )}
         </Map>
         
-        {/* FAB (Floating Action Button) per aggiunta rapida Asset */}
         {user?.role === 'OPERATORE' && (
           <button
             onClick={() => navigate('/assets/new')}
@@ -265,16 +247,29 @@ export default function CampusMap() {
         )}
       </div>
 
-      {/* MODALE GLOBALE CON REACT PORTAL */}
       {selectedAsset && createPortal(
         <>
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="relative flex flex-col w-full max-w-md max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden">
               
+              {/* MODIFICATO: Intestazione con pulsante di modifica per operatore */}
               <div className="flex justify-between items-center p-5 border-b border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
-                <h3 className="font-bold text-xl text-black dark:text-white">
-                  Dettagli Asset
-                </h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="font-bold text-xl text-black dark:text-white">
+                    Dettagli Asset
+                  </h3>
+                  {user?.role === 'OPERATORE' && user?.campus_ids?.includes(selectedAsset.campus_id) && (
+                    <button 
+                      onClick={() => navigate('/assets', { state: { editAssetId: selectedAsset._id, editCampusId: selectedAsset.campus_id } })}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                      title="Modifica Asset"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <button 
                   onClick={() => setSelectedAsset(null)} 
                   className="text-gray-500 hover:text-black dark:hover:text-white text-xl font-bold bg-gray-100 dark:bg-meta-4 rounded-full w-8 h-8 flex items-center justify-center transition"
@@ -291,7 +286,7 @@ export default function CampusMap() {
                       <img
                         key={mediaId}
                         src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
-                        alt="Errore di rete con MinIO (Vedi Console)"
+                        alt="Immagine Asset"
                         className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
                       />
                     ))}

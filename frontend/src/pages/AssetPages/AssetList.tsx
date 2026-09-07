@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 interface CategoryAttribute {
@@ -8,7 +9,7 @@ interface CategoryAttribute {
   required: boolean;
   filterable: boolean;
   options?: string[];
-  status: string; // <-- AGGIUNTO: Necessario per filtrare gli attributi deprecati
+  status: string; 
 }
 
 interface Category {
@@ -35,6 +36,8 @@ interface Asset {
 
 export default function AssetList() {
   const { token, user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -48,6 +51,10 @@ export default function AssetList() {
 
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
+  
+  // NUOVO STATO: Nota Intervento
+  const [preventiveNote, setPreventiveNote] = useState('');
+  
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
@@ -72,6 +79,25 @@ export default function AssetList() {
   useEffect(() => {
     fetchAssets();
   }, [token, selectedCampus, selectedCategory, dynamicFilters]);
+
+  // Gestione rotta/autofocus proveniente dalla mappa
+  useEffect(() => {
+    if (location.state?.editCampusId && location.state?.editCampusId !== selectedCampus) {
+      setSelectedCampus(location.state.editCampusId);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    const editAssetId = location.state?.editAssetId;
+    if (editAssetId && assets.length > 0) {
+      const assetToEdit = assets.find(a => a._id === editAssetId);
+      if (assetToEdit) {
+        openEditModal(assetToEdit);
+        // Pulizia cronologia locale per impedire che il modale si riapra cambiando pagina
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [assets, location.state, navigate, location.pathname]);
 
   const fetchStaticData = async () => {
     try {
@@ -146,6 +172,7 @@ export default function AssetList() {
     });
     setPendingDeletes([]);
     setPendingUploads([]);
+    setPreventiveNote('');
   };
 
   const handleMetadataChange = (key: string, value: any) => {
@@ -175,6 +202,7 @@ export default function AssetList() {
     setPendingUploads([]);
     setPendingDeletes([]);
     setShowDeleteConfirm(false); 
+    setPreventiveNote('');
   };
 
   const handleUpdate = async () => {
@@ -182,53 +210,73 @@ export default function AssetList() {
     setIsProcessing(true);
 
     try {
-      if (pendingDeletes.length > 0) {
-        await Promise.all(pendingDeletes.map(mediaId => 
-          fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
+      // 1. Invio della nota di intervento preventiva 
+      if (preventiveNote.trim()) {
+        const noteRes = await fetch(`${import.meta.env.VITE_API_URL}/warning/maintenances`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            asset_id: selectedAsset._id,
+            tipo_intervento: 'preventiva',
+            nota_intervento: preventiveNote.trim()
           })
-        ));
+        });
+        if (!noteRes.ok) throw new Error("Errore durante la registrazione della nota di intervento.");
       }
 
-      const newUploadedIds: string[] = [];
-      for (const item of pendingUploads) {
-        const uploadPayload = new FormData();
-        uploadPayload.append('images', item.file);
+      // 2. Modifica degli attributi dell'asset (solo se ci sono stati dei cambiamenti reali)
+      if (hasChanges) {
+        if (pendingDeletes.length > 0) {
+          await Promise.all(pendingDeletes.map(mediaId => 
+            fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+          ));
+        }
 
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: uploadPayload
+        const newUploadedIds: string[] = [];
+        for (const item of pendingUploads) {
+          const uploadPayload = new FormData();
+          uploadPayload.append('images', item.file);
+
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: uploadPayload
+          });
+
+          if (!res.ok) throw new Error("Errore durante l'upload delle nuove immagini");
+          const data = await res.json();
+          newUploadedIds.push(data.uploaded[0].media_id);
+        }
+
+        const finalMediaIds = [...formData.media_ids, ...newUploadedIds];
+        const payload = {
+          geometry: { type: 'Point', coordinates: [formData.lng, formData.lat] },
+          metadata: formData.metadata,
+          media_ids: finalMediaIds 
+        };
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets/${selectedAsset._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error("Errore durante l'upload delle nuove immagini");
-        const data = await res.json();
-        newUploadedIds.push(data.uploaded[0].media_id);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Errore durante l'aggiornamento dell'asset");
+        }
       }
 
-      const finalMediaIds = [...formData.media_ids, ...newUploadedIds];
-      const payload = {
-        geometry: { type: 'Point', coordinates: [formData.lng, formData.lat] },
-        metadata: formData.metadata,
-        media_ids: finalMediaIds 
-      };
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets/${selectedAsset._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Errore durante l'aggiornamento dell'asset");
-      }
-
-      showNotification('success', "Asset aggiornato con successo!");
+      showNotification('success', "Aggiornamento completato con successo!");
       closeModal();
       fetchAssets(); 
     } catch (error: any) {
@@ -267,13 +315,13 @@ export default function AssetList() {
     ? categories.find(c => c._id === selectedCategory)?.attributes.filter(attr => attr.filterable && attr.status !== 'unavailable') || []
     : [];
 
-    const hasChanges = selectedAsset ? (
-      pendingUploads.length > 0 ||
-      pendingDeletes.length > 0 ||
-      formData.lat !== selectedAsset.geometry.coordinates[1] ||
-      formData.lng !== selectedAsset.geometry.coordinates[0] ||
-      JSON.stringify(formData.metadata) !== JSON.stringify(selectedAsset.metadata)
-    ) : false;
+  const hasChanges = selectedAsset ? (
+    pendingUploads.length > 0 ||
+    pendingDeletes.length > 0 ||
+    formData.lat !== selectedAsset.geometry.coordinates[1] ||
+    formData.lng !== selectedAsset.geometry.coordinates[0] ||
+    JSON.stringify(formData.metadata) !== JSON.stringify(selectedAsset.metadata)
+  ) : false;
 
   return (
     <>
@@ -502,7 +550,7 @@ export default function AssetList() {
               </div>
             </div>
 
-            <div className="mb-8">
+            <div className="mb-4">
               <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Metadati Categoria</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {activeCategory ? (
@@ -557,6 +605,25 @@ export default function AssetList() {
               </div>
             </div>
 
+            {/* MODIFICATO: Modulo aggiuntivo note per l'operatore */}
+            {!isAdmin && (
+              <div className="mb-6 border-t border-slate-100 dark:border-slate-700 pt-5 mt-4">
+                <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-2">
+                  Nota di Intervento Preventivo <span className="text-rose-500">*</span>
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                  La nota è obbligatoria per giustificare eventuali modifiche agli attributi o per registrare un controllo periodico effettuato all'asset.
+                </p>
+                <textarea 
+                  rows={3} 
+                  value={preventiveNote} 
+                  onChange={(e) => setPreventiveNote(e.target.value)} 
+                  placeholder="Descrivi l'intervento preventivo effettuato o il motivo della modifica all'asset..."
+                  className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800" 
+                />
+              </div>
+            )}
+
             <div className="flex flex-col-reverse sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-5 mt-2 gap-4">
               {isAdmin ? (
                 <>
@@ -601,12 +668,13 @@ export default function AssetList() {
                     >
                       Annulla
                     </button>
+                    {/* MODIFICATO: Salvataggio abilitato solo se la nota è inserita */}
                     <button 
                       onClick={handleUpdate} 
-                      disabled={isProcessing || !hasChanges} 
+                      disabled={isProcessing || !preventiveNote.trim()} 
                       className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
                     >
-                      Salva Modifiche
+                      {isProcessing ? 'Salvataggio...' : 'Salva Modifiche'}
                     </button>
                   </div>
                 </>
@@ -616,8 +684,6 @@ export default function AssetList() {
         </div>, document.body
       )}
 
-
-      {/* MODALE DI CONFERMA ELIMINAZIONE */}
       {showDeleteConfirm && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
@@ -656,7 +722,6 @@ export default function AssetList() {
         </div>, document.body
       )}
 
-      {/* MODALE DI NOTIFICA (TOAST) */}
       {notification && createPortal(
         <div className="fixed top-5 right-5 z-[10001] animate-fade-in-up">
           <div className={`flex items-center gap-3 rounded-lg px-5 py-3 shadow-xl text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>

@@ -40,6 +40,9 @@ export default function TicketSegnalazioni() {
   const [notaIntervento, setNotaIntervento] = useState('');
   const [isResolving, setIsResolving] = useState(false);
 
+  // NUOVO STATO: Gestione apertura modale di notifica (successo o errore)
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   // Recupero dati statici per i filtri (Campus e Categorie)
   useEffect(() => {
     const fetchStaticData = async () => {
@@ -115,9 +118,9 @@ export default function TicketSegnalazioni() {
       ));
       
       closeModal();
-      alert('Intervento registrato e ticket chiuso con successo!');
+      setNotification({ type: 'success', message: 'Intervento registrato e ticket chiuso con successo!' });
     } catch (error: any) {
-      alert(error.message);
+      setNotification({ type: 'error', message: error.message });
     } finally {
       setIsResolving(false);
     }
@@ -256,6 +259,7 @@ export default function TicketSegnalazioni() {
         </div>
       </div>
 
+      {/* MODALE GESTIONE TICKET */}
       {selectedTicket && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
@@ -307,6 +311,39 @@ export default function TicketSegnalazioni() {
                 ) : 'Conferma e Chiudi'}
               </button>
             </div>
+          </div>
+        </div>, document.body
+      )}
+
+      {/* MODALE DI NOTIFICA (SUCCESSO / ERRORE) */}
+      {notification && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">
+            {notification.type === 'success' ? (
+              <svg className="mx-auto mb-4 w-12 h-12 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            ) : (
+              <svg className="mx-auto mb-4 w-12 h-12 text-rose-600 dark:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            )}
+            <h3 className="mb-2 text-lg font-bold text-slate-800 dark:text-white">
+              {notification.type === 'success' ? 'Operazione Completata' : 'Errore'}
+            </h3>
+            <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+              {notification.message}
+            </p>
+            <button
+              onClick={() => setNotification(null)}
+              className={`rounded-lg px-6 py-2 text-sm font-bold text-white shadow-sm transition-all focus:ring-2 focus:ring-offset-2 w-full sm:w-auto ${
+                notification.type === 'success' 
+                  ? 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500' 
+                  : 'bg-rose-600 hover:bg-rose-700 focus:ring-rose-500'
+              }`}
+            >
+              Chiudi
+            </button>
           </div>
         </div>, document.body
       )}
