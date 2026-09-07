@@ -18,9 +18,6 @@ export default function CampusMap() {
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
-  // STATO UNICO E FISSO PER I LIMITI DELLA MAPPA
-  const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
-  
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [formText, setFormText] = useState('');
@@ -88,45 +85,49 @@ export default function CampusMap() {
       }
     }, [focusAssetId, assets, navigate, location.pathname]);
 
-  // 4. Inquadratura Mappa su Confini Campus e Blocco Assoluto (RICORSIVO)
+  // 4. INQUADRATURA MAPPA E RECINZIONE NATIVA ABSOLUTA
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
       
+      const map = mapRef.current.getMap(); // Accediamo al motore C++ della mappa
       let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
 
-      // Funzione ricorsiva infallibile per estrarre coordinate da Polygon o MultiPolygon
       const extractCoords = (coords: any[]) => {
         if (typeof coords[0] === 'number') {
-          const lng = coords[0];
-          const lat = coords[1];
-          if (lng < minLng) minLng = lng;
-          if (lng > maxLng) maxLng = lng;
-          if (lat < minLat) minLat = lat;
-          if (lat > maxLat) maxLat = lat;
+          if (coords[0] < minLng) minLng = coords[0];
+          if (coords[0] > maxLng) maxLng = coords[0];
+          if (coords[1] < minLat) minLat = coords[1];
+          if (coords[1] > maxLat) maxLat = coords[1];
         } else if (Array.isArray(coords)) {
           coords.forEach(extractCoords);
         }
       };
 
-      // Avvia l'estrazione dalla geometria del database
       extractCoords(activeCampus.geometry.coordinates);
 
       if (minLng !== Infinity) {
-        // Buffer calcolato al 10% per lasciare un margine estetico di scorrimento ai bordi
         const lngBuffer = (maxLng - minLng) * 0.10;
         const latBuffer = (maxLat - minLat) * 0.10;
         
-        // Imposta i confini INVALICABILI e fissi della mappa
-        setMaxBounds([
-          minLng - lngBuffer, 
-          minLat - latBuffer, 
-          maxLng + lngBuffer, 
-          maxLat + latBuffer
-        ] as [number, number, number, number]);
+        // Limiti nativi di MapLibre
+        const bounds: [[number, number], [number, number]] = [
+          [minLng - lngBuffer, minLat - latBuffer], // Angolo Sud-Ovest
+          [maxLng + lngBuffer, maxLat + latBuffer]  // Angolo Nord-Est
+        ];
 
-        // Centra la mappa all'avvio
-        mapRef.current?.fitBounds(
+        // 1. Chiediamo alla mappa a che zoom il recinto diventa più piccolo dello schermo
+        const camera = map.cameraForBounds(bounds, { padding: 0 });
+        if (camera && camera.zoom) {
+          // 2. Blocchiamo lo zoom-out appena prima di quel punto fatale!
+          map.setMinZoom(camera.zoom - 0.2); 
+        }
+
+        // 3. Alziamo fisicamente la recinzione
+        map.setMaxBounds(bounds);
+
+        // 4. Facciamo l'animazione di entrata bella e fluida
+        mapRef.current.fitBounds(
           [
             [minLng, minLat],
             [maxLng, maxLat]
@@ -202,7 +203,7 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          maxBounds={maxBounds} // Blocca pan e zoom-out entro il perimetro calcolato
+          // (Rimosse tutte le proprietà di blocco inaffidabili, ora ci pensa il motore nativo in alto!)
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -266,7 +267,7 @@ export default function CampusMap() {
                     <img
                       key={mediaId}
                       src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
-                      alt="Immagine Asset"
+                      alt="Errore di rete"
                       className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
                     />
                   ))}
