@@ -22,24 +22,36 @@ export default function CampusMap() {
   // Aggiunto stato per le categorie
   const [categories, setCategories] = useState<any[]>([]);
   
-  // Stati per gestire il blocco dinamico dello zoom
-  const [dynamicMinZoom, setDynamicMinZoom] = useState(10);
-  const isFittingBounds = useRef(false);
+  // Stato UNICO per limitare fisicamente mappa e zoom out
+  const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
   
+  // Stato per la posizione dell'utente
+  const [userLocation, setUserLocation] = useState<{longitude: number, latitude: number} | null>(null);
+
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   
   // Stato per l'apertura del modale di segnalazione
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
-  // 1. Geolocalizzazione Utente
+  // 1. Geolocalizzazione Utente e Fallback Permessi
   useEffect(() => {
-    if (user?.role === 'GUEST' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        setViewState(prev => ({ ...prev, longitude: position.coords.longitude, latitude: position.coords.latitude }));
-      });
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = { longitude: position.coords.longitude, latitude: position.coords.latitude };
+          setUserLocation(coords);
+          setViewState(prev => ({ ...prev, ...coords }));
+        },
+        (error) => {
+          console.warn("Geolocalizzazione negata o fallita. Uso coordinate di default.", error);
+          // Fallback di Default
+          const defaultCoords = { longitude: 14.7900, latitude: 40.7700 };
+          setViewState(prev => ({ ...prev, ...defaultCoords }));
+        }
+      );
     }
-  }, [user]);
+  }, []);
 
   // 2. Fetch Campus e Fetch Categorie
   useEffect(() => {
@@ -73,7 +85,7 @@ export default function CampusMap() {
       };
 
       fetchCampuses();
-      fetchCategories(); // Recupero parallelo delle categorie per le icone dinamiche
+      fetchCategories(); 
     }
   }, [user, token, focusCampusId]);
 
@@ -102,19 +114,16 @@ export default function CampusMap() {
         const assetToFocus = assets.find(a => a._id === focusAssetId);
         if (assetToFocus) {
           setSelectedAsset(assetToFocus);
-          
-          // Svuota lo state della rotta così non lo riapre cambiando campus
           navigate(location.pathname, { replace: true, state: {} });
         }
       }
     }, [focusAssetId, assets, navigate, location.pathname]);
 
-  // 4. INQUADRATURA MAPPA E RECINZIONE NATIVA ABSOLUTA
+  // 4. INQUADRATURA MAPPA E RECINZIONE FLUIDA
   useEffect(() => {
     const activeCampus = campuses.find(c => c.id === selectedCampus);
     if (activeCampus?.geometry?.coordinates && mapRef.current) {
       
-      const map = mapRef.current.getMap(); // Accediamo al motore C++ della mappa
       let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
 
       const extractCoords = (coords: any[]) => {
@@ -134,35 +143,25 @@ export default function CampusMap() {
         const lngBuffer = (maxLng - minLng) * 0.10;
         const latBuffer = (maxLat - minLat) * 0.10;
         
-        // Limiti nativi di MapLibre
-        const bounds: [[number, number], [number, number]] = [
-          [minLng - lngBuffer, minLat - latBuffer], // Angolo Sud-Ovest
-          [maxLng + lngBuffer, maxLat + latBuffer]  // Angolo Nord-Est
+        // Limiti nativi di MapLibre ([ovest, sud, est, nord])
+        const bounds: [number, number, number, number] = [
+          minLng - lngBuffer, 
+          minLat - latBuffer, 
+          maxLng + lngBuffer, 
+          maxLat + latBuffer
         ];
 
-        // 1. Chiediamo alla mappa a che zoom il recinto diventa più piccolo dello schermo
-        const camera = map.cameraForBounds(bounds, { padding: 0 });
-        if (camera && camera.zoom) {
-          // 2. Blocchiamo lo zoom-out appena prima di quel punto fatale!
-          map.setMinZoom(camera.zoom - 0.2); 
-        }
+        setMaxBounds(bounds);
 
-        // 3. Alziamo fisicamente la recinzione
-        map.setMaxBounds(bounds);
-
-        // 4. Facciamo l'animazione di entrata bella e fluida
         mapRef.current.fitBounds(
-          [
-            [minLng, minLat],
-            [maxLng, maxLat]
-          ],
+          [[minLng, minLat], [maxLng, maxLat]],
           { padding: 30, duration: 1000 } 
         );
       }
     }
   }, [selectedCampus, campuses]);
 
-  // 1. Crea un "Dizionario" { id_categoria: icona } calcolato una sola volta
+  // 1. Crea un "Dizionario" { id_categoria: icona }
   const categoryIconMap = useMemo(() => {
     const dict: Record<string, string> = {};
     categories.forEach(c => {
@@ -171,12 +170,12 @@ export default function CampusMap() {
     return dict;
   }, [categories]);
 
-  // 2. Lettura istantanea senza fare cicli di ricerca
+  // 2. Lettura istantanea
   const getAssetIcon = (asset: any) => {
     return categoryIconMap[asset.category_id] || '📍';
   };
 
-  // 3. Memorizziamo anche il perimetro del campus per evitare che venga ricalcolato 60 volte al secondo
+  // 3. Memorizziamo il perimetro del campus
   const activeCampusData = useMemo(() => {
     const campus = campuses.find(c => c.id === selectedCampus);
     return campus?.geometry 
@@ -215,19 +214,10 @@ export default function CampusMap() {
           ref={mapRef} 
           {...viewState} 
           onMove={evt => setViewState(evt.viewState)} 
-          
-          onMoveEnd={(evt) => {
-            if (isFittingBounds.current) {
-              isFittingBounds.current = false;
-              setDynamicMinZoom(evt.viewState.zoom);
-            }
-          }}
-
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          dragPan={false}
-          minZoom={dynamicMinZoom} 
+          maxBounds={maxBounds} // <- Questo attiva la "recinzione" fluida
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -251,6 +241,16 @@ export default function CampusMap() {
               </div>
             </Marker>
           ))}
+
+          {/* Posizione Utente Attuale (Pallino Blu) */}
+          {userLocation && (
+            <Marker longitude={userLocation.longitude} latitude={userLocation.latitude}>
+              <div className="relative flex h-5 w-5 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow-md"></span>
+              </div>
+            </Marker>
+          )}
         </Map>
         
         {/* FAB (Floating Action Button) per aggiunta rapida Asset */}
@@ -301,7 +301,6 @@ export default function CampusMap() {
                 <div className="flex flex-col gap-2 text-sm mb-5">
                   {Object.entries(selectedAsset.metadata || {})
                     .filter(([key]) => {
-                      // Esclude la riga se la chiave risulta 'unavailable' in una qualsiasi categoria
                       const isDeprecated = categories.some(cat => 
                         cat.attributes?.some((attr: any) => attr.name === key && attr.status === 'unavailable')
                       );
