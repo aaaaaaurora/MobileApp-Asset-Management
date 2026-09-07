@@ -365,33 +365,96 @@ class LogService:
         filters = LogService._extract_filters(query_params)
         logs = AuditLogRepository.get_all_logs(filters)
 
-        dynamic_keys = set()
-        for log in logs:
-            if log.payload and isinstance(log.payload, dict):
-                dynamic_keys.update(log.payload.keys())
-        dynamic_keys = sorted(list(dynamic_keys))
+        headers = [
+            'Data e Ora', 
+            'Servizio', 
+            'Azione', 
+            'Utente', 
+            'Oggetto Coinvolto', 
+            'Dettagli Aggiuntivi'
+        ]
 
-        standard_headers = ['id', 'created_at', 'service_name', 'action', 'actor_id', 'entity_id', 'correlation_id']
-        all_headers = standard_headers + dynamic_keys
+        # 1. DIZIONARI DI TRADUZIONE PER UN LINGUAGGIO NATURALE
+        action_map = {
+            'UPDATE_OPERATOR_PROFILE': 'Aggiornamento Profilo Operatore',
+            '2FA_SUCCESS_LOGIN': 'Accesso con 2FA',
+            'GOOGLE_LOGIN_SUCCESS': 'Accesso con Google',
+            'CATEGORY_DELETED': 'Eliminazione Categoria',
+            'CATEGORY_CREATED': 'Creazione Categoria',
+            'ASSET_CREATED': 'Creazione Asset',
+            'ASSET_UPDATED': 'Aggiornamento Asset',
+            'ASSET_DELETED': 'Eliminazione Asset'
+        }
+        
+        service_map = {
+            'auth-service': 'Autenticazione',
+            'asset-service': 'Gestione Asset',
+            'log-service': 'Audit Log',
+            'geozone-service': 'Gestione Mappe',
+            'media-service': 'Gestione Media',
+            'warning-service': 'Gestione Segnalazioni'
+        }
 
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=all_headers)
+        output.write('\ufeff')  # Aggiunge il BOM (Byte Order Mark) per la codifica nativa di Excel
+        writer = csv.DictWriter(output, fieldnames=headers, delimiter=';') # Forza il punto e virgola
         writer.writeheader()
 
         for log in logs:
-            row = {
-                'id': str(log.id),
-                'created_at': log.created_at.isoformat() if log.created_at else '',
-                'service_name': log.service_name,
-                'action': log.action,
-                'actor_id': str(log.actor_id) if log.actor_id else '',
-                'entity_id': str(log.entity_id) if log.entity_id else '',
-                'correlation_id': str(log.correlation_id) if log.correlation_id else ''
+            payload = log.payload if isinstance(log.payload, dict) else {}
+            
+            data_ora = log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else 'Data Sconosciuta'
+            
+            # Applichiamo le traduzioni (se non c'è traduzione, formatta il nome originale)
+            azione_pulita = action_map.get(log.action, log.action.replace('_', ' ').title())
+            servizio_pulito = service_map.get(log.service_name, log.service_name)
+            
+            utente = payload.get('email') or str(log.actor_id) if log.actor_id else 'Sistema / Sconosciuto'
+
+            oggetto = ''
+            if payload.get('campus_name'):
+                oggetto += f"Campus: {payload.get('campus_name')} "
+            if payload.get('category_name'):
+                oggetto += f"Categoria: {payload.get('category_name')} "
+            if payload.get('asset_name'):
+                oggetto += f"Asset: {payload.get('asset_name')} "
+            elif log.entity_id:
+                oggetto += f"ID: {str(log.entity_id)[:8]}..." # Mostra solo i primi 8 caratteri
+            
+            oggetto = oggetto.strip() if oggetto else 'Operazione di Sistema'
+
+            # 2. NASCONDIAMO GLI UUID ILLEGGIBILI DAI DETTAGLI
+            keys_to_ignore = {
+                'email', 'autore_id', 'actor_id', 'service_name', 'azione', 'action', 
+                'timestamp', 'correlation_id', 'entity_id', 'campus_name', 
+                'category_name', 'asset_name',
+                'campus_id', 'category_id', 'media_id', 'asset_id'  # <--- Nascondiamo i codici lunghi!
             }
-            if log.payload and isinstance(log.payload, dict):
-                for k in dynamic_keys:
-                    val = log.payload.get(k, '')
-                    row[k] = json.dumps(val) if isinstance(val, (dict, list)) else str(val)
+            
+            dettagli_list = []
+            for key, val in payload.items():
+                if key not in keys_to_ignore and val not in [None, '', [], {}]:
+                    # Rendi dizionari/liste più discorsivi
+                    if isinstance(val, dict):
+                        clean_val = ", ".join([f"{k}: {v}" for k, v in val.items()])
+                    elif isinstance(val, list):
+                        clean_val = ", ".join(map(str, val))
+                    else:
+                        clean_val = str(val)
+                    
+                    clean_key = key.replace('_', ' ').title()
+                    dettagli_list.append(f"{clean_key}: {clean_val}")
+
+            dettagli_stringa = " | ".join(dettagli_list) if dettagli_list else "-"
+
+            row = {
+                'Data e Ora': data_ora,
+                'Servizio': servizio_pulito,
+                'Azione': azione_pulita,
+                'Utente': utente,
+                'Oggetto Coinvolto': oggetto,
+                'Dettagli Aggiuntivi': dettagli_stringa
+            }
             writer.writerow(row)
 
         return output.getvalue()

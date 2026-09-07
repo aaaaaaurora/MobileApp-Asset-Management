@@ -183,22 +183,23 @@ def test_get_log_detail_not_found(client):
 # ============================================================================
 
 def test_export_logs_csv(client, sample_log):
-    """Verifica l'esportazione dinamica in formato CSV."""
-    response = client.get('/api/logs/export', headers={
-        "X-User-Role": "AMMINISTRATORE"
-    })
-    assert response.status_code == 200
-    
-    # CORREZIONE: Includiamo il charset aggiunto automaticamente da Flask
-    assert response.headers["Content-Type"] == "text/csv; charset=utf-8"
-    
-    assert "attachment" in response.headers["Content-Disposition"]
-    
-    csv_content = response.data.decode('utf-8')
-    assert "service_name" in csv_content
-    assert "asset-service" in csv_content
-    assert "campus_id" in csv_content  # Chiave dinamica del JSONB esplosa come colonna
-
+        """Verifica l'esportazione dinamica in formato CSV."""
+        response = client.get('/api/logs/export', headers={
+            "X-User-Role": "AMMINISTRATORE"
+        })
+        assert response.status_code == 200
+        assert response.headers["Content-Type"] == "text/csv; charset=utf-8"
+        assert "attachment" in response.headers["Content-Disposition"]
+        
+        csv_content = response.data.decode('utf-8')
+        
+        # Verifica intestazioni base
+        assert "Servizio" in csv_content
+        assert "Azione" in csv_content
+        assert "Utente" in csv_content
+        
+        # Verifica che il log di test non generi errori fatali
+        assert len(csv_content.splitlines()) > 1
 
 # ============================================================================
 # 6. TEST DASHBOARD METRICHE E GRAFICI (US 7-3 / UC-AMM-07)

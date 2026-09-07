@@ -133,7 +133,7 @@ export default function CampusListPage() {
                 <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Nome Campus</th>
                 <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Descrizione</th>
                 <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Data Registrazione</th>
-                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-right">Azioni</th>
+                <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-right"></th>
               </tr>
             </thead>
             

@@ -100,16 +100,11 @@ def get_cached_campus_name(campus_id):
     doc = campus_cache_col.find_one({"_id": campus_id})
     return doc.get("name") if doc else None
 
-def extract_asset_name(metadata):
-    """Tenta di estrarre un nome rappresentativo dell'asset dai metadati dinamici."""
-    if not metadata: 
+def extract_asset_name(asset_id):
+    """Utilizza lo Short-ID (primi 8 caratteri) come identificativo univoco e infallibile."""
+    if not asset_id:
         return None
-    # Cerchiamo chiavi comuni che potrebbero fungere da 'Nome'
-    for key in ['name', 'nome', 'targa', 'modello', 'titolo']:
-        for k, v in metadata.items():
-            if k.lower() == key and v:
-                return str(v)
-    return None
+    return f"ID-{str(asset_id)[:8].upper()}"
 
 # ============================================================================
 # ENDPOINT DI SISTEMA
@@ -144,9 +139,11 @@ def create_category():
         return error_response("Categoria già esistente", 409)
 
     # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
+    # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
     new_category = {
         "name": category_name,
         "description": data.get('description', ''),
+        "icon": data.get('icon', '📍'), 
         "attributes": [], # Inizialmente vuoto, popolato dinamicamente in seguito
         "created_by": auth.get('user_id'),
         "created_at": datetime.datetime.utcnow().isoformat(),
@@ -255,6 +252,10 @@ def update_category(category_id):
     # 2. Aggiornamento Descrizione
     if 'description' in data:
         update_fields['description'] = data['description']
+
+    # 3. Aggiornamento Icona
+    if 'icon' in data:
+        update_fields['icon'] = data['icon']
 
     if not update_fields:
         return error_response("Nessun campo valido fornito per l'aggiornamento", 400)
@@ -716,7 +717,7 @@ def create_asset():
 
         # INIEZIONE NOMI PER LA TABELLA DEI LOG (Local Cache & Extraction)
         campus_name = get_cached_campus_name(campus_id)
-        asset_name = extract_asset_name(validated_metadata)
+        asset_name = extract_asset_name(asset_id)
 
         # 6. Tracciabilità asincrona (RabbitMQ)
         publish_event("ASSET_CREATED", {
@@ -860,7 +861,7 @@ def update_asset(asset_id):
 
         # INIEZIONE NOMI PER LA TABELLA DEI LOG 
         campus_name = get_cached_campus_name(updated_asset.get('campus_id'))
-        asset_name = extract_asset_name(final_metadata)
+        asset_name = extract_asset_name(asset_id)
 
         # 8. Eventi RabbitMQ
         publish_event("ASSET_UPDATED", {
@@ -1035,7 +1036,7 @@ def delete_asset(asset_id):
 
         # INIEZIONE NOMI PER LA TABELLA DEI LOG
         campus_name = get_cached_campus_name(campus_id)
-        asset_name = extract_asset_name(asset_to_delete.get('metadata', {}))
+        asset_name = extract_asset_name(asset_id)
         category = categories_col.find_one({"_id": ObjectId(category_id)})
         category_name = category.get('name', 'Sconosciuta') if category else 'Sconosciuta'
 
@@ -1151,7 +1152,7 @@ def process_system_events(ch, method, properties, body):
                     
                     # 3. Notifica agli altri servizi usando direttamente mq_manager 
                     # (perché siamo in un thread senza contesto di richiesta HTTP)
-                    asset_name = extract_asset_name(metadata)
+                    asset_name = extract_asset_name(asset_id)
                     category = categories_col.find_one({"_id": ObjectId(category_id)}) if category_id else None
                     category_name = category.get('name', 'Sconosciuta') if category else 'Sconosciuta'
                     

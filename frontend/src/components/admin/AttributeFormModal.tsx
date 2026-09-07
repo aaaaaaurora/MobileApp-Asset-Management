@@ -10,7 +10,8 @@ interface Props {
 }
 
 export default function AttributeFormModal({ isOpen, initialData, onClose, onSave, isSubmitting }: Props) {
-  const defaultAttr: CategoryAttribute = { name: "", type: "string", required: false, filterable: true, editable: true, visible: true, options: [], status: "active" };
+  // NOTA: filterable ora è false di default per evitare l'affollamento dei filtri
+  const defaultAttr: CategoryAttribute = { name: "", type: "string", required: false, filterable: false, editable: true, visible: true, options: [], status: "active" };
   const [attrData, setAttrData] = useState<CategoryAttribute>(defaultAttr);
   const [optionInput, setOptionInput] = useState("");
 
@@ -35,11 +36,21 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
     }
   };
 
+  // Funzione per gestire il cambio del tipo di dato e l'autofill intelligente
+  const handleTypeChange = (newType: string) => {
+    setAttrData(prev => ({
+      ...prev,
+      type: newType as CategoryAttribute["type"], 
+      // Se l'utente seleziona enum o boolean, suggeriamo automaticamente l'uso come filtro
+      filterable: newType === 'enum' || newType === 'boolean' ? true : prev.filterable
+    }));
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
       {/* 
         ALTEZZA FISSA: h-[460px].
-        Il modale ora è solido e compatto, non cambierà mai dimensione.
+        Il modale ora è solido e compatto, non cambierà mai dimensione. 
       */}
       <div className="w-full max-w-md h-[460px] flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
         
@@ -63,7 +74,11 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
             
             <div>
               <label className="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Tipo di Dato</label>
-              <select value={attrData.type} onChange={e => setAttrData({...attrData, type: e.target.value as any})} className="w-full rounded-md border border-slate-300 py-2 px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-600 dark:text-white transition-colors">
+              <select 
+                value={attrData.type} 
+                onChange={e => handleTypeChange(e.target.value)} 
+                className="w-full rounded-md border border-slate-300 py-2 px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-600 dark:text-white transition-colors"
+              >
                 <option value="string">Testo (Stringa)</option>
                 <option value="number">Numero</option>
                 <option value="boolean">Vero/Falso (Boolean)</option>
@@ -95,11 +110,11 @@ export default function AttributeFormModal({ isOpen, initialData, onClose, onSav
             <div className="flex flex-col gap-3 pt-2">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input type="checkbox" checked={attrData.required} onChange={e => setAttrData({...attrData, required: e.target.checked})} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Campo Obbligatorio</span>
+                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Campo obbligatorio</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input type="checkbox" checked={attrData.filterable} onChange={e => setAttrData({...attrData, filterable: e.target.checked})} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Abilita come Filtro Ricerca</span>
+                <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 dark:text-slate-300 transition-colors">Abilita come filtro ricerca</span>
               </label>
             </div>
           </form>

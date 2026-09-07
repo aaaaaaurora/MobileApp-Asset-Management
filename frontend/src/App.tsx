@@ -26,7 +26,7 @@ export default function App() {
 
           
           {/* ========================================== */}
-          {/* ROTTE PROTETTE - BASE (Tutti gli autenticati) */}
+          {/* ROTTE PROTETTE - BASE (Tutti gli autenticati)  */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
@@ -40,17 +40,11 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['AMMINISTRATORE']} />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Home />} />
-              
               <Route path="/admin/operators" element={<OperatorsManagement />} />
-              
               <Route path="/admin/categories" element={<CategoriesManagement />} />
-
               <Route path="/admin/history" element={<SystemLogs />} />
-              
               <Route path="/admin/campus/new" element={<NewCampus />} />
-
-              <Route path="admin/campuses" element={<CampusList />} />
-              
+              <Route path="/admin/campuses" element={<CampusList />} />
             </Route>
           </Route>
 
@@ -61,6 +55,14 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/assets/new" element={<CreateAsset />} />
               <Route path="/operator/tickets" element={<TicketSegnalazioni />} />
+            </Route>
+          </Route>
+
+          {/* ========================================== */}
+          {/* ROTTE CONDIVISE (Admin + Operatore)        */}
+          {/* ========================================== */}
+          <Route element={<ProtectedRoute allowedRoles={['AMMINISTRATORE', 'OPERATORE']} />}>
+            <Route element={<AppLayout />}>
               <Route path="/assets/list" element={<AssetList />} />
             </Route>
           </Route>

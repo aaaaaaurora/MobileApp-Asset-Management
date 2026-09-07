@@ -6,13 +6,20 @@ interface CategoryAttribute {
   name: string;
   type: string;
   required: boolean;
-  options?: string[]; // AGGIUNTO: Necessario per i menu a tendina
+  filterable: boolean;
+  options?: string[];
+  status: string; // <-- AGGIUNTO: Necessario per filtrare gli attributi deprecati
 }
 
 interface Category {
   _id: string;
   name: string;
   attributes: CategoryAttribute[];
+}
+
+interface Campus {
+  id: string;
+  name: string;
 }
 
 interface Asset {
@@ -31,43 +38,97 @@ export default function AssetList() {
   
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // --- STATI PER I FILTRI ---
+  const [selectedCampus, setSelectedCampus] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [dynamicFilters, setDynamicFilters] = useState<Record<string, string>>({});
 
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Stati temporanei per posticipare i salvataggi (Deferred Save)
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
+  // Controllo Ruolo
+  const isAdmin = user?.role === 'AMMINISTRATORE';
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3000);
+  }
+  
   useEffect(() => {
-    fetchData();
+    fetchStaticData();
   }, [token]);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    fetchAssets();
+  }, [token, selectedCampus, selectedCategory, dynamicFilters]);
+
+  const fetchStaticData = async () => {
     try {
-      setLoading(true);
       const catRes = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/categories`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        setCategories(catData);
-      }
+      if (catRes.ok) setCategories(await catRes.json());
 
-      const assetRes = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets`, {
+      const campRes = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/campuses`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (campRes.ok) setCampuses(await campRes.json());
+
+    } catch (error) {
+      console.error("Errore nel recupero dati statici:", error);
+    }
+  };
+
+  const fetchAssets = async () => {
+    try {
+      setLoading(true);
+      
+      const params = new URLSearchParams();
+      if (selectedCampus) params.append('campus_id', selectedCampus);
+      if (selectedCategory) params.append('category_id', selectedCategory);
+      
+      Object.entries(dynamicFilters).forEach(([key, value]) => {
+        if (value) params.append(`attr_${key}`, value);
+      });
+
+      const url = `${import.meta.env.VITE_API_URL}/asset/api/assets?${params.toString()}`;
+      
+      const assetRes = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
       if (assetRes.ok) {
         const assetData = await assetRes.json();
         setAssets(assetData.assets || []);
       }
     } catch (error) {
-      console.error("Errore nel recupero dati:", error);
+      console.error("Errore nel recupero asset:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCategoryFilterChange = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    setDynamicFilters({});
+  };
+
+  const handleDynamicFilterChange = (attrName: string, value: string) => {
+    setDynamicFilters(prev => ({
+      ...prev,
+      [attrName]: value
+    }));
   };
 
   const getCategoryName = (categoryId: string) => {
@@ -83,7 +144,6 @@ export default function AssetList() {
       metadata: { ...asset.metadata },
       media_ids: asset.media_ids ? [...asset.media_ids] : []
     });
-    // Pulizia array temporanei ad ogni apertura
     setPendingDeletes([]);
     setPendingUploads([]);
   };
@@ -95,9 +155,6 @@ export default function AssetList() {
     }));
   };
 
-  // --------------------------------------------------------
-  // LOGICA GESTIONE IMMAGINI IN LOCALE (DEFERRED)
-  // --------------------------------------------------------
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,17 +174,14 @@ export default function AssetList() {
     setSelectedAsset(null);
     setPendingUploads([]);
     setPendingDeletes([]);
+    setShowDeleteConfirm(false); 
   };
 
-  // --------------------------------------------------------
-  // LOGICA SALVATAGGIO ASSET E IMMAGINI
-  // --------------------------------------------------------
   const handleUpdate = async () => {
-    if (!selectedAsset) return;
+    if (!selectedAsset || isAdmin) return;
     setIsProcessing(true);
 
     try {
-      // 1. Eseguiamo le cancellazioni definitive su MinIO
       if (pendingDeletes.length > 0) {
         await Promise.all(pendingDeletes.map(mediaId => 
           fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
@@ -137,7 +191,6 @@ export default function AssetList() {
         ));
       }
 
-      // 2. Carichiamo su MinIO le nuove immagini aggiunte
       const newUploadedIds: string[] = [];
       for (const item of pendingUploads) {
         const uploadPayload = new FormData();
@@ -154,7 +207,6 @@ export default function AssetList() {
         newUploadedIds.push(data.uploaded[0].media_id);
       }
 
-      // 3. Salviamo l'asset su MongoDB con il nuovo array unito
       const finalMediaIds = [...formData.media_ids, ...newUploadedIds];
       const payload = {
         geometry: { type: 'Point', coordinates: [formData.lng, formData.lat] },
@@ -176,19 +228,18 @@ export default function AssetList() {
         throw new Error(err.error || "Errore durante l'aggiornamento dell'asset");
       }
 
-      alert("Asset aggiornato con successo!");
+      showNotification('success', "Asset aggiornato con successo!");
       closeModal();
-      fetchData(); 
+      fetchAssets(); 
     } catch (error: any) {
-      alert(error.message);
+      showNotification('error', error.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleDelete = async () => {
+  const confirmDelete = async () => {
     if (!selectedAsset) return;
-    if (!window.confirm("Sei sicuro di voler eliminare questo asset? Verrà conservato nello storico ma rimosso dalla mappa.")) return;
     
     setIsProcessing(true);
     try {
@@ -198,58 +249,160 @@ export default function AssetList() {
       });
 
       if (!res.ok) throw new Error("Errore durante l'eliminazione");
-      alert("Asset eliminato con successo!");
+      
+      showNotification('success', "Asset eliminato con successo!");
+      setShowDeleteConfirm(false);
       closeModal();
-      fetchData();
+      fetchAssets();
     } catch (error: any) {
-      alert(error.message);
+      showNotification('error', error.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const activeCategory = selectedAsset ? categories.find(c => c._id === selectedAsset.category_id) : null;
+  
+  const filterableAttributes = selectedCategory 
+    ? categories.find(c => c._id === selectedCategory)?.attributes.filter(attr => attr.filterable && attr.status !== 'unavailable') || []
+    : [];
+
+    const hasChanges = selectedAsset ? (
+      pendingUploads.length > 0 ||
+      pendingDeletes.length > 0 ||
+      formData.lat !== selectedAsset.geometry.coordinates[1] ||
+      formData.lng !== selectedAsset.geometry.coordinates[0] ||
+      JSON.stringify(formData.metadata) !== JSON.stringify(selectedAsset.metadata)
+    ) : false;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-title-md2 font-semibold text-black dark:text-white">Lista Asset Censiti</h2>
-        <button onClick={fetchData} className="text-sm text-blue-600 hover:underline">Aggiorna Lista</button>
+    <>
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            Lista Assets Censiti
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Cerca, filtra e gestisci gli elementi registrati nei campus.
+          </p>
+        </div>
       </div>
 
-      <div className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
-        <div className="max-w-full overflow-x-auto">
-          <table className="w-full table-auto">
-            <thead>
-              <tr className="bg-gray-2 text-left dark:bg-meta-4">
-                <th className="py-4 px-4 font-medium text-black dark:text-white xl:pl-11">Categoria</th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">ID Seriale</th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">Data Creazione</th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">Azioni</th>
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Campus</label>
+            <select 
+              value={selectedCampus}
+              onChange={(e) => setSelectedCampus(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+            >
+              <option value="">Tutti i Campus</option>
+              {campuses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
+            <select 
+              value={selectedCategory}
+              onChange={(e) => handleCategoryFilterChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+            >
+              <option value="">Tutte le Categorie</option>
+              {categories.map(c => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {selectedCategory && filterableAttributes.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-end gap-3">
+            {filterableAttributes.map(attr => (
+              <div key={attr.name} className="w-[150px]">
+                <label className="mb-1.5 block text-[11px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wide truncate">
+                  {attr.name.replace('_', ' ')}
+                </label>
+                
+                {attr.type === 'enum' ? (
+                  <select 
+                    value={dynamicFilters[attr.name] || ''}
+                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  >
+                    <option value="">Tutti</option>
+                    {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                ) : attr.type === 'boolean' ? (
+                   <select 
+                    value={dynamicFilters[attr.name] || ''}
+                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  >
+                    <option value="">Tutti</option>
+                    <option value="true">Sì</option>
+                    <option value="false">No</option>
+                  </select>
+                ) : (
+                  <input 
+                    type={attr.type === 'number' ? 'number' : 'text'}
+                    value={dynamicFilters[attr.name] || ''}
+                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
+                    placeholder="Cerca..."
+                    className="w-full rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden dark:border-slate-700 dark:bg-slate-800">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 dark:bg-slate-700 dark:text-white dark:border-slate-600">
+              <tr>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Categoria</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">ID Seriale</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs">Data Creazione</th>
+                <th className="py-3 px-6 font-semibold uppercase tracking-wider text-xs text-right"></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {loading ? (
-                <tr><td colSpan={4} className="py-5 text-center text-gray-500">Caricamento asset in corso...</td></tr>
+                <tr>
+                  <td colSpan={4} className="py-8 text-center">
+                    <div className="flex justify-center"><div className="h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-600 border-t-transparent"></div></div>
+                  </td>
+                </tr>
               ) : assets.length === 0 ? (
-                <tr><td colSpan={4} className="py-5 text-center text-gray-500">Nessun asset trovato nel tuo campus.</td></tr>
+                <tr>
+                  <td colSpan={4} className="py-8 text-center font-medium text-slate-500">
+                    La ricerca non ha prodotto alcun risultato.
+                  </td>
+                </tr>
               ) : (
                 assets.map((asset) => (
-                  <tr key={asset._id}>
-                    <td className="border-b border-[#eee] py-5 px-4 pl-9 dark:border-strokedark xl:pl-11">
-                      <p className="text-sm font-medium text-black dark:text-white uppercase">{getCategoryName(asset.category_id)}</p>
+                  <tr key={asset._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <td className="py-3 px-6 font-bold text-slate-800 dark:text-slate-200 uppercase">
+                      {getCategoryName(asset.category_id)}
                     </td>
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <p className="text-sm text-gray-500">{asset._id}</p>
+                    <td className="py-3 px-6 font-mono text-slate-500 dark:text-slate-400 text-xs">
+                      {asset._id}
                     </td>
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <p className="text-sm text-black dark:text-white">
-                        {new Date(asset.created_at).toLocaleDateString('it-IT')}
-                      </p>
+                    <td className="py-3 px-6">
+                      {new Date(asset.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
-                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                      <button onClick={() => openEditModal(asset)} className="rounded bg-blue-600 py-1 px-3 text-xs font-medium text-white hover:bg-blue-700 transition">
-                        Visualizza / Modifica
+                    <td className="py-3 px-6 text-right">
+                      <button 
+                        onClick={() => openEditModal(asset)} 
+                        className="inline-flex items-center justify-center rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-blue-400"
+                      >
+                        {isAdmin ? 'Visualizza' : 'Gestisci'}
                       </button>
                     </td>
                   </tr>
@@ -261,47 +414,51 @@ export default function AssetList() {
       </div>
 
       {selectedAsset && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 border-b border-stroke dark:border-strokedark pb-3">
-              <h3 className="font-bold text-lg text-black dark:text-white">Gestione Asset</h3>
-              <button onClick={closeModal} className="text-gray-500 hover:text-black dark:hover:text-white font-bold">✕</button>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto transform transition-all">
+            
+            <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                {isAdmin ? 'Dettagli Asset' : 'Gestione Asset'}
+              </h3>
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-bold transition-colors">✕</button>
             </div>
 
-            {/* SEZIONE FOTO (DEFERRED) */}
-            <div className="mb-5">
-              <h4 className="text-sm font-semibold text-black dark:text-white mb-2">Gestione Foto</h4>
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">
+                {isAdmin ? 'Foto dell\'Asset' : 'Gestione Foto'}
+              </h4>
               <div className="flex gap-3 overflow-x-auto pb-2">
                 
-                {/* Immagini Originali */}
                 {formData.media_ids.map(mediaId => (
-                  <div key={mediaId} className="relative min-w-[100px] h-24 flex-shrink-0">
+                  <div key={mediaId} className="relative min-w-[120px] h-28 flex-shrink-0 group">
                     <img 
                       src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`} 
-                      className="w-full h-full object-cover rounded border border-stroke dark:border-strokedark"
+                      className="w-full h-full object-cover rounded-lg border border-slate-200 dark:border-slate-600"
                       alt="Asset Media" 
                     />
-                    <button 
-                      onClick={() => handleDeleteExistingImage(mediaId)} 
-                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-md hover:bg-red-700 transition"
-                      title="Elimina foto"
-                    >
-                      ✕
-                    </button>
+                    {!isAdmin && (
+                      <button 
+                        onClick={() => handleDeleteExistingImage(mediaId)} 
+                        className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-md hover:bg-rose-700 transition opacity-0 group-hover:opacity-100"
+                        title="Elimina foto"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
                 
-                {/* Nuove Immagini (In attesa) */}
-                {pendingUploads.map((item, index) => (
-                  <div key={`new-${index}`} className="relative min-w-[100px] h-24 flex-shrink-0">
+                {!isAdmin && pendingUploads.map((item, index) => (
+                  <div key={`new-${index}`} className="relative min-w-[120px] h-28 flex-shrink-0">
                     <img 
                       src={item.preview} 
-                      className="w-full h-full object-cover rounded border-2 border-green-500 opacity-90"
+                      className="w-full h-full object-cover rounded-lg border-2 border-emerald-500 opacity-90"
                       alt="New Upload" 
                     />
                     <button 
                       onClick={() => handleDeletePendingImage(index)} 
-                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow-md hover:bg-red-700 transition"
+                      className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-md hover:bg-rose-700 transition"
                       title="Annulla inserimento"
                     >
                       ✕
@@ -309,44 +466,58 @@ export default function AssetList() {
                   </div>
                 ))}
 
-                <label className="min-w-[100px] h-24 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded cursor-pointer hover:bg-gray-50 dark:border-strokedark dark:hover:bg-meta-4 transition">
-                  <span className="text-2xl text-gray-400">+</span>
-                  <span className="text-[10px] text-gray-500">Aggiungi</span>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
-                </label>
+                {!isAdmin && (
+                  <label className="min-w-[120px] h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                    <span className="text-2xl text-slate-400">+</span>
+                    <span className="text-[11px] font-medium text-slate-500 mt-1">Carica Foto</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
+                  </label>
+                )}
               </div>
             </div>
 
-            {/* Sezione Coordinate */}
-            <div className="mb-5">
-              <h4 className="text-sm font-semibold text-black dark:text-white mb-2">Coordinate Geografiche</h4>
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Coordinate Geografiche</h4>
               <div className="flex gap-4">
                 <div className="w-1/2">
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Latitudine</label>
-                  <input type="number" step="any" value={formData.lat} onChange={e => setFormData(p => ({...p, lat: parseFloat(e.target.value)}))} className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white" />
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400">Latitudine</label>
+                  <input 
+                    type="number" step="any" 
+                    value={formData.lat} 
+                    disabled={isAdmin}
+                    onChange={e => setFormData(p => ({...p, lat: parseFloat(e.target.value)}))} 
+                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
+                  />
                 </div>
                 <div className="w-1/2">
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Longitudine</label>
-                  <input type="number" step="any" value={formData.lng} onChange={e => setFormData(p => ({...p, lng: parseFloat(e.target.value)}))} className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white" />
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400">Longitudine</label>
+                  <input 
+                    type="number" step="any" 
+                    value={formData.lng} 
+                    disabled={isAdmin}
+                    onChange={e => setFormData(p => ({...p, lng: parseFloat(e.target.value)}))} 
+                    className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Sezione Metadati Dinamici */}
-            <div className="mb-6">
-              <h4 className="text-sm font-semibold text-black dark:text-white mb-2">Metadati</h4>
-              <div className="flex flex-col gap-3">
+            <div className="mb-8">
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Metadati Categoria</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {activeCategory ? (
-                  activeCategory.attributes.map(attr => (
+                  activeCategory.attributes.filter(attr => attr.status !== 'unavailable').map(attr => (
                     <div key={attr.name}>
-                      <label className="mb-1 block text-xs font-medium text-gray-500 capitalize">{attr.name.replace('_', ' ')} {attr.required && '*'}</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400 capitalize">
+                        {attr.name.replace('_', ' ')} {attr.required && <span className="text-rose-500">*</span>}
+                      </label>
                       
-                      {/* AGGIUNTA LA CONDIZIONE PER I MENU A TENDINA (ENUM) */}
                       {attr.type === 'enum' ? (
                         <select 
                           value={formData.metadata[attr.name] || ''} 
+                          disabled={isAdmin}
                           onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                          className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white"
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900"
                         >
                           <option value="">Seleziona...</option>
                           {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -355,46 +526,161 @@ export default function AssetList() {
                         <input 
                           type={attr.type === 'number' ? 'number' : 'text'} 
                           value={formData.metadata[attr.name] || ''} 
+                          disabled={isAdmin}
                           onChange={e => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)} 
-                          className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white" 
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
                         />
                       )}
-
                     </div>
                   ))
-                ) : (
-                  Object.keys(formData.metadata).map(key => (
-                    <div key={key}>
-                      <label className="mb-1 block text-xs font-medium text-gray-500 capitalize">{key.replace('_', ' ')}</label>
-                      <input type="text" value={formData.metadata[key]} onChange={e => handleMetadataChange(key, e.target.value)} className="w-full rounded border border-stroke bg-transparent py-2 px-3 text-sm outline-none transition focus:border-blue-600 active:border-blue-600 dark:border-form-strokedark dark:bg-form-input text-black dark:text-white" />
-                    </div>
-                  ))
-                )}
+                  ) : (
+                    Object.keys(formData.metadata)
+                      .filter(key => {
+                        const isDeprecated = categories.some(cat => 
+                          cat.attributes.some(attr => attr.name === key && attr.status === 'unavailable')
+                        );
+                        return !isDeprecated;
+                      })
+                      .map(key => (
+                      <div key={key}>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400 capitalize">{key.replace('_', ' ')}</label>
+                        <input 
+                          type="text" 
+                          value={formData.metadata[key]} 
+                          disabled={isAdmin}
+                          onChange={e => handleMetadataChange(key, e.target.value)} 
+                          className="w-full rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800 disabled:opacity-60 disabled:bg-slate-50 dark:disabled:bg-slate-900" 
+                        />
+                      </div>
+                    ))
+                  )}
               </div>
             </div>
 
-            {/* Pulsanti Azione */}
-            {(user?.role === 'OPERATORE' || user?.role === 'AMMINISTRATORE') && (
-              <div className="flex justify-between items-center border-t border-stroke dark:border-strokedark pt-4 mt-2">
-                <button 
-                  onClick={handleDelete}
-                  disabled={isProcessing}
-                  className="rounded bg-red-600 py-2 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition"
-                >
-                  {isProcessing ? 'Elaborazione...' : 'Elimina Asset'}
-                </button>
-                
-                <div className="flex gap-2">
-                  <button onClick={closeModal} disabled={isProcessing} className="rounded border border-stroke py-2 px-4 text-sm font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white transition">Annulla</button>
-                  <button onClick={handleUpdate} disabled={isProcessing} className="rounded bg-blue-600 py-2 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition">
-                    Salva Modifiche
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-5 mt-2 gap-4">
+              {isAdmin ? (
+                <>
+                  <button 
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isProcessing}
+                    className="w-full sm:w-auto inline-flex items-center justify-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors disabled:opacity-50"
+                  >
+                    <svg className="mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    {isProcessing ? 'Elaborazione...' : 'Elimina Asset'}
                   </button>
-                </div>
-              </div>
-            )}
+                  <div className="flex w-full sm:w-auto justify-end">
+                    <button 
+                      onClick={closeModal} 
+                      disabled={isProcessing}
+                      className="rounded-lg px-6 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      Chiudi
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isProcessing}
+                    className="w-full sm:w-auto inline-flex items-center justify-center text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-xs uppercase transition-colors disabled:opacity-50"
+                  >
+                    <svg className="mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    {isProcessing ? 'Elaborazione...' : 'Elimina Asset'}
+                  </button>
+                  
+                  <div className="flex w-full sm:w-auto gap-3">
+                    <button 
+                      onClick={closeModal} 
+                      disabled={isProcessing} 
+                      className="flex-1 sm:flex-none rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    >
+                      Annulla
+                    </button>
+                    <button 
+                      onClick={handleUpdate} 
+                      disabled={isProcessing || !hasChanges} 
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                    >
+                      Salva Modifiche
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>, document.body
       )}
-    </div>
+
+
+      {/* MODALE DI CONFERMA ELIMINAZIONE */}
+      {showDeleteConfirm && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
+            
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Conferma Eliminazione</h3>
+            </div>
+            
+            <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">
+              Sei sicuro di voler eliminare questo asset? Verrà conservato nello storico ma rimosso dalla mappa. Questa azione non può essere annullata.
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isProcessing}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
+              >
+                Annulla
+              </button>
+              <button 
+                onClick={confirmDelete}
+                disabled={isProcessing}
+                className="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-rose-500 focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                {isProcessing ? 'Eliminazione...' : 'Sì, Elimina'}
+              </button>
+            </div>
+
+          </div>
+        </div>, document.body
+      )}
+
+      {/* MODALE DI NOTIFICA (TOAST) */}
+      {notification && createPortal(
+        <div className="fixed top-5 right-5 z-[10001] animate-fade-in-up">
+          <div className={`flex items-center gap-3 rounded-lg px-5 py-3 shadow-xl text-white ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+            {notification.type === 'success' ? (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="font-semibold text-sm">{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)} 
+              className="ml-2 font-bold text-white/80 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+    </>
   );
 }

@@ -37,6 +37,9 @@ class Campus(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     
+    # Colonna che registra quale Amministratore ha creato il campus
+    admin_id = db.Column(UUID(as_uuid=True), nullable=False)
+    
     # Colonna spaziale nativa. L'indice GiST viene creato in automatico da GeoAlchemy2
     geom = db.Column(Geometry('POLYGON', srid=4326, spatial_index=True), nullable=False)
     
@@ -146,7 +149,8 @@ def create_campus():
         new_campus = Campus(
             name=name,
             description=description,
-            geom=new_geom
+            geom=new_geom,
+            admin_id=auth.get('user_id') # Salva l'ID dell'Amministratore che lo sta creando
         )
 
         db.session.add(new_campus)
@@ -199,7 +203,6 @@ def get_campuses():
     try:
         # Interrogazione ottimizzata: estraiamo le colonne base e deleghiamo 
         # a PostGIS la trasformazione della geometria in GeoJSON (ST_AsGeoJSON).
-        # Sostituisci il blocco campuses = db.session.query(...).all() con:
         query = db.session.query(
             Campus.id,
             Campus.name,
@@ -209,9 +212,18 @@ def get_campuses():
             Campus.updated_at
         )
 
-        # Se l'utente è un OPERATORE/AMMINISTRATORE, filtriamo per la lista di ID fornita dal Gateway
-        if auth.get('role') == 'OPERATORE' or auth.get('role') == 'AMMINISTRATORE' and auth.get('campus_ids'):
-            query = query.filter(func.cast(Campus.id, db.String).in_(auth.get('campus_ids')))
+        # L'Amministratore vede direttamente e solo i campus che ha creato
+        if auth.get('role') == 'AMMINISTRATORE':
+            query = query.filter(Campus.admin_id == auth.get('user_id'))
+        
+        # L'Operatore vede esclusivamente quelli per cui è autorizzato dal token
+        elif auth.get('role') == 'OPERATORE':
+            campus_ids = auth.get('campus_ids', [])
+            if campus_ids:
+                query = query.filter(func.cast(Campus.id, db.String).in_(campus_ids))
+            else:
+                # Se l'operatore non ha campus, restituisce lista vuota
+                query = query.filter(False)
 
         campuses = query.all()
 
@@ -404,7 +416,7 @@ def delete_campus(campus_id):
     """
     auth = get_auth_context()
     
-    # Controllo di sicurezza rigoroso: solo l'Amministratore può eliminare
+    # Controllo di sicurezza rigoroso: solo l'Amministratore può eliminare 
     if auth.get('role') != 'AMMINISTRATORE':
         return error_response("Accesso negato. Richiesto ruolo AMMINISTRATORE.", 403)
 

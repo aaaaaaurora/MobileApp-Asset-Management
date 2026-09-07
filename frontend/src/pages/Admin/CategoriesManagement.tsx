@@ -18,6 +18,7 @@ export interface CategoryAttribute {
 export interface Category {
   _id: string;
   name: string;
+  icon?: string;  
   description: string;
   attributes: CategoryAttribute[];
   created_at: string;
@@ -60,12 +61,12 @@ export default function CategoriesManagement() {
   }, [token]);
 
   const handleOpenCreate = () => {
-    setSelectedCategory(null); // Modalità Creazione Nuova Categoria
+    setSelectedCategory(null); 
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (category: Category) => {
-    setSelectedCategory(category); // Modalità Gestione Avanzata
+    setSelectedCategory(category); 
     setIsModalOpen(true);
   };
 

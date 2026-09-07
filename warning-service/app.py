@@ -86,10 +86,12 @@ def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
         "azione": action,
         "entity_id": str(entity_id),
         "autore_id": str(actor_id),
-        "campus_id": str(campus_id),
-        "dettagli": payload_details
+        "campus_id": str(campus_id)
     }
     
+    # Unisce i dettagli direttamente alla radice del dizionario
+    if payload_details:
+        event_data.update(payload_details)
     
     if auth_ctx.get('email'):
         event_data['email'] = auth_ctx.get('email')

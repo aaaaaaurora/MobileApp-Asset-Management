@@ -14,19 +14,16 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
           
-          {/* INTESTAZIONE SCURA - FORTE CONTRASTO */}
           <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 dark:bg-slate-700 dark:text-white dark:border-slate-600">
             <tr>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Email Operatore</th>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Categoria Assegnata</th>
-              <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs w-[30%]">Campus Assegnati</th>
+              <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs min-w-[200px] sm:w-[30%]">Campus Assegnati</th>
               <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs">Stato</th>
-              {/* Tolta la scritta "Azioni", lasciato vuoto per pulizia */}
-              <th className="py-4 px-6 font-semibold text-center w-20"></th>
+              <th className="py-4 px-6 font-semibold text-right"></th>
             </tr>
           </thead>
           
-          {/* CORPO TABELLA CON DIVISORI E ZEBRA-STRIPING */}
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {isLoading ? (
               <tr>
@@ -44,7 +41,6 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
                 return (
                   <tr 
                     key={op.id} 
-                    // Righe alternate (bianco e grigio chiarissimo)
                     className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors`}
                   >
                     <td className="py-4 px-6">
@@ -63,12 +59,11 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {op.campus_ids.map(id => {
-                            // Se il backend manda l'UUID grezzo e non troviamo il nome, ne stampiamo solo un pezzetto visibile
                             const rawCampus = campuses.find((c) => c.id === id);
                             const cName = rawCampus ? rawCampus.name : `Campus (${id.substring(0, 5)}...)`;
                             
                             return (
-                              <span key={id} className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200 shadow-sm">
+                              <span key={id} className="inline-flex items-center text-center whitespace-normal break-words rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 border border-blue-200 shadow-sm">
                                 {cName}
                               </span>
                             );
@@ -87,15 +82,12 @@ export default function OperatorsTable({ operators, categories, campuses, isLoad
                       </span>
                     </td>
                     
-                    <td className="py-4 px-6 text-center">
-                      <button
-                        onClick={() => onEditClick(op)}
-                        title="Modifica Permessi"
-                        className="inline-flex items-center justify-center p-2 rounded-lg text-slate-400 hover:text-white hover:bg-blue-600 transition-all focus:ring-2 focus:ring-blue-500"
+                    <td className="py-4 px-6 text-right">
+                      <button 
+                        onClick={() => onEditClick(op)} 
+                        className="inline-flex items-center justify-center rounded-lg bg-white border border-slate-300 px-4 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-blue-400"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
+                        Gestisci
                       </button>
                     </td>
 

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { useAuth } from "../../context/AuthContext"; // Adatta il percorso al tuo progetto
+import { useAuth } from "../../context/AuthContext"; 
 
-// Definiamo i tipi per le props che il componente riceve
 interface WarningFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,48 +14,47 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Se il modale non è aperto, non renderizzare nulla nel DOM
   if (!isOpen) return null;
 
-  // Aggiungiamo il tipo React.FormEvent per l'evento del form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      // La rotta punta al servizio passando tramite l'API Gateway
       const res = await fetch(`${import.meta.env.VITE_API_URL}/warning/warnings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Il Gateway intercetterà il Bearer token e popolerà gli header X-User-Id, ecc.
           "Authorization": `Bearer ${token}` 
         },
         body: JSON.stringify({
           asset_id: assetId,
-          descrizione: descrizione.trim() // Corrisponde esattamente al "data.get('descrizione')" del backend
+          descrizione: descrizione.trim() 
         })
       });
 
-      const data = await res.json();
-
-      // Gestione degli errori restituiti dal backend (es. 404 cache miss, 400 payload errato) 
-      if (!res.ok) {
-        throw new Error(data.error || "Si è verificato un errore durante l'invio della segnalazione.");
+      // Gestione sicura del parsing per prevenire l'errore "Unexpected token '<'"
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
       }
 
-      // Se arriva qui, il backend ha risposto con 201 Created 
+      if (!res.ok) {
+        throw new Error(data.error || `Errore Critico del Server (Codice: ${res.status})`);
+      }
+
       setSuccess(true);
       
-      // Resetta il form e chiude il modale dopo 2 secondi
       setTimeout(() => {
         setSuccess(false);
         setDescrizione("");
         onClose();
       }, 2000);
 
-    } catch (err: any) { // Tipizziamo l'errore come 'any' per poter leggere err.message
+    } catch (err: any) { 
       setError(err.message);
     } finally {
       setLoading(false);
@@ -64,7 +62,7 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
       <div className="w-full max-w-md p-6 mx-4 bg-white rounded-xl shadow-2xl dark:bg-gray-800">
         
         <div className="flex items-center justify-between mb-5">
@@ -88,19 +86,13 @@ export default function WarningFormModal({ isOpen, onClose, assetId }: WarningFo
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Display informativo sull'asset (Opzionale, ma utile per l'UX) */}
-            <div className="p-3 text-sm text-blue-800 bg-blue-50 rounded-lg dark:bg-blue-900/30 dark:text-blue-300">
-              Stai aprendo un ticket per l'Asset ID: <strong>{assetId || "Non specificato"}</strong>
-            </div>
-
             <div>
               <label htmlFor="descrizione" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Descrizione del problema <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="descrizione"
-                className="w-full p-3 text-sm text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                className="w-full p-3 text-sm text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
                 rows={4}
                 placeholder="Descrivi dettagliatamente il guasto o l'anomalia riscontrata..."
                 value={descrizione}
