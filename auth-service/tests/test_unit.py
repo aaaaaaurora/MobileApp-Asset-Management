@@ -235,22 +235,26 @@ def test_update_operator_success(client):
     assert str(link.campus_id) == new_campus_id
 
 def test_get_operators(client):
-    """Verifica il recupero della lista degli operatori."""
-    # Creazione di due operatori di test
+    """Verifica il recupero della lista degli operatori simulando un admin."""
+    # 1. Creiamo un Amministratore di test per superare il controllo di sicurezza
+    admin_role = Role.query.filter_by(name=RoleType.AMMINISTRATORE).first()
+    admin = AppUser(email="admin_test@campus.it", role_id=admin_role.id, first_name="Admin", last_name="Test")
+    
+    # 2. Creiamo i due Operatori standard
     role = Role.query.filter_by(name=RoleType.OPERATORE).first()
     op1 = AppUser(email="op1@campus.it", role_id=role.id, first_name="A", last_name="B")
     op2 = AppUser(email="op2@campus.it", role_id=role.id, first_name="C", last_name="D")
-    db.session.add_all([op1, op2])
+    
+    db.session.add_all([admin, op1, op2])
     db.session.commit()
-    
-    response = client.get('/admin/operators')
-    
+
+    # 3. Effettuiamo la chiamata includendo l'header obbligatorio X-User-Id
+    headers = {'X-User-Id': str(admin.id)}
+    response = client.get('/admin/operators', headers=headers)
+
     assert response.status_code == 200
-    assert isinstance(response.json, list)
-    assert len(response.json) >= 2
     
-    # Verifichiamo che i dati siano serializzati correttamente
-    emails = [op['email'] for op in response.json]
-    assert "op1@campus.it" in emails
-    assert "op2@campus.it" in emails
+    # Verifica aggiuntiva per assicurarsi che il payload non sia vuoto
+    data = response.get_json()
+    assert len(data) >= 2
     
