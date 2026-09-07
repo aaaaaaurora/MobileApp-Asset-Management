@@ -513,30 +513,44 @@ def get_operators():
     """
     Soddisfa la sequenza alternativa di UC-AMM-08: Permette all'Amministratore 
     di recuperare la lista degli operatori per poterli visualizzare, selezionare e modificare.
-    Si assume che l'API Gateway abbia già validato il token JWT e i permessi di Amministratore.
+    MODIFICATO: Applica il filtro territoriale per restituire solo gli operatori di competenza.
     """
+    admin_id = request.headers.get('X-User-Id')
+    if not admin_id:
+        return error_response("ID Amministratore mancante", 401)
+
     operator_role = Role.query.filter_by(name=RoleType.OPERATORE).first()
     if not operator_role:
         return jsonify([]), 200
 
-    # Recupera tutti gli utenti con ruolo Operatore
+    # 1. Recupera i campus di competenza dell'amministratore chiamante
+    admin_campus_links = UserCampus.query.filter_by(user_id=admin_id).all()
+    admin_campuses = {str(link.campus_id) for link in admin_campus_links}
+
+    # 2. Recupera tutti gli utenti con ruolo Operatore dal database
     operators = AppUser.query.filter_by(role_id=operator_role.id).all()
     
     result = []
     for op in operators:
-        # Recupera le associazioni correnti per ogni operatore
+        # Recupera le associazioni correnti per l'operatore ciclato
         campus_links = UserCampus.query.filter_by(user_id=op.id).all()
-        category_link = UserCategory.query.filter_by(user_id=op.id).first()
+        op_campuses = [str(link.campus_id) for link in campus_links]
         
-        result.append({
-            "id": str(op.id),
-            "email": op.email,
-            "first_name": op.first_name,
-            "last_name": op.last_name,
-            "is_active": op.is_active,
-            "campus_ids": [str(c.campus_id) for c in campus_links],
-            "category_id": str(category_link.category_id) if category_link else None
-        })
+        # 3. FILTRO DI GIURISDIZIONE: 
+        # L'operatore è visibile all'admin SOLO SE condividono almeno un campus
+        # OPPURE se l'operatore è un "Zero-Campus" (appena creato e ancora da assegnare)
+        if not op_campuses or admin_campuses.intersection(op_campuses):
+            category_link = UserCategory.query.filter_by(user_id=op.id).first()
+            
+            result.append({
+                "id": str(op.id),
+                "email": op.email,
+                "first_name": op.first_name,
+                "last_name": op.last_name,
+                "is_active": op.is_active,
+                "campus_ids": op_campuses,
+                "category_id": str(category_link.category_id) if category_link else None
+            })
         
     return jsonify(result), 200
 
