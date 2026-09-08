@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Asset Management</string>
+    <string name="title_activity_main">Asset Management</string>
+    <string name="package_name">com.unisa.asset</string>
+    <string name="custom_url_scheme">com.unisa.asset</string>
+</resources>

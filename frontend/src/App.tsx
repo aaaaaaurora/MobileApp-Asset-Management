@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import CampusMap from "./pages/Dashboard/CampusMap";
@@ -8,7 +8,6 @@ import CategoriesManagement from "./pages/Admin/CategoriesManagement";
 import SystemLogs from "./pages/Admin/SystemLogs";
 import NewCampus from './pages/Admin/CreateCampus';
 import CampusList from './pages/Admin/CampusList';
-
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import SignIn from "./pages/AuthPages/SignIn";
@@ -22,9 +21,10 @@ export default function App() {
       <Router>
         <ScrollToTop />
         <Routes>
+          {/* Rotta iniziale: reindirizza automaticamente alla pagina di login */}
+          <Route path="/" element={<Navigate to="/signin" replace />} />
           <Route path="/signin" element={<SignIn />} />
 
-          
           {/* ========================================== */}
           {/* ROTTE PROTETTE - BASE (Tutti gli autenticati)  */}
           {/* ========================================== */}
@@ -35,7 +35,7 @@ export default function App() {
           </Route>
 
           {/* ========================================== */}
-          {/* ROTTE AMMINISTRATORE                       */}
+          {/* ROTTE AMMINISTRATORE                     */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute allowedRoles={['AMMINISTRATORE']} />}>
             <Route element={<AppLayout />}>
@@ -49,7 +49,7 @@ export default function App() {
           </Route>
 
           {/* ========================================== */}
-          {/* ROTTE OPERATORE                            */}
+          {/* ROTTE OPERATORE                          */}
           {/* ========================================== */}
           <Route element={<ProtectedRoute allowedRoles={['OPERATORE']} />}>
             <Route element={<AppLayout />}>

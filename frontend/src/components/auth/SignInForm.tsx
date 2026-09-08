@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { QRCodeSVG } from 'qrcode.react'; 
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
@@ -18,40 +20,67 @@ export default function SignInForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Estraiamo il segreto manuale direttamente dall'URI senza fare chiamate extra!
   const manualSecret = totpUri ? new URL(totpUri).searchParams.get("secret") : null;
 
-  // 1. Funzione chiamata dal bottone Google
-  const googleLogin = useGoogleLogin({
+  // 1. Inizializzazione del plugin nativo (eseguita solo su mobile)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      GoogleAuth.initialize({
+        clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      });
+    }
+  }, []);
+
+  // 2. Flusso Web Standard
+  const googleLoginWeb = useGoogleLogin({
     onSuccess: async (credentialResponse) => {
-      setError("");
-      setLoading(true);
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/auth/google`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ google_id_token: credentialResponse.access_token }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || "Errore di login");
-
-        setTempToken(data.temp_token);
-        
-        // Salviamo l'URI (se presente) che servirà per QR Code e codice manuale
-        setTotpUri(data.totp_uri || null);
-        setStep(2); 
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+      await processGoogleToken(credentialResponse.access_token);
     },
-    onError: () => setError("Autenticazione Google fallita"),
+    onError: () => setError("Autenticazione Google Web fallita"),
   });
 
-  // 2. Funzione per l'invio del codice TOTP
+  // 3. Funzione condivisa per inviare il token al tuo backend
+  const processGoogleToken = async (token: string) => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ google_id_token: token }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Errore di login");
+
+      setTempToken(data.temp_token);
+      setTotpUri(data.totp_uri || null);
+      setStep(2); 
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 4. Bivio: Click sul pulsante Google
+  const handleGoogleLoginClick = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const googleUser = await GoogleAuth.signIn();
+        // Google Auth nativo restituisce l'idToken che useremo per validare l'identità
+        await processGoogleToken(googleUser.authentication.idToken);
+      } catch (err: any) {
+        console.error("Errore plugin nativo:", err);
+        setError("Autenticazione Google Nativa fallita");
+      }
+    } else {
+      googleLoginWeb();
+    }
+  };
+
   const handleTOTPSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -65,7 +94,6 @@ export default function SignInForm() {
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Codice non valido");
 
       login(data.token);
@@ -108,7 +136,7 @@ export default function SignInForm() {
             {step === 1 ? (
               <div className="grid grid-cols-1 gap-3">
                 <button 
-                  onClick={() => googleLogin()}
+                  onClick={handleGoogleLoginClick}
                   disabled={loading}
                   className="inline-flex items-center justify-center w-full gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -124,8 +152,6 @@ export default function SignInForm() {
             ) : (
               <form onSubmit={handleTOTPSubmit}>
                 <div className="space-y-6">
-                  
-                  {/* Sezione QR Code e Secret integrata pulita */}
                   {totpUri && (
                     <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 mb-4">
                       <p className="mb-3 text-sm font-medium text-center text-gray-700 dark:text-gray-300">

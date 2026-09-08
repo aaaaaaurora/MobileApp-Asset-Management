@@ -9,7 +9,16 @@ from flask import Flask, request, jsonify, Response
 # ============================================================================
 
 app = Flask(__name__)
-CORS(app)
+# Configurazione CORS esplicita per Web e Mobile
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://192.168.72.109.nip.io:32080", # Web App
+            "http://localhost"                    # Android Capacitor
+        ],
+        "supports_credentials": True
+    }
+})
 # Configurazione della chiave segreta per la validazione del JWT
 app.config['JWT_SECRET'] = os.getenv('JWT_SECRET', 'super-secret-key-fallback')
 
