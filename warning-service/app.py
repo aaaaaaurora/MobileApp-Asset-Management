@@ -283,6 +283,7 @@ def get_warnings():
     # Filtri opzionali da query string
     req_campus_id = request.args.get('campus_id')
     req_status = request.args.get('status')
+    req_category_id = request.args.get('category_id') # <-- AGGIUNTO
 
     # Inizializziamo la query di base
     query = Warning.query
@@ -321,6 +322,10 @@ def get_warnings():
         except KeyError:
             return jsonify({"error": "Stato segnalazione non valido"}), 400
 
+    # 4. Filtro per categoria (AGGIUNTO)
+    if req_category_id:
+        query = query.filter(Warning.category_id == req_category_id)
+
     # Ordina per data di creazione decrescente (le più recenti prima)
     query = query.order_by(Warning.created_at.desc())
 
@@ -331,7 +336,7 @@ def get_warnings():
     result = [{
         "id": str(w.id),
         "asset_id": str(w.asset_id),
-        "category_id": str(w.category_id), # AGGIUNTO
+        "category_id": str(w.category_id),
         "descrizione": w.description,
         "status": w.status.value,
         "campus_id": str(w.campus_id),
