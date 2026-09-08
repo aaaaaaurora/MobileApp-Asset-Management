@@ -42,6 +42,8 @@ const CreateAsset: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isOperator = user?.role === 'OPERATORE';
+
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -62,6 +64,17 @@ const CreateAsset: React.FC = () => {
 
     if (token) fetchCategories();
   }, [token]);
+
+  // Se l'utente è un operatore e le categorie sono caricate, imposta automaticamente la sua categoria e passa allo step successivo
+  useEffect(() => {
+    if (isOperator && user?.category_id && categories.length > 0) {
+      setSelectedCategory(user.category_id);
+      const catObj = categories.find(c => c._id === user.category_id);
+      if (catObj) {
+        setSelectedCategoryObj(catObj);
+      }
+    }
+  }, [isOperator, user, categories]);
 
   const captureLocation = () => {
     setLoading('Acquisizione e validazione GPS...');
@@ -143,9 +156,8 @@ const CreateAsset: React.FC = () => {
     }
   };
 
-  // MODIFICATO: Rimosso il window.confirm. Esegue direttamente l'annullamento quando chiamato dal modale.
   const executeCancelProcess = async () => {
-    setIsCancelModalOpen(false); // Chiude il modale
+    setIsCancelModalOpen(false); 
     
     if (mediaId) {
       try {
@@ -163,9 +175,20 @@ const CreateAsset: React.FC = () => {
     setMediaId(null);
     setAiSuggestions(null);
     setMetadata({});
-    setSelectedCategory('');
-    setSelectedCategoryObj(null);
     setMatchedCampusId(null);
+    
+    if (!isOperator) {
+      setSelectedCategory('');
+      setSelectedCategoryObj(null);
+    }
+  };
+
+  const handleNextStep1 = () => {
+    if (isOperator && selectedCategoryObj) {
+      triggerAIAnalysis();
+    } else {
+      setStep(2);
+    }
   };
 
   const triggerAIAnalysis = async () => {
@@ -261,9 +284,12 @@ const CreateAsset: React.FC = () => {
       setMediaId(null);
       setAiSuggestions(null);
       setMetadata({});
-      setSelectedCategory('');
-      setSelectedCategoryObj(null);
       setMatchedCampusId(null);
+
+      if (!isOperator) {
+        setSelectedCategory('');
+        setSelectedCategoryObj(null);
+      }
     } catch (err: any) {
       setError(err.message || 'Errore imprevisto durante il salvataggio.');
     } finally {
@@ -290,11 +316,19 @@ const CreateAsset: React.FC = () => {
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 overflow-hidden">
           
           <div className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 py-2.5 px-4 flex justify-between items-center">
-            <h3 className="font-bold text-base text-slate-800 dark:text-white">Fase {step} di 3</h3>
+            <h3 className="font-bold text-base text-slate-800 dark:text-white">
+              {isOperator ? `Fase ${step === 3 ? 2 : 1} di 2` : `Fase ${step} di 3`}
+            </h3>
             <div className="flex gap-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className={`h-2 w-8 rounded-full transition-colors ${step >= i ? 'bg-blue-600 shadow-sm' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-              ))}
+              {isOperator ? (
+                [1, 2].map((i) => (
+                  <div key={i} className={`h-2 w-8 rounded-full transition-colors ${((step === 1 && i === 1) || (step === 3 && i >= 1)) ? 'bg-blue-600 shadow-sm' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                ))
+              ) : (
+                [1, 2, 3].map((i) => (
+                  <div key={i} className={`h-2 w-8 rounded-full transition-colors ${step >= i ? 'bg-blue-600 shadow-sm' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                ))
+              )}
             </div>
           </div>
 
@@ -305,12 +339,22 @@ const CreateAsset: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 1 */}
             {step === 1 && (
               <div className="space-y-5">
+                {isOperator && selectedCategoryObj && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                      Categoria Assegnata
+                    </label>
+                    <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300">
+                      {selectedCategoryObj.name}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                    1. Posizione GPS e Validazione
+                    {isOperator ? '1. Posizione GPS e Validazione' : '1. Posizione GPS e Validazione'}
                   </label>
                   {location ? (
                     <div className="w-full rounded-lg border border-emerald-500 bg-emerald-50 py-2 px-3 text-emerald-700 text-sm font-semibold shadow-sm flex items-center gap-2 dark:bg-emerald-900/20 dark:text-emerald-400">
@@ -335,7 +379,7 @@ const CreateAsset: React.FC = () => {
 
                 <div>
                   <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                    2. Foto dell'Asset
+                    {isOperator ? "2. Foto dell'Asset" : "2. Foto dell'Asset"}
                   </label>
                   <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handlePhotoCapture} className="hidden" />
                   
@@ -364,18 +408,24 @@ const CreateAsset: React.FC = () => {
 
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
                   <button 
-                    disabled={!location || !photoFile} 
-                    onClick={() => setStep(2)} 
+                    disabled={!location || !photoFile || (isOperator && !selectedCategoryObj)} 
+                    onClick={handleNextStep1} 
                     className="flex w-full justify-center items-center rounded-lg bg-blue-600 p-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Avanti
+                    {isOperator ? (
+                      loading ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Elaborazione in corso...
+                        </span>
+                      ) : 'Carica Immagine e Analizza'
+                    ) : 'Avanti'}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* STEP 2 */}
-            {step === 2 && (
+            {step === 2 && !isOperator && (
               <div className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">Seleziona Categoria Strutturale</label>
@@ -418,7 +468,6 @@ const CreateAsset: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 3 */}
             {step === 3 && (
               <div className="space-y-4">
                 
@@ -483,7 +532,7 @@ const CreateAsset: React.FC = () => {
                   
                   <div className="flex w-full sm:w-auto gap-2">
                     <button 
-                      onClick={() => setStep(2)} 
+                      onClick={() => setStep(isOperator ? 1 : 2)} 
                       className="flex-1 sm:flex-none rounded-lg px-4 py-2 text-sm font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
                     >
                       Indietro
@@ -503,7 +552,6 @@ const CreateAsset: React.FC = () => {
         </div>
       </div>
 
-      {/* MODALE DI CONFERMA ANNULLAMENTO */}
       {isCancelModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">
