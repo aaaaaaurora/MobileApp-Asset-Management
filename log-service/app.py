@@ -204,28 +204,34 @@ class AuditLogRepository:
             base_query = base_query.filter(AuditLog.payload['campus_id'].astext.in_(campus_ids))
 
         assets_count = base_query.filter(AuditLog.action == 'ASSET_CREATED').count()
-        tickets_count = base_query.filter(AuditLog.action.in_(['CREATE_WARNING', 'RESOLVE_WARNING'])).count()
-        interventions_count = base_query.filter(AuditLog.action.in_(['LOG_MAINTENANCE'])).count()
+        
+        # FIX 1: Conteggio logico di Segnalazioni Attive e Interventi
+        created_warnings = base_query.filter(AuditLog.action == 'CREATE_WARNING').count()
+        resolved_warnings = base_query.filter(AuditLog.action == 'RESOLVE_WARNING').count()
+        
+        tickets_count = max(0, created_warnings - resolved_warnings) # Solo quelle rimaste aperte
+        interventions_count = base_query.filter(AuditLog.action.in_(['LOG_MAINTENANCE', 'RESOLVE_WARNING'])).count() # Entrambi i tipi di intervento
 
+        # FIX 2: Utilizzo dei "name" al posto degli "id" per le etichette dei grafici
         category_distribution = db.session.query(
-            AuditLog.payload['category_id'].astext.label('category_id'),
+            func.coalesce(AuditLog.payload['category_name'].astext, AuditLog.payload['category_id'].astext).label('category_label'),
             func.count(AuditLog.id)
         ).filter(AuditLog.action == 'ASSET_CREATED')
         
         if campus_ids:
             category_distribution = category_distribution.filter(AuditLog.payload['campus_id'].astext.in_(campus_ids))
             
-        category_dist_results = category_distribution.group_by(AuditLog.payload['category_id'].astext).all()
+        category_dist_results = category_distribution.group_by('category_label').all()
         
         campus_distribution = db.session.query(
-            AuditLog.payload['campus_id'].astext.label('campus_id'),
+            func.coalesce(AuditLog.payload['campus_name'].astext, AuditLog.payload['campus_id'].astext).label('campus_label'),
             func.count(AuditLog.id)
         ).filter(AuditLog.action == 'ASSET_CREATED')
         
         if campus_ids:
             campus_distribution = campus_distribution.filter(AuditLog.payload['campus_id'].astext.in_(campus_ids))
             
-        campus_dist_results = campus_distribution.group_by(AuditLog.payload['campus_id'].astext).all()
+        campus_dist_results = campus_distribution.group_by('campus_label').all()
 
         return {
             "totals": {
@@ -238,7 +244,7 @@ class AuditLogRepository:
                 "by_campus": {row[0]: row[1] for row in campus_dist_results if row[0]}
             }
         }
-
+    
     @staticmethod
     def get_dashboard_charts(filters: dict, dynamic_attr: str = None) -> dict:
         """
