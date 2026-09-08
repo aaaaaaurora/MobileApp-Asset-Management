@@ -139,7 +139,6 @@ def create_category():
         return error_response("Categoria già esistente", 409)
 
     # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
-    # Documento iniziale della Categoria. Gli attributi verranno aggiunti successivamente (US 2-2)
     new_category = {
         "name": category_name,
         "description": data.get('description', ''),

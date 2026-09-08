@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 interface Ticket {
   id: string;
   asset_id: string;
+  category_id: string; 
   descrizione: string;
   status: 'aperta' | 'chiusa';
   campus_id: string;
@@ -23,7 +24,7 @@ interface Category {
 }
 
 export default function TicketSegnalazioni() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -40,7 +41,6 @@ export default function TicketSegnalazioni() {
   const [notaIntervento, setNotaIntervento] = useState('');
   const [isResolving, setIsResolving] = useState(false);
 
-  // NUOVO STATO: Gestione apertura modale di notifica (successo o errore)
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   // Recupero dati statici per i filtri (Campus e Categorie)
@@ -112,7 +112,6 @@ export default function TicketSegnalazioni() {
 
       if (!response.ok) throw new Error('Errore durante la chiusura del ticket');
 
-      // Aggiornamento dinamico senza ricaricare
       setTickets(prev => prev.map(t => 
         t.id === selectedTicket.id ? { ...t, status: 'chiusa' } : t
       ));
@@ -144,7 +143,6 @@ export default function TicketSegnalazioni() {
         </div>
       </div>
 
-      {/* SEZIONE FILTRI COMPATTA */}
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -216,50 +214,59 @@ export default function TicketSegnalazioni() {
                   </td>
                 </tr>
               ) : (
-                tickets.map((ticket) => (
-                  <tr key={ticket.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    <td className="py-4 px-6">
-                      <p className="font-bold text-slate-800 dark:text-slate-200">{new Date(ticket.created_at).toLocaleDateString('it-IT')}</p>
-                      <p className="text-xs font-medium text-slate-500">{new Date(ticket.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute:'2-digit' })}</p>
-                    </td>
-                    <td className="py-4 px-6">
-                      <p className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-xs" title={ticket.descrizione}>{ticket.descrizione}</p>
-                      <p className="text-xs text-slate-500 mt-1 font-mono">Asset: {ticket.asset_id.substring(0, 8)}...</p>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${ticket.status === 'aperta' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
-                        {ticket.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <button
-                        onClick={() => navigate('/map', { state: { focusAssetId: ticket.asset_id, focusCampusId: ticket.campus_id } })}
-                        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
-                      >
-                        📍 Mappa
-                      </button>
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      {ticket.status === 'aperta' ? (
-                      <button
-                        onClick={() => setSelectedTicket(ticket)}
-                        className="inline-flex items-center justify-center rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-blue-400"
-                      >
-                        Gestisci
-                      </button>
-                      ) : (
-                        <span className="text-xs font-semibold text-slate-400 italic">Problema risolto</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                tickets.map((ticket) => {
+                  // <-- AGGIUNTO: Controllo autorizzazioni per il ticket corrente
+                  const canManage = user?.role === 'OPERATORE' && user?.category_id === ticket.category_id;
+
+                  return (
+                    <tr key={ticket.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                      <td className="py-4 px-6">
+                        <p className="font-bold text-slate-800 dark:text-slate-200">{new Date(ticket.created_at).toLocaleDateString('it-IT')}</p>
+                        <p className="text-xs font-medium text-slate-500">{new Date(ticket.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute:'2-digit' })}</p>
+                      </td>
+                      <td className="py-4 px-6">
+                        <p className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-xs" title={ticket.descrizione}>{ticket.descrizione}</p>
+                        <p className="text-xs text-slate-500 mt-1 font-mono">Asset: {ticket.asset_id.substring(0, 8)}...</p>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${ticket.status === 'aperta' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                          {ticket.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <button
+                          onClick={() => navigate('/map', { state: { focusAssetId: ticket.asset_id, focusCampusId: ticket.campus_id } })}
+                          className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          📍 Mappa
+                        </button>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        {ticket.status === 'aperta' ? (
+                        <button
+                          onClick={() => setSelectedTicket(ticket)}
+                          disabled={!canManage}
+                          title={!canManage ? "Non hai i permessi per gestire questa categoria (o sei amministratore)" : ""}
+                          className={`inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-200 
+                            ${canManage 
+                              ? 'bg-white text-slate-700 hover:bg-slate-100 hover:text-blue-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-blue-400' 
+                              : 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500'}`}
+                        >
+                          Gestisci
+                        </button>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-400 italic">Problema risolto</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* MODALE GESTIONE TICKET */}
       {selectedTicket && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transform transition-all">
@@ -315,7 +322,6 @@ export default function TicketSegnalazioni() {
         </div>, document.body
       )}
 
-      {/* MODALE DI NOTIFICA (SUCCESSO / ERRORE) */}
       {notification && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden text-center p-6">

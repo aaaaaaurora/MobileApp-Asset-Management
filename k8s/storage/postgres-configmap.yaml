@@ -117,7 +117,8 @@ data:
       campus_id UUID NOT NULL,      -- Denormalizzato per filtro rapido
       reporter_id UUID NOT NULL,    -- Soft link a PostgreSQL (Auth Service)
       description TEXT NOT NULL,
-      status warning_status DEFAULT 'aperta',
+      status warning_status DEFAULT 'aperta',     
+      category_id VARCHAR(24) NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -143,6 +144,7 @@ data:
     CREATE TABLE local_asset_cache (
       asset_id VARCHAR(24) PRIMARY KEY,
       campus_id UUID NOT NULL,
+      category_id VARCHAR(24) NOT NULL,
       campus_name VARCHAR(100),
       asset_name VARCHAR(255)
     );

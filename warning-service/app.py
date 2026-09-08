@@ -39,6 +39,7 @@ class Warning(db.Model):
     __tablename__ = 'warning'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     asset_id = db.Column(db.String(24), nullable=False)
+    category_id = db.Column(db.String(24), nullable=False) # AGGIUNTO
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
     reporter_id = db.Column(UUID(as_uuid=True), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -57,10 +58,10 @@ class MaintenanceIntervention(db.Model):
     technical_note = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=datetime.datetime.utcnow)
     
-    
 class LocalAssetCache(db.Model):
     __tablename__ = 'local_asset_cache'
     asset_id = db.Column(db.String(24), primary_key=True)
+    category_id = db.Column(db.String(24), nullable=False) # AGGIUNTO
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
     
     campus_name = db.Column(db.String(100), nullable=True)
@@ -98,7 +99,6 @@ def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
         
     mq_manager.publish_event('system_events', action, str(actor_id), 'warning-service', event_data)
     
-    
 # ==========================================
 # CONSUMER ASINCRONO PER CACHE ASSET
 # ==========================================
@@ -113,19 +113,20 @@ def process_asset_events(ch, method, properties, body):
             if action in ["ASSET_CREATED", "ASSET_UPDATED"]:
                 asset_id = payload.get("asset_id")
                 campus_id = payload.get("campus_id")
-                
+                category_id = payload.get("category_id") # AGGIUNTO
                 
                 campus_name = payload.get("campus_name")
                 asset_name = payload.get("asset_name")
                 
-                if asset_id and campus_id:
+                if asset_id and campus_id and category_id: # AGGIORNATO
                     campus_uuid = uuid.UUID(campus_id)
                     asset = db.session.get(LocalAssetCache, asset_id)
                     
                     if not asset:
-                        # Se non esiste, lo creiamo memorizzando anche i nomi
+                        # Se non esiste, lo creiamo memorizzando anche i nomi e la categoria
                         asset = LocalAssetCache(
                             asset_id=asset_id, 
+                            category_id=category_id, # AGGIUNTO
                             campus_id=campus_uuid,
                             campus_name=campus_name,
                             asset_name=asset_name
@@ -133,6 +134,7 @@ def process_asset_events(ch, method, properties, body):
                         db.session.add(asset)
                     else:
                         # Se esiste, aggiorniamo tutto (in caso di ridenominazione o spostamento)
+                        asset.category_id = category_id # AGGIUNTO
                         asset.campus_id = campus_uuid
                         asset.campus_name = campus_name
                         asset.asset_name = asset_name
@@ -188,7 +190,6 @@ def health_check():
     """
     return jsonify({"status": "healthy"}), 200
 
-
 # ==========================================
 # ENDPOINT: US 6-1
 # ==========================================
@@ -231,6 +232,7 @@ def create_warning():
     # Creazione record
     new_warning = Warning(
         asset_id=asset_id_str,
+        category_id=local_asset.category_id, # AGGIUNTO
         campus_id=campus_uuid,
         reporter_id=reporter_uuid,
         description=description.strip()
@@ -329,6 +331,7 @@ def get_warnings():
     result = [{
         "id": str(w.id),
         "asset_id": str(w.asset_id),
+        "category_id": str(w.category_id), # AGGIUNTO
         "descrizione": w.description,
         "status": w.status.value,
         "campus_id": str(w.campus_id),
@@ -383,7 +386,6 @@ def resolve_warning(warning_id_str):
     # 5. Validazione Input (Eccezione EMPTY_REPORT definita nello SDA)
     if not technical_note or str(technical_note).strip() == "":
         return jsonify({"error": "EMPTY_REPORT: La nota tecnica dell'intervento è obbligatoria"}), 400
-
 
     local_asset = db.session.get(LocalAssetCache, warning.asset_id)
 
