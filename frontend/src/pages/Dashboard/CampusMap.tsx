@@ -83,20 +83,34 @@ export default function CampusMap() {
   useEffect(() => {
     const fetchAssets = async () => {
       try {
-        let url = `${import.meta.env.VITE_API_URL}/asset/api/assets`;
-        if (selectedCampus) {
-          url += `?campus_id=${selectedCampus}`;
+        const params = new URLSearchParams();
+        if (selectedCampus) params.append('campus_id', selectedCampus);
+        
+        // Se l'utente è un operatore, richiediamo al backend solo gli asset della sua categoria
+        if (user?.role === 'OPERATORE' && user?.category_id) {
+          params.append('category_id', user.category_id);
         }
+
+        const url = `${import.meta.env.VITE_API_URL}/asset/api/assets?${params.toString()}`;
         const response = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        
         if (!response.ok) throw new Error('Errore nel recupero asset');
         const data = await response.json();
-        setAssets(data.assets || []);
+        
+        let fetchedAssets = data.assets || [];
+        
+        // Filtro di sicurezza aggiuntivo lato frontend
+        if (user?.role === 'OPERATORE' && user?.category_id) {
+          fetchedAssets = fetchedAssets.filter((a: any) => a.category_id === user.category_id);
+        }
+
+        setAssets(fetchedAssets);
       } catch (error) { console.error("Errore recupero asset:", error); }
     };
     if (selectedCampus) fetchAssets();
-  }, [selectedCampus, token]);
+  }, [selectedCampus, token, user]);
 
   useEffect(() => {
       if (focusAssetId && assets.length > 0) {
@@ -252,13 +266,13 @@ export default function CampusMap() {
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="relative flex flex-col w-full max-w-md max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden">
               
-              {/* MODIFICATO: Intestazione con pulsante di modifica per operatore */}
               <div className="flex justify-between items-center p-5 border-b border-stroke dark:border-strokedark bg-white dark:bg-boxdark z-10">
                 <div className="flex items-center gap-3">
                   <h3 className="font-bold text-xl text-black dark:text-white">
                     Dettagli Asset
                   </h3>
-                  {user?.role === 'OPERATORE' && user?.campus_ids?.includes(selectedAsset.campus_id) && (
+                  {/* Controllo incrociato: ruolo, territorio e pertinenza della categoria */}
+                  {user?.role === 'OPERATORE' && user?.campus_ids?.includes(selectedAsset.campus_id) && user?.category_id === selectedAsset.category_id && (
                     <button 
                       onClick={() => navigate('/assets/list', { state: { editAssetId: selectedAsset._id, editCampusId: selectedAsset.campus_id } })}
                       className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
