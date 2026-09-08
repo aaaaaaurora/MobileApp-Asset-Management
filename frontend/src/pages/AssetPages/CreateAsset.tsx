@@ -338,7 +338,7 @@ const CreateAsset: React.FC = () => {
                 <p className="font-semibold text-xs">{error}</p>
               </div>
             )}
-
+ 
             {step === 1 && (
               <div className="space-y-5">
                 {isOperator && selectedCategoryObj && (

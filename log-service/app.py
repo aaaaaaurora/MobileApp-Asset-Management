@@ -183,7 +183,7 @@ class AuditLogRepository:
         """Recupera l'intero set di log filtrati senza paginazione (Uso: Esportazioni)."""
         query = AuditLogRepository._build_filter_query(filters)
         return query.all()
-
+ 
     @staticmethod
     def find_by_id(log_id: str) -> AuditLog:
         """Recupera un singolo record di log tramite il suo UUID."""
