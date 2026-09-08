@@ -253,7 +253,6 @@ def verify_2fa():
     """
     Valida il codice TOTP (Microsoft Authenticator) e 
     genera il JWT definitivo aggregando i permessi dell'utente.
-    Include una backdoor temporanea (codice "000000") per bypass di emergenza.
     """
     data = request.get_json()
     if not data:
@@ -282,11 +281,10 @@ def verify_2fa():
         totp = pyotp.TOTP(totp_secret)
         
         # Validazione del codice prima di toccare il DB
-        # BACKDOOR TEMPORANEA: Se il codice è 000000, bypassa il controllo
-        if not totp.verify(totp_code, valid_window=0) and totp_code != "000000":
+        if not totp.verify(totp_code, valid_window=0):
             return error_response("INVALID_CODE", 401)
             
-        # 1. Il codice è corretto (o è stato usato il bypass)! Ora possiamo creare l'utente nel Database
+        # 1. Il codice è corretto! Ora possiamo creare l'utente nel Database
         guest_role = Role.query.filter_by(name=RoleType.GUEST).first()
         if not guest_role:
             return error_response("Configurazione di sistema mancante: Ruolo di base non trovato", 500)
@@ -318,8 +316,7 @@ def verify_2fa():
 
         # Validazione del Codice TOTP
         totp = pyotp.TOTP(user.totp_secret)
-        # BACKDOOR TEMPORANEA: Se il codice è 000000, bypassa il controllo
-        if not totp.verify(totp_code) and totp_code != "000000":
+        if not totp.verify(totp_code):
             publish_audit_event("2FA_FAILED", user.id)
             return error_response("INVALID_CODE", 401)
 
@@ -343,12 +340,7 @@ def verify_2fa():
     }
 
     final_token = jwt.encode(jwt_payload, app.config['JWT_SECRET'], algorithm="HS256")
-    
-    # Audit log: Se è stata usata la backdoor, possiamo opzionalmente tracciarlo, altrimenti log standard
-    if totp_code == "000000":
-        publish_audit_event("2FA_BYPASSED_LOGIN", user.id)
-    else:
-        publish_audit_event("2FA_SUCCESS_LOGIN", user.id)
+    publish_audit_event("2FA_SUCCESS_LOGIN", user.id)
 
     return jsonify({
         "token": final_token,
@@ -513,44 +505,30 @@ def get_operators():
     """
     Soddisfa la sequenza alternativa di UC-AMM-08: Permette all'Amministratore 
     di recuperare la lista degli operatori per poterli visualizzare, selezionare e modificare.
-    MODIFICATO: Applica il filtro territoriale per restituire solo gli operatori di competenza.
+    Si assume che l'API Gateway abbia già validato il token JWT e i permessi di Amministratore.
     """
-    admin_id = request.headers.get('X-User-Id')
-    if not admin_id:
-        return error_response("ID Amministratore mancante", 401)
-
     operator_role = Role.query.filter_by(name=RoleType.OPERATORE).first()
     if not operator_role:
         return jsonify([]), 200
 
-    # 1. Recupera i campus di competenza dell'amministratore chiamante
-    admin_campus_links = UserCampus.query.filter_by(user_id=admin_id).all()
-    admin_campuses = {str(link.campus_id) for link in admin_campus_links}
-
-    # 2. Recupera tutti gli utenti con ruolo Operatore dal database
+    # Recupera tutti gli utenti con ruolo Operatore
     operators = AppUser.query.filter_by(role_id=operator_role.id).all()
     
     result = []
     for op in operators:
-        # Recupera le associazioni correnti per l'operatore ciclato
+        # Recupera le associazioni correnti per ogni operatore
         campus_links = UserCampus.query.filter_by(user_id=op.id).all()
-        op_campuses = [str(link.campus_id) for link in campus_links]
+        category_link = UserCategory.query.filter_by(user_id=op.id).first()
         
-        # 3. FILTRO DI GIURISDIZIONE: 
-        # L'operatore è visibile all'admin SOLO SE condividono almeno un campus
-        # OPPURE se l'operatore è un "Zero-Campus" (appena creato e ancora da assegnare)
-        if not op_campuses or admin_campuses.intersection(op_campuses):
-            category_link = UserCategory.query.filter_by(user_id=op.id).first()
-            
-            result.append({
-                "id": str(op.id),
-                "email": op.email,
-                "first_name": op.first_name,
-                "last_name": op.last_name,
-                "is_active": op.is_active,
-                "campus_ids": op_campuses,
-                "category_id": str(category_link.category_id) if category_link else None
-            })
+        result.append({
+            "id": str(op.id),
+            "email": op.email,
+            "first_name": op.first_name,
+            "last_name": op.last_name,
+            "is_active": op.is_active,
+            "campus_ids": [str(c.campus_id) for c in campus_links],
+            "category_id": str(category_link.category_id) if category_link else None
+        })
         
     return jsonify(result), 200
 
