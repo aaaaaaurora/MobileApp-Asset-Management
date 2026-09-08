@@ -32,7 +32,6 @@ export default function TicketSegnalazioni() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Stati per i filtri
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
@@ -43,7 +42,6 @@ export default function TicketSegnalazioni() {
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-  // Recupero dati statici per i filtri (Campus e Categorie)
   useEffect(() => {
     const fetchStaticData = async () => {
       try {
@@ -66,10 +64,9 @@ export default function TicketSegnalazioni() {
     if (token) fetchStaticData();
   }, [token]);
 
-  // Recupero Ticket con l'applicazione dei filtri
   useEffect(() => {
     fetchTickets();
-  }, [token, selectedCampus, selectedCategory, selectedStatus]);
+  }, [token, selectedCampus, selectedCategory, selectedStatus, user]); // aggiunto user alle dipendenze
 
   const fetchTickets = async () => {
     try {
@@ -77,8 +74,15 @@ export default function TicketSegnalazioni() {
       
       const params = new URLSearchParams();
       if (selectedCampus) params.append('campus_id', selectedCampus);
-      if (selectedCategory) params.append('category_id', selectedCategory);
       if (selectedStatus) params.append('status', selectedStatus);
+      
+      // Se l'utente è un operatore, ignora il filtro a tendina e forza la sua categoria
+      if (user?.role === 'OPERATORE' && user?.category_id) {
+        params.append('category_id', user.category_id);
+      } else if (selectedCategory) {
+        // Altrimenti, se è admin e ha scelto una categoria, usa quella
+        params.append('category_id', selectedCategory);
+      }
 
       const url = `${import.meta.env.VITE_API_URL}/warning/warnings${params.toString() ? `?${params.toString()}` : ''}`;
       
@@ -88,7 +92,15 @@ export default function TicketSegnalazioni() {
       
       if (!response.ok) throw new Error('Errore nel recupero dei ticket');
       const data = await response.json();
-      setTickets(data);
+      
+      let fetchedTickets = data;
+
+      // Filtro di sicurezza aggiuntivo lato frontend per operatori
+      if (user?.role === 'OPERATORE' && user?.category_id) {
+        fetchedTickets = fetchedTickets.filter((t: Ticket) => t.category_id === user.category_id);
+      }
+
+      setTickets(fetchedTickets);
     } catch (error) {
       console.error(error);
     } finally {
@@ -159,19 +171,22 @@ export default function TicketSegnalazioni() {
             </select>
           </div>
 
-          <div className="flex-1">
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
-            <select 
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-            >
-              <option value="">Tutte le Categorie</option>
-              {categories.map(c => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Il selettore di categoria viene mostrato SOLO se l'utente NON è un operatore */}
+          {user?.role !== 'OPERATORE' && (
+            <div className="flex-1">
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
+              <select 
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+              >
+                <option value="">Tutte le Categorie</option>
+                {categories.map(c => (
+                  <option key={c._id} value={c._id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex-1">
             <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Stato segnalazione</label>
@@ -215,7 +230,6 @@ export default function TicketSegnalazioni() {
                 </tr>
               ) : (
                 tickets.map((ticket) => {
-                  // <-- AGGIUNTO: Controllo autorizzazioni per il ticket corrente
                   const canManage = user?.role === 'OPERATORE' && user?.category_id === ticket.category_id;
 
                   return (
