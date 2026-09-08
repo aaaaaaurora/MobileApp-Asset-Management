@@ -52,7 +52,6 @@ export default function AssetList() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
   
-  // NUOVO STATO: Nota Intervento
   const [preventiveNote, setPreventiveNote] = useState('');
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -60,11 +59,9 @@ export default function AssetList() {
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
-  // Controllo Ruolo
   const isAdmin = user?.role === 'AMMINISTRATORE';
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
@@ -72,15 +69,21 @@ export default function AssetList() {
     setTimeout(() => setNotification(null), 3000);
   }
   
+  // Imposta automaticamente la categoria per l'operatore
+  useEffect(() => {
+    if (user?.role === 'OPERATORE' && user?.category_id) {
+      setSelectedCategory(user.category_id);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchStaticData();
   }, [token]);
 
   useEffect(() => {
     fetchAssets();
-  }, [token, selectedCampus, selectedCategory, dynamicFilters]);
+  }, [token, selectedCampus, selectedCategory, dynamicFilters, user]);
 
-  // Gestione rotta/autofocus proveniente dalla mappa
   useEffect(() => {
     if (location.state?.editCampusId && location.state?.editCampusId !== selectedCampus) {
       setSelectedCampus(location.state.editCampusId);
@@ -93,7 +96,6 @@ export default function AssetList() {
       const assetToEdit = assets.find(a => a._id === editAssetId);
       if (assetToEdit) {
         openEditModal(assetToEdit);
-        // Pulizia cronologia locale per impedire che il modale si riapra cambiando pagina
         navigate(location.pathname, { replace: true, state: {} });
       }
     }
@@ -112,7 +114,6 @@ export default function AssetList() {
       
       if (campRes.ok) {
         const allCampuses = await campRes.json();
-        // Filtra la select in modo che Admin e Operatori vedano solo i campus a loro assegnati
         const userAllowedCampuses = allCampuses.filter((c: Campus) => 
           user?.campus_ids?.includes(c.id)
         );
@@ -130,7 +131,13 @@ export default function AssetList() {
       
       const params = new URLSearchParams();
       if (selectedCampus) params.append('campus_id', selectedCampus);
-      if (selectedCategory) params.append('category_id', selectedCategory);
+      
+      // Se l'utente è un operatore, ignora il filtro a tendina e forza la sua categoria
+      if (user?.role === 'OPERATORE' && user?.category_id) {
+        params.append('category_id', user.category_id);
+      } else if (selectedCategory) {
+        params.append('category_id', selectedCategory);
+      }
       
       Object.entries(dynamicFilters).forEach(([key, value]) => {
         if (value) params.append(`attr_${key}`, value);
@@ -144,7 +151,14 @@ export default function AssetList() {
       
       if (assetRes.ok) {
         const assetData = await assetRes.json();
-        setAssets(assetData.assets || []);
+        let fetchedAssets = assetData.assets || [];
+
+        // Filtro di sicurezza aggiuntivo lato frontend per operatori
+        if (user?.role === 'OPERATORE' && user?.category_id) {
+          fetchedAssets = fetchedAssets.filter((a: Asset) => a.category_id === user.category_id);
+        }
+
+        setAssets(fetchedAssets);
       }
     } catch (error) {
       console.error("Errore nel recupero asset:", error);
@@ -218,7 +232,6 @@ export default function AssetList() {
     setIsProcessing(true);
 
     try {
-      // 1. Invio della nota di intervento preventiva 
       if (preventiveNote.trim()) {
         const noteRes = await fetch(`${import.meta.env.VITE_API_URL}/warning/maintenances`, {
           method: 'POST',
@@ -235,7 +248,6 @@ export default function AssetList() {
         if (!noteRes.ok) throw new Error("Errore durante la registrazione della nota di intervento.");
       }
 
-      // 2. Modifica degli attributi dell'asset (solo se ci sono stati dei cambiamenti reali)
       if (hasChanges) {
         if (pendingDeletes.length > 0) {
           await Promise.all(pendingDeletes.map(mediaId => 
@@ -360,19 +372,21 @@ export default function AssetList() {
             </select>
           </div>
 
-          <div className="flex-1">
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
-            <select 
-              value={selectedCategory}
-              onChange={(e) => handleCategoryFilterChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-            >
-              <option value="">Tutte le Categorie</option>
-              {categories.map(c => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          {user?.role !== 'OPERATORE' && (
+            <div className="flex-1">
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtro Categoria</label>
+              <select 
+                value={selectedCategory}
+                onChange={(e) => handleCategoryFilterChange(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+              >
+                <option value="">Tutte le Categorie</option>
+                {categories.map(c => (
+                  <option key={c._id} value={c._id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {selectedCategory && filterableAttributes.length > 0 && (
@@ -613,7 +627,6 @@ export default function AssetList() {
               </div>
             </div>
 
-            {/* MODIFICATO: Modulo aggiuntivo note per l'operatore */}
             {!isAdmin && (
               <div className="mb-6 border-t border-slate-100 dark:border-slate-700 pt-5 mt-4">
                 <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-2">
@@ -676,7 +689,6 @@ export default function AssetList() {
                     >
                       Annulla
                     </button>
-                    {/* MODIFICATO: Salvataggio abilitato solo se la nota è inserita */}
                     <button 
                       onClick={handleUpdate} 
                       disabled={isProcessing || !preventiveNote.trim()} 
