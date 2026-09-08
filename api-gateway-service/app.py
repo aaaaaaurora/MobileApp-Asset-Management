@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, Response
 # ============================================================================
 # INIZIALIZZAZIONE E CONFIGURAZIONE 
 # ============================================================================
- 
+  
 app = Flask(__name__)
 # Configurazione CORS esplicita per Web e Mobile
 CORS(app, resources={
