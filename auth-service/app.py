@@ -79,30 +79,40 @@ class UserCategory(db.Model):
 # FUNZIONI DI UTILITA'
 # ============================================================================
 
-def verify_google_token(access_token):
+def verify_google_token(token):
     """
-    Validazione del token tramite chiamata diretta all'API userinfo di Google.
-    Compatibile con l'access_token generato dai bottoni React personalizzati.
+    Valida l'id_token JWT generato da Capacitor e dalle moderne librerie Web.
     """
-    if not access_token or access_token == "invalid":
+    if not token or token == "invalid":
         return None
         
     try:
-        # Chiediamo a Google i dati dell'utente usando l'access token
-        google_api_url = f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={access_token}"
-        response = requests.get(google_api_url)
-        
-        if response.status_code != 200:
-            print(f"ERRORE GOOGLE API: {response.text}", flush=True)
+        # Valida il token usando la libreria ufficiale, verificando anche il Client ID Web
+        idinfo = id_token.verify_oauth2_token(
+            token, 
+            google_requests.Request(), 
+            app.config.get('GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID)
+        )
+
+        # Aggiungiamo un check di sicurezza opzionale (Audience per Capacitor)
+        # Se l'app genera un token associato all'ID Android, lo accettiamo
+        if idinfo['aud'] not in [GOOGLE_CLIENT_ID, 'INSERISCI_QUI_IL_TUO_CLIENT_ID_ANDROID']:
+            print("Audience non riconosciuta.", flush=True)
             return None
-            
-        idinfo = response.json()
-        
-        # L'API restituisce un dizionario con 'sub' (Google ID), 'email', 'given_name', 'family_name'
+
         return idinfo
         
-    except Exception as e:
-        print(f"ERRORE CRITICO VERIFICA TOKEN: {e}", flush=True)
+    except ValueError as e:
+        # Se fallisce, proviamo la vecchia strada dell'access_token (Fallback per la web app attuale)
+        print(f"Non è un id_token valido, tento fallback access_token: {e}", flush=True)
+        try:
+            google_api_url = f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={token}"
+            response = requests.get(google_api_url)
+            if response.status_code == 200:
+                return response.json()
+        except Exception as e2:
+            print(f"Fallback fallito: {e2}", flush=True)
+            
         return None
 
 def publish_audit_event(action, actor_id, extra_data=None):
