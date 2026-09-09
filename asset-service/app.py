@@ -654,8 +654,9 @@ def create_asset():
     user_campuses = auth.get('campus_ids', [])
     client_type = auth.get('client_type') 
     
-    # Ispezione diretta dell'Origin in caso il Gateway abbia fallito l'identificazione
+    # Estrazione degli header di rete per l'identificazione del dispositivo
     request_origin = request.headers.get('Origin', '')
+    user_agent = request.headers.get('User-Agent', '').lower()
 
     # 1. L'Amministratore NON può creare asset
     if user_role == 'AMMINISTRATORE':
@@ -665,13 +666,15 @@ def create_asset():
     if user_role != 'OPERATORE':
         return error_response("Non hai i permessi per censire un asset.", 403)
 
-# 3. Controllo rigoroso del dispositivo (Mobile / Capacitor)
-    is_mobile_client = client_type == 'mobile'
-    
-    # Elenco delle origini standard generate dalle app Capacitor (Android/iOS)
+    # 3. Controllo Intelligente del Dispositivo (Mobile / Android / Capacitor)
+    is_mobile_header = client_type == 'mobile'
+    is_mobile_os = any(os in user_agent for os in ['android', 'iphone', 'ipad', 'capacitor', 'mobile'])
     valid_capacitor_origins = ['http://localhost', 'https://localhost', 'capacitor://localhost']
-    
-    if not is_mobile_client and request_origin not in valid_capacitor_origins:
+    is_native_origin = request_origin in valid_capacitor_origins
+
+    # Se non soddisfa nessuna delle condizioni mobile/native, viene respinto (es. Desktop Web)
+    if not (is_mobile_header or is_mobile_os or is_native_origin):
+        publish_event("UNAUTHORIZED_DESKTOP_CREATION_ATTEMPT", {"user_agent": user_agent})
         return error_response("Il censimento degli asset è consentito solo tramite l'App Mobile.", 403)
 
     data = request.get_json()
