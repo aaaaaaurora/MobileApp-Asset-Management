@@ -96,6 +96,12 @@ export default function SignInForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Codice non valido");
 
+      // BLOCCO DI SICUREZZA MOBILE
+      if (Capacitor.isNativePlatform() && data.role !== 'OPERATORE') {
+        throw new Error("Accesso negato: L'app mobile è riservata esclusivamente agli Operatori sul campo.");
+      }
+
+      // Se supera il controllo, procedi con il login
       login(data.token);
 
       if (data.role === 'AMMINISTRATORE') {

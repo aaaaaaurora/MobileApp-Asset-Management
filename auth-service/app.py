@@ -349,6 +349,13 @@ def verify_2fa():
         "email": user.email       
     }
 
+    # BLOCCO DI SICUREZZA API PER L'APP MOBILE
+    # Se la richiesta arriva dall'APK Android (Origin: http://localhost) e l'utente non è Operatore
+    request_origin = request.headers.get('Origin', '')
+    if request_origin == 'http://localhost' and role.name.value != 'OPERATORE':
+        publish_audit_event("UNAUTHORIZED_MOBILE_LOGIN_ATTEMPT", user.id)
+        return error_response("Accesso negato: L'app mobile è riservata agli Operatori.", 403)
+        
     final_token = jwt.encode(jwt_payload, app.config['JWT_SECRET'], algorithm="HS256")
     publish_audit_event("2FA_SUCCESS_LOGIN", user.id)
 
