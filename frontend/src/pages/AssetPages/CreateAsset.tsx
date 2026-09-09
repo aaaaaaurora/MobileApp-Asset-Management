@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useAuth } from '../../context/AuthContext'; 
+import { Geolocation } from '@capacitor/geolocation';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 interface Attribute {
   name: string;
@@ -65,7 +68,6 @@ const CreateAsset: React.FC = () => {
     if (token) fetchCategories();
   }, [token]);
 
-  // Se l'utente è un operatore e le categorie sono caricate, imposta automaticamente la sua categoria e passa allo step successivo
   useEffect(() => {
     if (isOperator && user?.category_id && categories.length > 0) {
       setSelectedCategory(user.category_id);
@@ -76,84 +78,121 @@ const CreateAsset: React.FC = () => {
     }
   }, [isOperator, user, categories]);
 
-  const captureLocation = () => {
+  const captureLocation = async () => {
     setLoading('Acquisizione e validazione GPS...');
     setError(null);
     
-    if (!navigator.geolocation) {
-      setError('Geolocalizzazione non supportata dal browser.');
+    const campusList = user?.campus_ids || [];
+    if (campusList.length === 0) {
+      setError('Nessun campus assegnato al tuo profilo.');
       setLoading(null);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const campusList = user?.campus_ids || [];
-
-        if (campusList.length === 0) {
-          setError('Nessun campus assegnato al tuo profilo.');
-          setLoading(null);
-          return;
-        }
-        
-        try {
-          const validationPromises = campusList.map(async (campusId: string) => {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({ campusId, latitudine: lat, longitudine: lng })
-            });
-            if (!res.ok) throw new Error(`Errore API per il campus ${campusId}`);
-            const data = await res.json();
-            return { campusId, isInside: data.is_inside };
-          });
-
-          const results = await Promise.allSettled(validationPromises);
-          const validResult = results.find(
-            (r) => r.status === 'fulfilled' && r.value.isInside
-          );
-
-          if (validResult && validResult.status === 'fulfilled') {
-            setLocation({ lat, lng });
-            setMatchedCampusId(validResult.value.campusId);
-          } else {
-            setError("Coordinate fuori perimetro! Ti trovi all'esterno di tutti i campus a te assegnati.");
+    try {
+      // 1. Richiesta permessi nativi (Android/iOS)
+      if (Capacitor.isNativePlatform()) {
+        const permissions = await Geolocation.checkPermissions();
+        if (permissions.location !== 'granted') {
+          const request = await Geolocation.requestPermissions();
+          if (request.location !== 'granted') {
+            throw new Error('Permessi GPS negati. Abilitali nelle impostazioni del telefono.');
           }
-        } catch (err: any) {
-          console.warn("Geozone check fallito, bypass temporaneo per test:", err);
-          setError(`Impossibile validare il perimetro: ${err.message}. (Bypass attivo)`);
-          setLocation({ lat, lng }); 
-          setMatchedCampusId(campusList[0]);
-        } finally {
-          setLoading(null);
         }
-      },
-      (err) => {
-        setError(`Errore GPS: ${err.message}. Controlla i permessi.`);
-        setLoading(null);
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
+      }
+
+      // 2. Lettura coordinate con Capacitor (funziona sia su App che su Web)
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 15000
+      });
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      // 3. Validazione perimetro con Bypass locale in caso di errore di rete
+      try {
+        const validationPromises = campusList.map(async (campusId: string) => {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ campusId, latitudine: lat, longitudine: lng })
+          });
+          if (!res.ok) throw new Error(`Errore API per il campus ${campusId}`);
+          const data = await res.json();
+          return { campusId, isInside: data.is_inside };
+        });
+
+        const results = await Promise.allSettled(validationPromises);
+        const validResult = results.find(
+          (r): r is PromiseFulfilledResult<{campusId: string, isInside: boolean}> => r.status === 'fulfilled' && r.value.isInside
+        );
+
+        if (validResult && validResult.status === 'fulfilled') {
+          setLocation({ lat, lng });
+          setMatchedCampusId(validResult.value.campusId);
+        } else {
+          setError("Coordinate fuori perimetro! Ti trovi all'esterno di tutti i campus a te assegnati.");
+        }
+      } catch (err: any) {
+        console.warn("Geozone check fallito, bypass temporaneo per test:", err);
+        setError(`Impossibile validare il perimetro: ${err.message}. (Bypass attivo)`);
+        setLocation({ lat, lng }); 
+        setMatchedCampusId(campusList[0]);
+      }
+    } catch (err: any) {
+      setError(`Errore GPS: ${err.message}`);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Helper per salvare il file e pulire il vecchio
+  const processSelectedFile = (file: File) => {
+    if (mediaId) {
+      fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(err => console.error("Errore cancellazione vecchia foto:", err));
+      setMediaId(null);
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  // Funzione unificata Fotocamera Web/Mobile
+  const capturePhoto = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const image = await Camera.getPhoto({
+          quality: 90,
+          allowEditing: false,
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Camera
+        });
+
+        if (image.webPath) {
+          const response = await fetch(image.webPath);
+          const blob = await response.blob();
+          const file = new File([blob], `asset_${Date.now()}.jpg`, { type: `image/${image.format || 'jpeg'}` });
+          processSelectedFile(file);
+        }
+      } catch (err: any) {
+        if (err.message !== 'User cancelled photos app') {
+          setError(`Errore Fotocamera: ${err.message}`);
+        }
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
   };
 
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (mediaId) {
-        fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).catch(err => console.error("Errore cancellazione vecchia foto:", err));
-        setMediaId(null);
-      }
-      setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    }
+    if (file) processSelectedFile(file);
   };
 
   const executeCancelProcess = async () => {
@@ -387,14 +426,14 @@ const CreateAsset: React.FC = () => {
                     <div className="mt-1 relative group">
                       <img src={photoPreview} alt="Anteprima" className="w-full h-36 object-cover rounded-lg border border-slate-200 shadow-sm dark:border-slate-700" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                        <button onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-100 transition-colors">
+                        <button onClick={capturePhoto} className="rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-100 transition-colors">
                           Scatta un'altra foto
                         </button>
                       </div>
                     </div>
                   ) : (
                     <button 
-                      onClick={() => fileInputRef.current?.click()} 
+                      onClick={capturePhoto} 
                       className="flex flex-col w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
                     >
                       <svg className="h-8 w-8 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
