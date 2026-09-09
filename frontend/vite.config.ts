@@ -4,7 +4,7 @@ import svgr from "vite-plugin-svgr";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "./", // <-- Modificato da "/" a "./"
+  base: "./", 
   plugins: [
     react(),
     svgr({
@@ -20,11 +20,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // Separa le librerie pesanti in chunk indipendenti per evitare crash della RAM
+            // Isoliamo SOLO le librerie pesanti che causano il crash della RAM
             if (id.includes('maplibre') || id.includes('react-map-gl')) return 'vendor-map';
             if (id.includes('@capacitor')) return 'vendor-capacitor';
-            if (id.includes('react/') || id.includes('react-dom/')) return 'vendor-react';
-            return 'vendor-core'; // Tutto il resto
+            // React e le librerie core vengono gestite automaticamente da Vite in modo sicuro
           }
         }
       }
