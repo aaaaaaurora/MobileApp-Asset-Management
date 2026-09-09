@@ -245,9 +245,12 @@ export default function AssetList() {
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingUploads(prev => [...prev, { file, preview: URL.createObjectURL(file) }]);
+    if (!e.target.files) return;
+    const newFiles = Array.from(e.target.files).map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+    setPendingUploads(prev => [...prev, ...newFiles]);
   };
 
   const handleDeleteExistingImage = (mediaId: string) => {
@@ -285,10 +288,13 @@ export default function AssetList() {
             nota_intervento: preventiveNote.trim()
           })
         });
-        if (!noteRes.ok) throw new Error("Errore durante la registrazione della nota di intervento.");
+        if (!noteRes.ok) {
+           console.warn("Il microservizio Warning non ha risposto correttamente, ma l'aggiornamento dell'asset procede.");
+        }
       }
 
       if (hasChanges) {
+        // Esecuzione eliminazioni immagini
         if (pendingDeletes.length > 0) {
           await Promise.all(pendingDeletes.map(mediaId => 
             fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
@@ -298,10 +304,11 @@ export default function AssetList() {
           ));
         }
 
-        const newUploadedIds: string[] = [];
-        for (const item of pendingUploads) {
+        // --- UPLOAD MULTIPLO OTTIMIZZATO (Batch) ---
+        let newUploadedIds: string[] = [];
+        if (pendingUploads.length > 0) {
           const uploadPayload = new FormData();
-          uploadPayload.append('images', item.file);
+          pendingUploads.forEach(item => uploadPayload.append('images', item.file));
 
           const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/upload`, {
             method: 'POST',
@@ -309,9 +316,11 @@ export default function AssetList() {
             body: uploadPayload
           });
 
-          if (!res.ok) throw new Error("Errore durante l'upload delle nuove immagini");
+          if (!res.ok) throw new Error("Errore durante l'upload delle nuove immagini.");
           const data = await res.json();
-          newUploadedIds.push(data.uploaded[0].media_id);
+          if (data.uploaded) {
+            newUploadedIds = data.uploaded.map((u: any) => u.media_id);
+          }
         }
 
         const finalMediaIds = [...formData.media_ids, ...newUploadedIds];
@@ -585,7 +594,7 @@ export default function AssetList() {
                     </div>
                     <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Aggiungi Foto</span>
                     <span className="text-xs font-medium text-slate-400 mt-1">Scorri per visualizzare</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
+                    <input type="file" className="hidden" multiple accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
                   </label>
                 )}
               </div>
