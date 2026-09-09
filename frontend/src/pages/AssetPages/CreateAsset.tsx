@@ -332,16 +332,22 @@ const CreateAsset: React.FC = () => {
         }
       });
 
-      if (bestSuggestion) {
+      if (bestSuggestion && selectedCategoryObj) {
         setAiSuggestions({
           suggested_title: bestSuggestion.suggested_title,
           confidence_score: bestSuggestion.confidence_score,
           tags: Array.from(aggregatedTags)
         });
-        setMetadata(prev => ({ 
-          ...prev, 
-          tipologia: prev.tipologia || bestSuggestion.suggested_title 
-        }));
+
+        // Trova dinamicamente il primo attributo di tipo stringa della categoria
+        const primaryTextAttr = selectedCategoryObj.attributes.find(attr => attr.type === 'string');
+
+        if (primaryTextAttr) {
+          setMetadata(prev => ({ 
+            ...prev, 
+            [primaryTextAttr.name]: prev[primaryTextAttr.name] || bestSuggestion.suggested_title 
+          }));
+        }
       }
 
       setStep(3);
