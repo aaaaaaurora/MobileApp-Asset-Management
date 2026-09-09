@@ -34,6 +34,49 @@ interface Asset {
   created_at: string;
 }
 
+// Helper per scaricare le immagini protette dal token JWT
+function AuthorizedImage({ mediaId, token }: { mediaId: string; token: string }) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchImage = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const blob = await response.blob();
+          if (isMounted) setImageSrc(URL.createObjectURL(blob));
+        }
+      } catch (err) {
+        console.error("Errore caricamento immagine:", err);
+      }
+    };
+    fetchImage();
+    return () => {
+      isMounted = false;
+      if (imageSrc) URL.revokeObjectURL(imageSrc);
+    };
+  }, [mediaId, token]);
+
+  if (!imageSrc) {
+    return (
+      <div className="h-full w-full bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-xs text-slate-500">
+        Caricamento...
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt="Asset Media"
+      className="w-full h-full object-cover"
+    />
+  );
+}
+
 export default function AssetList() {
   const { token, user } = useAuth();
   const location = useLocation();
@@ -69,7 +112,6 @@ export default function AssetList() {
     setTimeout(() => setNotification(null), 3000);
   }
   
-  // Imposta automaticamente la categoria per l'operatore
   useEffect(() => {
     if (user?.role === 'OPERATORE' && user?.category_id) {
       setSelectedCategory(user.category_id);
@@ -132,7 +174,6 @@ export default function AssetList() {
       const params = new URLSearchParams();
       if (selectedCampus) params.append('campus_id', selectedCampus);
       
-      // Se l'utente è un operatore, ignora il filtro a tendina e forza la sua categoria
       if (user?.role === 'OPERATORE' && user?.category_id) {
         params.append('category_id', user.category_id);
       } else if (selectedCategory) {
@@ -153,7 +194,6 @@ export default function AssetList() {
         const assetData = await assetRes.json();
         let fetchedAssets = assetData.assets || [];
 
-        // Filtro di sicurezza aggiuntivo lato frontend per operatori
         if (user?.role === 'OPERATORE' && user?.category_id) {
           fetchedAssets = fetchedAssets.filter((a: Asset) => a.category_id === user.category_id);
         }
@@ -498,48 +538,53 @@ export default function AssetList() {
               <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">
                 {isAdmin ? 'Foto dell\'Asset' : 'Gestione Foto'}
               </h4>
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                
+              
+              {/* SLIDER IMMAGINI */}
+              <div 
+                className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4" 
+                style={{ scrollbarWidth: 'thin' }}
+              >
                 {formData.media_ids.map(mediaId => (
-                  <div key={mediaId} className="relative min-w-[120px] h-28 flex-shrink-0 group">
-                    <img 
-                      src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`} 
-                      className="w-full h-full object-cover rounded-lg border border-slate-200 dark:border-slate-600"
-                      alt="Asset Media" 
-                    />
+                  <div key={mediaId} className="relative w-[85%] sm:w-[60%] h-64 flex-shrink-0 snap-center group rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                    <AuthorizedImage mediaId={mediaId} token={token!} />
+                    
                     {!isAdmin && (
                       <button 
                         onClick={() => handleDeleteExistingImage(mediaId)} 
-                        className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-md hover:bg-rose-700 transition opacity-0 group-hover:opacity-100"
+                        className="absolute top-2 right-2 bg-rose-600/90 backdrop-blur-sm text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-rose-700 transition-colors"
                         title="Elimina foto"
                       >
-                        ✕
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                       </button>
                     )}
                   </div>
                 ))}
                 
                 {!isAdmin && pendingUploads.map((item, index) => (
-                  <div key={`new-${index}`} className="relative min-w-[120px] h-28 flex-shrink-0">
+                  <div key={`new-${index}`} className="relative w-[85%] sm:w-[60%] h-64 flex-shrink-0 snap-center group rounded-xl overflow-hidden border-2 border-emerald-500 shadow-sm">
                     <img 
                       src={item.preview} 
-                      className="w-full h-full object-cover rounded-lg border-2 border-emerald-500 opacity-90"
+                      className="w-full h-full object-cover opacity-90"
                       alt="New Upload" 
                     />
+                    <div className="absolute top-2 left-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-sm">NUOVA</div>
                     <button 
                       onClick={() => handleDeletePendingImage(index)} 
-                      className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm shadow-md hover:bg-rose-700 transition"
+                      className="absolute top-2 right-2 bg-rose-600/90 backdrop-blur-sm text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-rose-700 transition-colors"
                       title="Annulla inserimento"
                     >
-                      ✕
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                   </div>
                 ))}
 
                 {!isAdmin && (
-                  <label className="min-w-[120px] h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition">
-                    <span className="text-2xl text-slate-400">+</span>
-                    <span className="text-[11px] font-medium text-slate-500 mt-1">Carica Foto</span>
+                  <label className="relative w-[85%] sm:w-[60%] h-64 flex-shrink-0 snap-center flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <div className="h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2">
+                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                    </div>
+                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Aggiungi Foto</span>
+                    <span className="text-xs font-medium text-slate-400 mt-1">Scorri per visualizzare</span>
                     <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
                   </label>
                 )}

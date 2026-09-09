@@ -47,6 +47,7 @@ const CreateAsset: React.FC = () => {
   const [metadata, setMetadata] = useState<Record<string, any>>({});
 
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -257,6 +258,21 @@ const CreateAsset: React.FC = () => {
     }
   };
 
+  const closeSuccessModal = () => {
+    setIsSuccessModalOpen(false);
+    setStep(1);
+    setLocation(null);
+    setPhotos([]);
+    setAiSuggestions(null);
+    setMetadata({});
+    setMatchedCampusId(null);
+
+    if (!isOperator) {
+      setSelectedCategory('');
+      setSelectedCategoryObj(null);
+    }
+  };
+
   const handleNextStep1 = () => {
     if (isOperator && selectedCategoryObj) {
       triggerAIAnalysis();
@@ -391,19 +407,8 @@ const CreateAsset: React.FC = () => {
         throw new Error(errorData.error || 'Errore durante il salvataggio sul server');
       }
 
-      alert('Asset e Media salvati con successo in Database e Storage!');
+      setIsSuccessModalOpen(true);
       
-      setStep(1);
-      setLocation(null);
-      setPhotos([]);
-      setAiSuggestions(null);
-      setMetadata({});
-      setMatchedCampusId(null);
-
-      if (!isOperator) {
-        setSelectedCategory('');
-        setSelectedCategoryObj(null);
-      }
     } catch (err: any) {
       setError(err.message || 'Errore imprevisto durante il salvataggio.');
     } finally {
@@ -694,6 +699,7 @@ const CreateAsset: React.FC = () => {
         </div>
       </div>
 
+      {/* MODALE DI ANNULLAMENTO */}
       {isCancelModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -724,6 +730,33 @@ const CreateAsset: React.FC = () => {
         </div>,
         document.body
       )}
+
+      {/* MODALE DI SUCCESSO */}
+      {isSuccessModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 text-center">
+              <svg className="mx-auto mb-4 w-16 h-16 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <h3 className="mb-2 text-xl font-bold text-slate-800 dark:text-white">Censimento Completato!</h3>
+              <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+                L'asset e i relativi contenuti multimediali sono stati salvati con successo.
+              </p>
+              <div className="flex justify-center">
+                <button 
+                  onClick={closeSuccessModal} 
+                  className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                >
+                  Nuovo Censimento
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
     </>
   );
 };
