@@ -637,11 +637,10 @@ def create_asset():
     user_id = auth.get('user_id')
     user_role = auth.get('role')
     user_campuses = auth.get('campus_ids', [])
-
-    auth = get_auth_context()
-    user_role = auth.get('role')
-    # Supponiamo di aver aggiornato get_auth_context() per estrarre il client
     client_type = auth.get('client_type') 
+    
+    # Ispezione diretta dell'Origin in caso il Gateway abbia fallito l'identificazione
+    request_origin = request.headers.get('Origin', '')
 
     # 1. L'Amministratore NON può creare asset
     if user_role == 'AMMINISTRATORE':
@@ -651,8 +650,16 @@ def create_asset():
     if user_role != 'OPERATORE':
         return error_response("Non hai i permessi per censire un asset.", 403)
 
-    # 3. L'Operatore deve OBBLIGATORIAMENTE usare l'app mobile
-    if client_type != 'mobile':
+    # 3. Controllo ibrido del dispositivo (Mobile / Capacitor)
+    is_mobile_client = client_type == 'mobile'
+    
+    # Elenco delle origini standard generate dalle app Capacitor (Android/iOS)
+    valid_capacitor_origins = ['http://localhost', 'https://localhost', 'capacitor://localhost']
+    
+    # Elenco delle origini tipiche del Live Reloading (test in locale via wifi)
+    is_live_reload = request_origin.startswith('http://192.168.') or request_origin.startswith('http://10.')
+    
+    if not is_mobile_client and request_origin not in valid_capacitor_origins and not is_live_reload:
         return error_response("Il censimento degli asset è consentito solo tramite l'App Mobile.", 403)
 
     data = request.get_json()
