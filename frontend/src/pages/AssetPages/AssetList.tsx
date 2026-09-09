@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { Camera } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 interface CategoryAttribute {
   name: string;
@@ -96,12 +98,12 @@ export default function AssetList() {
   const [formData, setFormData] = useState<{ lat: number; lng: number; metadata: Record<string, any>; media_ids: string[] }>({ lat: 0, lng: 0, metadata: {}, media_ids: [] });
   
   const [preventiveNote, setPreventiveNote] = useState('');
-  
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [pendingUploads, setPendingUploads] = useState<{file: File, preview: string}[]>([]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isAdmin = user?.role === 'AMMINISTRATORE';
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -161,7 +163,6 @@ export default function AssetList() {
         );
         setCampuses(userAllowedCampuses);
       }
-
     } catch (error) {
       console.error("Errore nel recupero dati statici:", error);
     }
@@ -244,13 +245,52 @@ export default function AssetList() {
     }));
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- GESTIONE NATIVA DELLA GALLERIA (Fix Pending Upload) ---
+  const handleAddPhotoClick = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const gallery = await Camera.pickImages({
+          quality: 90,
+          limit: 0 // Consente selezione multipla
+        });
+        
+        const fetchedFiles = await Promise.all(gallery.photos.map(async (image, idx) => {
+          if (image.webPath) {
+            const response = await fetch(image.webPath);
+            const blob = await response.blob();
+            return new File([blob], `gallery_${Date.now()}_${idx}.jpg`, { type: `image/${image.format || 'jpeg'}` });
+          }
+          return null;
+        }));
+        
+        const validFiles = fetchedFiles.filter(Boolean) as File[];
+        const newPhotos = validFiles.map(file => ({
+          file,
+          preview: URL.createObjectURL(file)
+        }));
+        
+        setPendingUploads(prev => [...prev, ...newPhotos]);
+      } catch (err: any) {
+        if (err.message !== 'User cancelled photos app') {
+          showNotification('error', `Errore Galleria: ${err.message}`);
+        }
+      }
+    } else {
+      // Fallback web browser
+      fileInputRef.current?.click();
+    }
+  };
+
+  // Handler per il fallback Web
+  const handleWebFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const newFiles = Array.from(e.target.files).map(file => ({
       file,
       preview: URL.createObjectURL(file)
     }));
     setPendingUploads(prev => [...prev, ...newFiles]);
+    // Resetta l'input per permettere di ricaricare lo stesso file se necessario
+    e.target.value = '';
   };
 
   const handleDeleteExistingImage = (mediaId: string) => {
@@ -289,7 +329,7 @@ export default function AssetList() {
           })
         });
         if (!noteRes.ok) {
-           console.warn("Il microservizio Warning non ha risposto correttamente, ma l'aggiornamento dell'asset procede.");
+           console.warn("Il microservizio Warning non ha risposto correttamente, ma l'aggiornamento procede.");
         }
       }
 
@@ -304,7 +344,7 @@ export default function AssetList() {
           ));
         }
 
-        // --- UPLOAD MULTIPLO OTTIMIZZATO (Batch) ---
+        // --- UPLOAD MULTIPLO OTTIMIZZATO ---
         let newUploadedIds: string[] = [];
         if (pendingUploads.length > 0) {
           const uploadPayload = new FormData();
@@ -588,14 +628,17 @@ export default function AssetList() {
                 ))}
 
                 {!isAdmin && (
-                  <label className="relative w-[85%] sm:w-[60%] h-64 flex-shrink-0 snap-center flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <div 
+                    onClick={handleAddPhotoClick}
+                    className="relative w-[85%] sm:w-[60%] h-64 flex-shrink-0 snap-center flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  >
                     <div className="h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2">
                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
                     </div>
                     <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Aggiungi Foto</span>
-                    <span className="text-xs font-medium text-slate-400 mt-1">Scorri per visualizzare</span>
-                    <input type="file" className="hidden" multiple accept="image/*" onChange={handleFileUpload} disabled={isProcessing} />
-                  </label>
+                    <span className="text-xs font-medium text-slate-400 mt-1">Scegli dalla galleria</span>
+                    <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleWebFileUpload} disabled={isProcessing} />
+                  </div>
                 )}
               </div>
             </div>
