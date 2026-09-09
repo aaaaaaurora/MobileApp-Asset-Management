@@ -685,6 +685,8 @@ def create_asset():
     campus_id = data.get('campus_id')
     geometry = data.get('geometry') # Formato atteso: GeoJSON {"type": "Point", "coordinates": [lng, lat]}
     raw_metadata = data.get('metadata', {})
+    media_ids = data.get('media_ids', []) # <--- Estrazione degli ID delle immagini
+    media_id = data.get('media_id')       # <--- Fallback
 
     if not category_id or not campus_id or not geometry:
         return error_response("Parametri mancanti: 'category_id', 'campus_id' e 'geometry' sono obbligatori", 400)
@@ -714,6 +716,8 @@ def create_asset():
         "campus_id": campus_id, # Soft Link al GeoZone Service
         "geometry": geometry,   # GeoJSON nativo per indicizzazione spaziale
         "metadata": validated_metadata,
+        "media_ids": media_ids, # <--- Inserimento nell'oggetto database
+        "media_id": media_id,   # <--- Inserimento nell'oggetto database
         "created_by": user_id,
         "updated_by": user_id,
         "created_at": timestamp,
