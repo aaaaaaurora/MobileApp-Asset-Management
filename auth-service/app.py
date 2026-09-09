@@ -80,40 +80,46 @@ class UserCategory(db.Model):
 # ============================================================================
 
 def verify_google_token(token):
-    """
-    Valida l'id_token JWT generato da Capacitor e dalle moderne librerie Web.
+    """ 
+    Validazione unificata: gestisce sia l'id_token (App Mobile/Capacitor) 
+    sia l'access_token (Web App/React).
     """
     if not token or token == "invalid":
         return None
         
-    try:
-        # Valida il token usando la libreria ufficiale, verificando anche il Client ID Web
-        idinfo = id_token.verify_oauth2_token(
-            token, 
-            google_requests.Request(), 
-            app.config.get('GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID)
-        )
+    # Un id_token (JWT) è sempre composto da 3 parti separate da punti.
+    is_jwt = len(token.split('.')) == 3
 
-        # Aggiungiamo un check di sicurezza opzionale (Audience per Capacitor)
-        # Se l'app genera un token associato all'ID Android, lo accettiamo
-        if idinfo['aud'] not in [GOOGLE_CLIENT_ID, 'INSERISCI_QUI_IL_TUO_CLIENT_ID_ANDROID']:
-            print("Audience non riconosciuta.", flush=True)
+    if is_jwt:
+        # 1. FLUSSO MOBILE: Validazione id_token
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                app.config.get('GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID)
+            )
+            # Verifica opzionale dell'audience (Client ID Android)
+            if idinfo['aud'] not in [GOOGLE_CLIENT_ID, 'INSERISCI_QUI_IL_TUO_CLIENT_ID_ANDROID']:
+                print("Audience non riconosciuta.", flush=True)
+                return None
+            return idinfo
+        except ValueError as e:
+            print(f"Errore validazione id_token mobile: {e}", flush=True)
             return None
-
-        return idinfo
-        
-    except ValueError as e:
-        # Se fallisce, proviamo la vecchia strada dell'access_token (Fallback per la web app attuale)
-        print(f"Non è un id_token valido, tento fallback access_token: {e}", flush=True)
+    else:
+        # 2. FLUSSO WEB: Validazione access_token
         try:
             google_api_url = f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={token}"
             response = requests.get(google_api_url)
-            if response.status_code == 200:
-                return response.json()
-        except Exception as e2:
-            print(f"Fallback fallito: {e2}", flush=True)
             
-        return None
+            if response.status_code != 200:
+                print(f"ERRORE GOOGLE API (WEB): {response.text}", flush=True)
+                return None
+                
+            return response.json()
+        except Exception as e:
+            print(f"ERRORE CRITICO VERIFICA TOKEN WEB: {e}", flush=True)
+            return None
 
 def publish_audit_event(action, actor_id, extra_data=None):
     """
@@ -349,13 +355,6 @@ def verify_2fa():
         "email": user.email       
     }
 
-    # BLOCCO DI SICUREZZA API PER L'APP MOBILE
-    # Se la richiesta arriva dall'APK Android (Origin: http://localhost) e l'utente non è Operatore
-    request_origin = request.headers.get('Origin', '')
-    if request_origin == 'http://localhost' and role.name.value != 'OPERATORE':
-        publish_audit_event("UNAUTHORIZED_MOBILE_LOGIN_ATTEMPT", user.id)
-        return error_response("Accesso negato: L'app mobile è riservata agli Operatori.", 403)
-        
     final_token = jwt.encode(jwt_payload, app.config['JWT_SECRET'], algorithm="HS256")
     publish_audit_event("2FA_SUCCESS_LOGIN", user.id)
 
@@ -365,7 +364,7 @@ def verify_2fa():
         "campus_ids": campus_ids,
         "category_id": category_id
     }), 200
-
+ 
 # ===============================================================================
 # ENDPOINT per la creazione di un nuovo profilo Operatore (Amministratore)
 # ===============================================================================  
