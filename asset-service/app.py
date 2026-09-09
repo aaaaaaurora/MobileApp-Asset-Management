@@ -557,68 +557,83 @@ def update_category_attribute(category_id, attribute_name):
 def validate_asset_metadata(payload_metadata, category_attributes):
     """
     Valida il dizionario dei metadati inviato dal client contro la struttura 
-    della categoria (tipi, obbligatorietà, enum, deprecazione).
+    della categoria, ignorando le differenze tra maiuscole e minuscole (case-insensitive).
     """
     validated_data = {}
     errors = []
 
-    # Creiamo un dizionario di facile accesso per gli attributi della categoria
-    # Ignoriamo totalmente quelli con status 'unavailable' (US 2-4)
-    active_attrs = {attr['name']: attr for attr in category_attributes if attr.get('status') != 'unavailable'}
+    # Mappa degli attributi attivi indicizzata per nome in MINUSCOLO per facilitare il match
+    active_attrs_lower = {
+        attr['name'].lower(): attr 
+        for attr in category_attributes 
+        if attr.get('status') != 'unavailable'
+    }
+
+    # Trasformiamo in minuscolo anche le chiavi arrivate dal payload per un rapido controllo di presenza
+    payload_keys_lower = {k.lower(): k for k in payload_metadata.keys()}
 
     # 1. Verifica campi obbligatori
-    for attr_name, attr_rules in active_attrs.items():
-        if attr_rules.get('required') and attr_name not in payload_metadata:
-            errors.append(f"Il campo obbligatorio '{attr_name}' è mancante.")
+    for attr in category_attributes:
+        if attr.get('status') == 'unavailable':
+            continue
+            
+        attr_name_original = attr['name']
+        
+        if attr.get('required') and attr_name_original.lower() not in payload_keys_lower:
+            errors.append(f"Il campo obbligatorio '{attr_name_original}' è mancante.")
 
     # 2. Verifica tipi di dato e vincoli per i campi forniti
-    for key, value in payload_metadata.items():
-        if key not in active_attrs:
-            # Opzionale: puoi ignorare campi non previsti o bloccarli. Qui li blocchiamo per pulizia.
-            errors.append(f"L'attributo '{key}' non è valido o è stato deprecato per questa categoria.")
+    for payload_key, value in payload_metadata.items():
+        payload_key_lower = payload_key.lower()
+
+        if payload_key_lower not in active_attrs_lower:
+            errors.append(f"L'attributo '{payload_key}' non è valido o è stato deprecato per questa categoria.")
             continue
 
-        rules = active_attrs[key]
+        # Estraiamo la regola e il nome con il CASING ESATTO previsto dal database
+        rules = active_attrs_lower[payload_key_lower]
+        real_db_key = rules['name']
         expected_type = rules['type']
 
         if value is None or value == "":
             if rules.get('required'):
-                errors.append(f"Il campo '{key}' non può essere vuoto.")
+                errors.append(f"Il campo '{real_db_key}' non può essere vuoto.")
             continue # Se non è obbligatorio e viene inviato vuoto, lo accettiamo come nullo
 
         # Validazione Tipo
         try:
             if expected_type == 'string':
                 if not isinstance(value, str):
-                    errors.append(f"Il campo '{key}' deve essere una stringa.")
+                    errors.append(f"Il campo '{real_db_key}' deve essere una stringa.")
                 else:
-                    validated_data[key] = str(value)
+                    validated_data[real_db_key] = str(value)
 
             elif expected_type == 'number':
                 if not isinstance(value, (int, float)):
-                    errors.append(f"Il campo '{key}' deve essere un numero.")
+                    errors.append(f"Il campo '{real_db_key}' deve essere un numero.")
                 else:
-                    validated_data[key] = float(value)
+                    validated_data[real_db_key] = float(value)
 
             elif expected_type == 'boolean':
                 if not isinstance(value, bool):
-                    errors.append(f"Il campo '{key}' deve essere un booleano (true/false).")
+                    errors.append(f"Il campo '{real_db_key}' deve essere un booleano (true/false).")
                 else:
-                    validated_data[key] = bool(value)
+                    validated_data[real_db_key] = bool(value)
 
             elif expected_type == 'date':
                 # Verifica che sia una data ISO 8601 valida
                 dateutil.parser.isoparse(str(value))
-                validated_data[key] = str(value)
+                validated_data[real_db_key] = str(value)
 
             elif expected_type == 'enum':
+                # L'enum rimane case-sensitive per i valori, ma la chiave è tollerante
                 if value not in rules.get('options', []):
-                    errors.append(f"Il valore '{value}' non è tra le opzioni valide per '{key}'.")
+                    errors.append(f"Il valore '{value}' non è tra le opzioni valide per '{real_db_key}'.")
                 else:
-                    validated_data[key] = str(value)
+                    validated_data[real_db_key] = str(value)
 
         except ValueError:
-            errors.append(f"Formato non valido per il campo '{key}' (Atteso: {expected_type}).")
+            errors.append(f"Formato non valido per il campo '{real_db_key}' (Atteso: {expected_type}).")
 
     return validated_data, errors
 
