@@ -91,7 +91,7 @@ def verify_google_token(token):
     is_jwt = len(token.split('.')) == 3
 
     if is_jwt:
-        # 1. FLUSSO MOBILE: Validazione id_token
+        # 1. FLUSSO MOBILE: Validazione id_token 
         try:
             idinfo = id_token.verify_oauth2_token(
                 token, 

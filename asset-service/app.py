@@ -762,7 +762,7 @@ def create_asset():
     except Exception as e:
         return error_response(f"Errore durante il censimento: {str(e)}", 500)
     
-
+ 
 # ============================================================================
 # ENDPOINT: Consultazione di un Asset esistente
 # ============================================================================
