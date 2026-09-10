@@ -766,7 +766,7 @@ def create_asset():
 # ============================================================================
 # ENDPOINT: Consultazione di un Asset esistente
 # ============================================================================
-
+ 
 @app.route('/api/assets/<asset_id>', methods=['GET'])
 def get_asset(asset_id):
     """
