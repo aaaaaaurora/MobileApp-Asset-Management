@@ -67,8 +67,6 @@ export default function CampusMap() {
   
   const [categories, setCategories] = useState<any[]>([]);
   
-  // Manteniamo lo stato maxBounds per compatibilità, ma non lo forzeremo
-  const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
   const [userLocation, setUserLocation] = useState<{longitude: number, latitude: number} | null>(null);
 
   const [assets, setAssets] = useState<any[]>([]);
