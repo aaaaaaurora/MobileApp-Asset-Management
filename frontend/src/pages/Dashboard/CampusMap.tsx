@@ -60,11 +60,14 @@ export default function CampusMap() {
   const focusAssetId = location.state?.focusAssetId;
   const focusCampusId = location.state?.focusCampusId;
 
-  const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 15, pitch: 45, bearing: 0 });
+  // Modificato lo zoom iniziale da 15 a 13 per una visione più ampia
+  const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 13, pitch: 45, bearing: 0 });
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   
   const [categories, setCategories] = useState<any[]>([]);
+  
+  // Manteniamo lo stato maxBounds per compatibilità, ma non lo forzeremo
   const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
   const [userLocation, setUserLocation] = useState<{longitude: number, latitude: number} | null>(null);
 
@@ -79,6 +82,7 @@ export default function CampusMap() {
         (position) => {
           const coords = { longitude: position.coords.longitude, latitude: position.coords.latitude };
           setUserLocation(coords);
+          // Manteniamo il nostro zoom ampio quando centra la posizione dell'utente
           setViewState(prev => ({ ...prev, ...coords }));
         },
         (error) => {
@@ -185,22 +189,16 @@ export default function CampusMap() {
       extractCoords(activeCampus.geometry.coordinates);
 
       if (minLng !== Infinity) {
-        const lngBuffer = (maxLng - minLng) * 0.10;
-        const latBuffer = (maxLat - minLat) * 0.10;
+        // Calcola il centro del campus
+        const centerLng = (minLng + maxLng) / 2;
+        const centerLat = (minLat + maxLat) / 2;
+
+        // Spostiamo la mappa sul campus ma mantenendo lo zoom ampio e libero
+        setViewState(prev => ({ ...prev, longitude: centerLng, latitude: centerLat }));
         
-        const bounds: [number, number, number, number] = [
-          minLng - lngBuffer, 
-          minLat - latBuffer, 
-          maxLng + lngBuffer, 
-          maxLat + latBuffer
-        ];
-
-        setMaxBounds(bounds);
-
-        mapRef.current.fitBounds(
-          [[minLng, minLat], [maxLng, maxLat]],
-          { padding: 30, duration: 1000 } 
-        );
+        // Ho disattivato il fitBounds e il maxBounds per permettere all'utente di rimpicciolire la mappa liberamente
+        // setMaxBounds(bounds);
+        // mapRef.current.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 30, duration: 1000 });
       }
     }
   }, [selectedCampus, campuses]);
@@ -258,7 +256,8 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          maxBounds={maxBounds} 
+          // Rimossa la restrizione maxBounds per poter spaziare
+          // maxBounds={maxBounds} 
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
