@@ -8,6 +8,7 @@ import WarningFormModal from '../../components/guest/WarningFormModal';
 
 function AuthorizedImage({ mediaId, token }: { mediaId: string; token: string }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
+ 
 
   useEffect(() => {
     let isMounted = true;
