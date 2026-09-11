@@ -2,9 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useAuth } from '../../context/AuthContext'; 
-import { Geolocation } from '@capacitor/geolocation';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { Capacitor } from '@capacitor/core';
 
 interface Attribute {
   name: string;
@@ -39,7 +36,6 @@ const CreateAsset: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [matchedCampusId, setMatchedCampusId] = useState<string | null>(null); 
   
-  // Gestione Multi-Foto
   const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<any>(null);
 
@@ -95,65 +91,63 @@ const CreateAsset: React.FC = () => {
       return;
     }
 
-    try {
-      if (Capacitor.isNativePlatform()) {
-        const permissions = await Geolocation.checkPermissions();
-        if (permissions.location !== 'granted') {
-          const request = await Geolocation.requestPermissions();
-          if (request.location !== 'granted') {
-            throw new Error('Permessi GPS negati. Abilitali nelle impostazioni del telefono.');
-          }
-        }
-      }
-
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 15000
-      });
-
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-
-      try {
-        const validationPromises = campusList.map(async (campusId: string) => {
-          const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ campusId, latitudine: lat, longitudine: lng })
-          });
-          if (!res.ok) throw new Error(`Errore API per il campus ${campusId}`);
-          const data = await res.json();
-          return { campusId, isInside: data.is_inside };
-        });
-
-        const results = await Promise.allSettled(validationPromises);
-        const validResult = results.find(
-          (r): r is PromiseFulfilledResult<{campusId: string, isInside: boolean}> => r.status === 'fulfilled' && r.value.isInside
-        );
-
-        if (validResult && validResult.status === 'fulfilled') {
-          setLocation({ lat, lng });
-          setMatchedCampusId(validResult.value.campusId);
-        } else {
-          setError("Coordinate fuori perimetro! Ti trovi all'esterno di tutti i campus a te assegnati.");
-        }
-      } catch (err: any) {
-        console.warn("Geozone check fallito, bypass temporaneo per test:", err);
-        setError(`Impossibile validare il perimetro: ${err.message}. (Bypass attivo)`);
-        setLocation({ lat, lng }); 
-        setMatchedCampusId(campusList[0]);
-      }
-    } catch (err: any) {
-      setError(`Errore GPS: ${err.message}`);
-    } finally {
+    if (!('geolocation' in navigator)) {
+      setError("Il browser non supporta la geolocalizzazione.");
       setLoading(null);
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        try {
+          const validationPromises = campusList.map(async (campusId: string) => {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/geozone/api/geozones/verify-location`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ campusId, latitudine: lat, longitudine: lng })
+            });
+            if (!res.ok) throw new Error(`Errore API per il campus ${campusId}`);
+            const data = await res.json();
+            return { campusId, isInside: data.is_inside };
+          });
+
+          const results = await Promise.allSettled(validationPromises);
+          const validResult = results.find(
+            (r): r is PromiseFulfilledResult<{campusId: string, isInside: boolean}> => r.status === 'fulfilled' && r.value.isInside
+          );
+
+          if (validResult && validResult.status === 'fulfilled') {
+            setLocation({ lat, lng });
+            setMatchedCampusId(validResult.value.campusId);
+          } else {
+            setError("Coordinate fuori perimetro! Ti trovi all'esterno di tutti i campus a te assegnati.");
+          }
+        } catch (err: any) {
+          setError(`Impossibile validare il perimetro: ${err.message}. (Bypass attivo per test)`);
+          setLocation({ lat, lng }); 
+          setMatchedCampusId(campusList[0]);
+        } finally {
+          setLoading(null);
+        }
+      },
+      (error) => {
+        if (error.code === 1) { // PERMISSION_DENIED
+          setError("Senza il permesso GPS, il censimento degli asset è bloccato e limitato per l'operatore. Autorizza l'accesso per continuare.");
+        } else {
+          setError(`Errore GPS: ${error.message}`);
+        }
+        setLoading(null);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   };
 
-  // Helper per aggiungere file multipli allo stato
   const processSelectedFiles = (newFiles: File[]) => {
     const newPhotos = newFiles.map(file => ({
       file,
@@ -162,7 +156,6 @@ const CreateAsset: React.FC = () => {
     setPhotos(prev => [...prev, ...newPhotos]);
   };
 
-  // Rimuove una foto specifica e la pulisce dal backend se già caricata
   const removePhoto = (index: number) => {
     const photoToRemove = photos[index];
     if (photoToRemove.mediaId) {
@@ -174,58 +167,6 @@ const CreateAsset: React.FC = () => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Scatta nuova foto dalla fotocamera
-  const takePhoto = async () => {
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const image = await Camera.getPhoto({
-          quality: 90,
-          allowEditing: false,
-          resultType: CameraResultType.Uri,
-          source: CameraSource.Camera
-        });
-
-        if (image.webPath) {
-          const response = await fetch(image.webPath);
-          const blob = await response.blob();
-          const file = new File([blob], `camera_${Date.now()}.jpg`, { type: `image/${image.format || 'jpeg'}` });
-          processSelectedFiles([file]);
-        }
-      } catch (err: any) {
-        if (err.message !== 'User cancelled photos app') setError(`Errore Fotocamera: ${err.message}`);
-      }
-    } else {
-      fileInputRef.current?.click();
-    }
-  };
-
-  // Seleziona una o più foto dalla galleria
-  const pickFromGallery = async () => {
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const gallery = await Camera.pickImages({
-          quality: 90,
-          limit: 0 // 0 = nessun limite
-        });
-        
-        const fetchedFiles = await Promise.all(gallery.photos.map(async (image, idx) => {
-          if (image.webPath) {
-            const response = await fetch(image.webPath);
-            const blob = await response.blob();
-            return new File([blob], `gallery_${Date.now()}_${idx}.jpg`, { type: `image/${image.format || 'jpeg'}` });
-          }
-          return null;
-        }));
-        
-        processSelectedFiles(fetchedFiles.filter(Boolean) as File[]);
-      } catch (err: any) {
-        if (err.message !== 'User cancelled photos app') setError(`Errore Galleria: ${err.message}`);
-      }
-    } else {
-      fileInputRef.current?.click();
-    }
-  };
-
   const handleWebPhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       processSelectedFiles(Array.from(e.target.files));
@@ -235,7 +176,6 @@ const CreateAsset: React.FC = () => {
   const executeCancelProcess = async () => {
     setIsCancelModalOpen(false); 
     
-    // Pulisce tutti i media id caricati
     photos.forEach(p => {
       if (p.mediaId) {
         fetch(`${import.meta.env.VITE_API_URL}/media/images/${p.mediaId}`, {
@@ -274,6 +214,15 @@ const CreateAsset: React.FC = () => {
   };
 
   const handleNextStep1 = () => {
+    if (!location) {
+      setError("La posizione GPS è obbligatoria per il censimento.");
+      return;
+    }
+    if (photos.length === 0) {
+      setError("Senza l'accesso alla fotocamera/galleria il censimento è limitato. Inserisci almeno una foto.");
+      return;
+    }
+
     if (isOperator && selectedCategoryObj) {
       triggerAIAnalysis();
     } else {
@@ -288,7 +237,6 @@ const CreateAsset: React.FC = () => {
     setLoading('Upload in corso...');
 
     try {
-      // 1. UPLOAD DELLE FOTO MANCANTI
       const photosToUpload = photos.filter(p => !p.mediaId);
       let updatedPhotos = [...photos];
 
@@ -307,7 +255,6 @@ const CreateAsset: React.FC = () => {
           throw new Error(uploadData.errors?.[0]?.error || "Errore durante l'upload su MinIO.");
         }
 
-        // Assegna i media_id ricevuti alle foto nello stato
         let uploadIdx = 0;
         updatedPhotos = updatedPhotos.map(p => {
           if (!p.mediaId && uploadData.uploaded[uploadIdx]) {
@@ -320,7 +267,6 @@ const CreateAsset: React.FC = () => {
         setPhotos(updatedPhotos);
       }
 
-      // 2. ANALISI MULTIPLA E AGGREGAZIONE DATI
       setLoading('Analisi Computer Vision in corso...');
       const allMediaIds = updatedPhotos.map(p => p.mediaId).filter(Boolean) as string[];
       
@@ -355,7 +301,6 @@ const CreateAsset: React.FC = () => {
           tags: Array.from(aggregatedTags)
         });
 
-        // Trova dinamicamente il primo attributo di tipo stringa della categoria
         const primaryTextAttr = selectedCategoryObj.attributes.find(attr => attr.type === 'string');
 
         if (primaryTextAttr) {
@@ -387,8 +332,8 @@ const CreateAsset: React.FC = () => {
       const payload = {
         category_id: selectedCategory,
         campus_id: matchedCampusId,
-        media_ids: finalMediaIds, // Array completo per DB aggiornati
-        media_id: finalMediaIds[0] || null, // Fallback retrocompatibile 
+        media_ids: finalMediaIds, 
+        media_id: finalMediaIds[0] || null, 
         geometry: { type: 'Point', coordinates: [location?.lng, location?.lat] },
         metadata: metadata
       };
@@ -519,35 +464,22 @@ const CreateAsset: React.FC = () => {
                       </div>
                       
                       <div className="flex gap-2">
-                        <button onClick={takePhoto} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
-                          📷 Fotocamera
-                        </button>
-                        <button onClick={pickFromGallery} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
-                          🖼️ Galleria
+                        <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
+                          📷 Aggiungi Foto
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       <button 
-                        onClick={takePhoto} 
+                        onClick={() => fileInputRef.current?.click()} 
                         className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
                       >
                         <svg className="h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Fotocamera</span>
-                      </button>
-
-                      <button 
-                        onClick={pickFromGallery} 
-                        className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
-                      >
-                      <svg className="h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Scegli Galleria</span>
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Carica Immagini (PC/Web)</span>
                       </button>
                     </div>
                   )}
@@ -698,8 +630,7 @@ const CreateAsset: React.FC = () => {
           </div>
         </div>
       </div>
- 
-      {/* MODALE DI ANNULLAMENTO */}
+
       {isCancelModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -731,7 +662,6 @@ const CreateAsset: React.FC = () => {
         document.body
       )}
 
-      {/* MODALE DI SUCCESSO */}
       {isSuccessModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden">

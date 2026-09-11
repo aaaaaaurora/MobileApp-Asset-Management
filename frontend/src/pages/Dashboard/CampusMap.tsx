@@ -8,7 +8,6 @@ import WarningFormModal from '../../components/guest/WarningFormModal';
 
 function AuthorizedImage({ mediaId, token }: { mediaId: string; token: string }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
- 
 
   useEffect(() => {
     let isMounted = true;
@@ -61,7 +60,6 @@ export default function CampusMap() {
   const focusAssetId = location.state?.focusAssetId;
   const focusCampusId = location.state?.focusCampusId;
 
-  // Modificato lo zoom iniziale da 15 a 13 per una visione più ampia
   const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 13, pitch: 45, bearing: 0 });
   const [campuses, setCampuses] = useState<any[]>([]);
   const [selectedCampus, setSelectedCampus] = useState<string>('');
@@ -74,6 +72,7 @@ export default function CampusMap() {
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [permissionLimitationMsg, setPermissionLimitationMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if ('geolocation' in navigator) {
@@ -81,14 +80,17 @@ export default function CampusMap() {
         (position) => {
           const coords = { longitude: position.coords.longitude, latitude: position.coords.latitude };
           setUserLocation(coords);
-          // Manteniamo il nostro zoom ampio quando centra la posizione dell'utente
           setViewState(prev => ({ ...prev, ...coords }));
         },
         (error) => {
-          console.warn("Geolocalizzazione negata o fallita. Uso coordinate di default.", error);
+          console.warn("Geolocalizzazione negata o fallita.", error);
+          if (error.code === 1) { // PERMISSION_DENIED
+            setPermissionLimitationMsg("Consenso GPS rifiutato. L'utente senza GPS è limitato nella visualizzazione e ricerca degli asset intorno a lui. Verrà caricata la mappa generale.");
+          }
           const defaultCoords = { longitude: 14.7900, latitude: 40.7700 };
           setViewState(prev => ({ ...prev, ...defaultCoords }));
-        }
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     }
   }, []);
@@ -188,16 +190,9 @@ export default function CampusMap() {
       extractCoords(activeCampus.geometry.coordinates);
 
       if (minLng !== Infinity) {
-        // Calcola il centro del campus
         const centerLng = (minLng + maxLng) / 2;
         const centerLat = (minLat + maxLat) / 2;
-
-        // Spostiamo la mappa sul campus ma mantenendo lo zoom ampio e libero
         setViewState(prev => ({ ...prev, longitude: centerLng, latitude: centerLat }));
-        
-        // Ho disattivato il fitBounds e il maxBounds per permettere all'utente di rimpicciolire la mappa liberamente
-        // setMaxBounds(bounds);
-        // mapRef.current.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 30, duration: 1000 });
       }
     }
   }, [selectedCampus, campuses]);
@@ -255,8 +250,6 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
-          // Rimossa la restrizione maxBounds per poter spaziare
-          // maxBounds={maxBounds} 
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -301,6 +294,30 @@ export default function CampusMap() {
           </button>
         )}
       </div>
+
+      {/* MODALE AVVISO LIMITAZIONI GPS */}
+      {permissionLimitationMsg && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden animate-fade-in-up">
+            <div className="p-5 text-center">
+              <svg className="mx-auto mb-3 w-10 h-10 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="mb-2 text-lg font-bold text-black dark:text-white">Limitazioni Attive</h3>
+              <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
+                {permissionLimitationMsg}
+              </p>
+              <button 
+                onClick={() => setPermissionLimitationMsg(null)} 
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                Ho capito
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {selectedAsset && createPortal(
         <>
