@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ChevronDownIcon, HorizontaLDots } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
+import { Capacitor } from "@capacitor/core";
 
 // 🟢 Importiamo il nostro modale MODIFICARE QUANDO CI SARANNO GLI ASSET SULLA MAPPA 
 
@@ -93,12 +94,19 @@ const getNavItemsByRole = (role?: string): NavItem[] => {
         { icon: HistoryIcon, name: "Storico Operazioni", path: "/admin/history" }
       ];
     case "OPERATORE":
-      return [
+      const operatorMenu = [
         ...baseMenu,
-        { icon: TicketIcon, name: "Segnalazioni", path: "/operator/tickets" },
-        { icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" },
-        { icon: ListIcon, name: "Lista Assets", path: "/assets/list" }, 
+        { icon: TicketIcon, name: "Segnalazioni", path: "/operator/tickets" }
       ];
+
+      // Aggiungiamo "Nuovo Asset" SOLO se siamo su mobile
+      if (Capacitor.isNativePlatform()) {
+        operatorMenu.push({ icon: PlusIcon, name: "Nuovo Asset", path: "/assets/new" });
+      }
+
+      operatorMenu.push({ icon: ListIcon, name: "Lista Assets", path: "/assets/list" });
+
+      return operatorMenu;
     case "UTENTE":
     default:
       return [
