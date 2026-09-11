@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useAuth } from '../../context/AuthContext'; 
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 interface Attribute {
   name: string;
@@ -165,6 +167,78 @@ const CreateAsset: React.FC = () => {
       }).catch(err => console.error("Errore cancellazione foto singola:", err));
     }
     setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Funzione per acquisire una foto dalla fotocamera nativa
+  const takePhoto = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permissions = await Camera.checkPermissions();
+        if (permissions.camera !== 'granted') {
+          const request = await Camera.requestPermissions({ permissions: ['camera'] });
+          if (request.camera !== 'granted') {
+            throw new Error("Senza accesso alla fotocamera, il censimento è limitato e incompleto per l'operatore. Concedi i permessi dalle impostazioni del dispositivo.");
+          }
+        }
+
+        const image = await Camera.getPhoto({
+          quality: 90,
+          allowEditing: false,
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Camera
+        });
+
+        if (image.webPath) {
+          const response = await fetch(image.webPath);
+          const blob = await response.blob();
+          const file = new File([blob], `camera_${Date.now()}.jpg`, { type: `image/${image.format || 'jpeg'}` });
+          processSelectedFiles([file]);
+        }
+      } catch (err: any) {
+        if (err.message !== 'User cancelled photos app') {
+          setError(err.message.includes('Senza accesso') ? err.message : `Errore Fotocamera: ${err.message}`);
+        }
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  // Funzione per selezionare immagini dalla galleria nativa
+  const pickFromGallery = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permissions = await Camera.checkPermissions();
+        if (permissions.photos !== 'granted') {
+          const request = await Camera.requestPermissions({ permissions: ['photos'] });
+          if (request.photos !== 'granted') {
+            throw new Error("Senza accesso alla galleria, il censimento è limitato e incompleto per l'operatore. Concedi i permessi dalle impostazioni del dispositivo.");
+          }
+        }
+
+        const gallery = await Camera.pickImages({
+          quality: 90,
+          limit: 0 
+        });
+        
+        const fetchedFiles = await Promise.all(gallery.photos.map(async (image, idx) => {
+          if (image.webPath) {
+            const response = await fetch(image.webPath);
+            const blob = await response.blob();
+            return new File([blob], `gallery_${Date.now()}_${idx}.jpg`, { type: `image/${image.format || 'jpeg'}` });
+          }
+          return null;
+        }));
+        
+        processSelectedFiles(fetchedFiles.filter(Boolean) as File[]);
+      } catch (err: any) {
+        if (err.message !== 'User cancelled photos app') {
+           setError(err.message.includes('Senza accesso') ? err.message : `Errore Galleria: ${err.message}`);
+        }
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
   };
 
   const handleWebPhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -463,24 +537,62 @@ const CreateAsset: React.FC = () => {
                         ))}
                       </div>
                       
+                      {/* Gestione dinamica dei bottoni per aggiungere altre foto (Web vs Mobile) */}
                       <div className="flex gap-2">
-                        <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
-                          📷 Aggiungi Foto
-                        </button>
+                        {Capacitor.isNativePlatform() ? (
+                          <>
+                            <button onClick={takePhoto} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
+                              📷 Fotocamera
+                            </button>
+                            <button onClick={pickFromGallery} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
+                              🖼️ Galleria
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors">
+                            📷 Aggiungi Foto
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-2">
-                      <button 
-                        onClick={() => fileInputRef.current?.click()} 
-                        className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
-                      >
-                        <svg className="h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Carica Immagini (PC/Web)</span>
-                      </button>
+                    // Gestione dinamica dei bottoni iniziali (Web vs Mobile)
+                    <div className={Capacitor.isNativePlatform() ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
+                      {Capacitor.isNativePlatform() ? (
+                        <>
+                          <button 
+                            onClick={takePhoto} 
+                            className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+                          >
+                            <svg className="h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Fotocamera</span>
+                          </button>
+
+                          <button 
+                            onClick={pickFromGallery} 
+                            className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+                          >
+                            <svg className="h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Scegli Galleria</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button 
+                          onClick={() => fileInputRef.current?.click()} 
+                          className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-5 hover:bg-slate-100 hover:border-slate-400 transition-colors dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-700"
+                        >
+                          <svg className="h-7 w-7 text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Carica Immagini (PC/Web)</span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
