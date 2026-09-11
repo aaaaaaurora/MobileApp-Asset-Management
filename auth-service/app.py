@@ -96,7 +96,8 @@ def verify_google_token(token):
             idinfo = id_token.verify_oauth2_token(
                 token, 
                 google_requests.Request(), 
-                app.config.get('GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID)
+                app.config.get('GOOGLE_CLIENT_ID', GOOGLE_CLIENT_ID),
+                clock_skew_in_seconds=10  # <-- AGGIUNGI QUESTO PARAMETRO
             )
             # Verifica opzionale dell'audience (Client ID Android)
             if idinfo['aud'] not in [GOOGLE_CLIENT_ID, 'INSERISCI_QUI_IL_TUO_CLIENT_ID_ANDROID']:

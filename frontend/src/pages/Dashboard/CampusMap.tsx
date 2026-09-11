@@ -85,7 +85,7 @@ export default function CampusMap() {
         (error) => {
           console.warn("Geolocalizzazione negata o fallita.", error);
           if (error.code === 1) { // PERMISSION_DENIED
-            setPermissionLimitationMsg("Consenso GPS rifiutato. L'utente senza GPS è limitato nella visualizzazione e ricerca degli asset intorno a lui. Verrà caricata la mappa generale.");
+            setPermissionLimitationMsg("Consenso GPS rifiutato. L'utente senza GPS è limitato nella visualizzazione e ricerca degli asset intorno a lui. Concedi i permessi dalle impostazioni del dispositivo.");
           }
           const defaultCoords = { longitude: 14.7900, latitude: 40.7700 };
           setViewState(prev => ({ ...prev, ...defaultCoords }));

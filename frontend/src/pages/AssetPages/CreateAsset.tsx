@@ -140,7 +140,7 @@ const CreateAsset: React.FC = () => {
       },
       (error) => {
         if (error.code === 1) { // PERMISSION_DENIED
-          setError("Senza il permesso GPS, il censimento degli asset è bloccato e limitato per l'operatore. Autorizza l'accesso per continuare.");
+          setError("Senza il permesso GPS, il censimento degli asset è bloccato e limitato per l'operatore. Concedi i permessi dalle impostazioni del dispositivo.");
         } else {
           setError(`Errore GPS: ${error.message}`);
         }
