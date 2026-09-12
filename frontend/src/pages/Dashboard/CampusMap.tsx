@@ -6,51 +6,6 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useAuth } from '../../context/AuthContext';
 import WarningFormModal from '../../components/guest/WarningFormModal'; 
 
-function AuthorizedImage({ mediaId, token }: { mediaId: string; token: string }) {
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchImage = async () => {
-      try {
-        const response = `${import.meta.env.VITE_API_URL}/media/images/${mediaId}`;
-        const res = await fetch(response, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const blob = await res.blob();
-          if (isMounted) {
-            setImageSrc(URL.createObjectURL(blob));
-          }
-        }
-      } catch (err) {
-        console.error("Errore caricamento immagine:", err);
-      }
-    };
-    fetchImage();
-    return () => {
-      isMounted = false;
-      if (imageSrc) URL.revokeObjectURL(imageSrc);
-    };
-  }, [mediaId, token]);
-
-  if (!imageSrc) {
-    return (
-      <div className="h-48 w-full bg-gray-100 dark:bg-meta-4 animate-pulse rounded-lg flex items-center justify-center text-xs text-gray-500">
-        Caricamento immagine...
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={imageSrc}
-      alt="Immagine Asset"
-      className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4"
-    />
-  );
-}
-
 export default function CampusMap() {
   const mapRef = useRef<MapRef>(null);
   const { user, token } = useAuth();
@@ -60,19 +15,21 @@ export default function CampusMap() {
   const focusAssetId = location.state?.focusAssetId;
   const focusCampusId = location.state?.focusCampusId;
 
-  const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 13, pitch: 45, bearing: 0 });
+  const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 15, pitch: 45, bearing: 0 });
   const [campuses, setCampuses] = useState<any[]>([]);
+  
+  // MODIFICA: Inizializzato a vuoto per la selezione di default
   const [selectedCampus, setSelectedCampus] = useState<string>('');
+  const [isCampusDropdownOpen, setIsCampusDropdownOpen] = useState(false);
   
   const [categories, setCategories] = useState<any[]>([]);
-  
+  const [maxBounds, setMaxBounds] = useState<[number, number, number, number] | undefined>(undefined);
   const [userLocation, setUserLocation] = useState<{longitude: number, latitude: number} | null>(null);
 
   const [assets, setAssets] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-  const [permissionLimitationMsg, setPermissionLimitationMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if ('geolocation' in navigator) {
@@ -80,20 +37,22 @@ export default function CampusMap() {
         (position) => {
           const coords = { longitude: position.coords.longitude, latitude: position.coords.latitude };
           setUserLocation(coords);
-          setViewState(prev => ({ ...prev, ...coords }));
+          
+          // Se non è stato imposto un campus specifico dal router, vai alla posizione utente
+          if (!focusCampusId) {
+            setViewState(prev => ({ ...prev, ...coords }));
+          }
         },
         (error) => {
-          console.warn("Geolocalizzazione negata o fallita.", error);
-          if (error.code === 1) { // PERMISSION_DENIED
-            setPermissionLimitationMsg("Consenso GPS rifiutato. L'utente senza GPS è limitato nella visualizzazione e ricerca degli asset intorno a lui. Concedi i permessi dalle impostazioni del dispositivo.");
+          console.warn("Geolocalizzazione negata o fallita. Uso coordinate di default.", error);
+          if (!focusCampusId) {
+            const defaultCoords = { longitude: 14.7900, latitude: 40.7700 };
+            setViewState(prev => ({ ...prev, ...defaultCoords }));
           }
-          const defaultCoords = { longitude: 14.7900, latitude: 40.7700 };
-          setViewState(prev => ({ ...prev, ...defaultCoords }));
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
+        }
       );
     }
-  }, []);
+  }, [focusCampusId]);
 
   useEffect(() => {
     if (user) {
@@ -108,8 +67,9 @@ export default function CampusMap() {
           
           if (focusCampusId && realCampuses.some((c: any) => c.id === focusCampusId)) {
             setSelectedCampus(focusCampusId);
-          } else if (realCampuses.length > 0) {
-            setSelectedCampus(realCampuses[0].id);
+          } else {
+            // MODIFICA: Assicura che si parta dalla voce vuota, non dal primo array
+            setSelectedCampus('');
           }
         } catch (error) { console.error("Errore recupero campus:", error); }
       };
@@ -130,17 +90,30 @@ export default function CampusMap() {
     }
   }, [user, token, focusCampusId]);
 
+  // <-- NUOVA LOGICA: Fetch Parallela Paginata -->
   useEffect(() => {
-    const fetchAssets = async () => {
+    const fetchAllMapAssets = async () => {
+      if (!token || !selectedCampus) {
+        setAssets([]);
+        return;
+      }
+
       try {
-        const params = new URLSearchParams();
-        if (selectedCampus) params.append('campus_id', selectedCampus);
+        const limit = 500; // Massimo consentito dal backend per pagina
+        const baseUrl = import.meta.env.VITE_API_URL || '';
         
+        const params = new URLSearchParams();
+        params.append('campus_id', selectedCampus);
+        params.append('limit', limit.toString());
+        params.append('page', '1');
+        
+        // Se l'utente è un operatore, richiediamo al backend solo gli asset della sua categoria
         if (user?.role === 'OPERATORE' && user?.category_id) {
           params.append('category_id', user.category_id);
         }
 
-        const url = `${import.meta.env.VITE_API_URL}/asset/api/assets?${params.toString()}`;
+        // 1. Fetch della prima pagina per ottenere i metadati di paginazione
+        const url = `${baseUrl}/asset/api/assets?${params.toString()}`;
         const response = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -148,16 +121,51 @@ export default function CampusMap() {
         if (!response.ok) throw new Error('Errore nel recupero asset');
         const data = await response.json();
         
-        let fetchedAssets = data.assets || [];
+        let allFetchedAssets = data.assets || [];
+        const totalPages = data.pagination?.total_pages || 1;
+
+        // 2. Fetch parallela di tutte le pagine successive (se esistono)
+        if (totalPages > 1) {
+          const fetchPromises = [];
+          for (let i = 2; i <= totalPages; i++) {
+            params.set('page', i.toString());
+            fetchPromises.push(
+              fetch(`${baseUrl}/asset/api/assets?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              }).then(res => res.json())
+            );
+          }
+
+          // Attendiamo che tutte le pagine vengano scaricate
+          const pagineSuccessive = await Promise.all(fetchPromises);
+          
+          // 3. Concatenazione di tutti gli array
+          pagineSuccessive.forEach(pageData => {
+            if (pageData.assets) {
+              allFetchedAssets = [...allFetchedAssets, ...pageData.assets];
+            }
+          });
+        }
         
+        // Filtro di sicurezza aggiuntivo lato frontend
         if (user?.role === 'OPERATORE' && user?.category_id) {
-          fetchedAssets = fetchedAssets.filter((a: any) => a.category_id === user.category_id);
+          allFetchedAssets = allFetchedAssets.filter((a: any) => a.category_id === user.category_id);
         }
 
-        setAssets(fetchedAssets);
-      } catch (error) { console.error("Errore recupero asset:", error); }
+        // 4. Salviamo l'array completo nello stato della mappa
+        setAssets(allFetchedAssets);
+        
+      } catch (error) { 
+        console.error("Errore nel recupero massivo degli asset per la mappa:", error); 
+      }
     };
-    if (selectedCampus) fetchAssets();
+    
+    // Effettua il fetch degli asset solo se è stato effettivamente selezionato un campus
+    if (selectedCampus) {
+      fetchAllMapAssets();
+    } else {
+      setAssets([]); // Se torno su "Seleziona...", svuoto la mappa
+    }
   }, [selectedCampus, token, user]);
 
   useEffect(() => {
@@ -190,9 +198,22 @@ export default function CampusMap() {
       extractCoords(activeCampus.geometry.coordinates);
 
       if (minLng !== Infinity) {
-        const centerLng = (minLng + maxLng) / 2;
-        const centerLat = (minLat + maxLat) / 2;
-        setViewState(prev => ({ ...prev, longitude: centerLng, latitude: centerLat }));
+        const lngBuffer = (maxLng - minLng) * 0.10;
+        const latBuffer = (maxLat - minLat) * 0.10;
+        
+        const bounds: [number, number, number, number] = [
+          minLng - lngBuffer, 
+          minLat - latBuffer, 
+          maxLng + lngBuffer, 
+          maxLat + latBuffer
+        ];
+
+        setMaxBounds(bounds);
+
+        mapRef.current.fitBounds(
+          [[minLng, minLat], [maxLng, maxLat]],
+          { padding: 30, duration: 1000 } 
+        );
       }
     }
   }, [selectedCampus, campuses]);
@@ -222,21 +243,46 @@ export default function CampusMap() {
       {campuses.length > 0 && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0">
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
+            <div className="flex-1 relative w-full">
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Filtro Campus
               </label>
-              <select
-                value={selectedCampus}
-                onChange={(e) => { setSelectedCampus(e.target.value); setSelectedAsset(null); }}
-                className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+              <div 
+                onClick={() => setIsCampusDropdownOpen(!isCampusDropdownOpen)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-white outline-none cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400"
               >
-                {campuses.map(campus => (
-                  <option key={campus.id} value={campus.id}>
-                    {campus.name}
-                  </option>
-                ))}
-              </select>
+                <span className="truncate pr-2">
+                  {selectedCampus === '' 
+                    ? "Seleziona un campus..." 
+                    : campuses.find(c => c.id === selectedCampus)?.name || 'Campus Selezionato'}
+                </span>
+                <svg className={`w-4 h-4 text-slate-500 transition-transform ${isCampusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+              </div>
+
+              {isCampusDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsCampusDropdownOpen(false)}></div>
+                  <div className="absolute z-20 w-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto animate-fade-in-up">
+                    {campuses.map((campus) => (
+                      <div 
+                        key={campus.id} 
+                        className={`flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${
+                          selectedCampus === campus.id 
+                            ? 'text-blue-600 dark:text-blue-400 font-bold bg-slate-50 dark:bg-slate-700/50' 
+                            : 'text-slate-600 dark:text-slate-300 font-medium'
+                        }`}
+                        onClick={() => { 
+                          setSelectedCampus(campus.id); 
+                          setSelectedAsset(null); 
+                          setIsCampusDropdownOpen(false); 
+                        }}
+                      >
+                        <span className="truncate">{campus.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -250,6 +296,7 @@ export default function CampusMap() {
           style={{ width: '100%', height: '100%' }} 
           mapStyle="https://tiles.openfreemap.org/styles/liberty" 
           interactive={true}
+          maxBounds={maxBounds} 
         >
           {activeCampusData && (
             <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
@@ -295,30 +342,6 @@ export default function CampusMap() {
         )}
       </div>
 
-      {/* MODALE AVVISO LIMITAZIONI GPS */}
-      {permissionLimitationMsg && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden animate-fade-in-up">
-            <div className="p-5 text-center">
-              <svg className="mx-auto mb-3 w-10 h-10 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <h3 className="mb-2 text-lg font-bold text-black dark:text-white">Limitazioni Attive</h3>
-              <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
-                {permissionLimitationMsg}
-              </p>
-              <button 
-                onClick={() => setPermissionLimitationMsg(null)} 
-                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700"
-              >
-                Ho capito
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
       {selectedAsset && createPortal(
         <>
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -354,7 +377,12 @@ export default function CampusMap() {
                 {selectedAsset.media_ids && selectedAsset.media_ids.length > 0 && (
                   <div className="mb-5 flex gap-2 overflow-x-auto pb-2">
                     {selectedAsset.media_ids.map((mediaId: string) => (
-                      <AuthorizedImage key={mediaId} mediaId={mediaId} token={token!} />
+                      <img
+                        key={mediaId}
+                        src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`}
+                        alt="Immagine Asset"
+                        className="h-48 w-full object-cover rounded-lg shadow-sm border border-stroke dark:border-strokedark bg-gray-100 dark:bg-meta-4 flex items-center justify-center text-xs text-center text-gray-500"
+                      />
                     ))}
                   </div>
                 )}
