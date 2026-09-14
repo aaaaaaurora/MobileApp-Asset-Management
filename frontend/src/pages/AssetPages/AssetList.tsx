@@ -109,7 +109,7 @@ export default function AssetList() {
     fetchStaticData();
   }, [token]);
 
-  // Caricamento Assets in base ai Filtri (Differenziato per Ruolo) 
+  // Caricamento Assets in base ai Filtri
   const fetchAssets = async (page: number) => {
     if (!token) return;
     try {
@@ -117,7 +117,7 @@ export default function AssetList() {
       
       const params = new URLSearchParams();
       params.append('page', page.toString());
-      params.append('limit', '50'); // Dimensione predefinita per l'interfaccia
+      params.append('limit', '50');
       
       if (isAdmin) {
         if (selectedCampusesAdmin.length > 0) {
@@ -147,7 +147,6 @@ export default function AssetList() {
         const assetData = await assetRes.json();
         let fetchedAssets = assetData.assets || [];
 
-        // Filtro di sicurezza aggiuntivo lato frontend per operatori
         if (!isAdmin && user?.category_id) {
           fetchedAssets = fetchedAssets.filter((a: Asset) => a.category_id === user.category_id);
         }
@@ -164,22 +163,18 @@ export default function AssetList() {
     }
   };
 
-  // Resetta la pagina a 1 quando cambiano i filtri
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCampusesOp, selectedCampusesAdmin, selectedCategoriesAdmin, dynamicFilters]);
 
-  // Esegue la fetch quando cambiano token, pagina corrente o configurazione ruoli
   useEffect(() => {
     fetchAssets(currentPage);
   }, [token, currentPage, selectedCampusesOp, selectedCampusesAdmin, selectedCategoriesAdmin, dynamicFilters, user, isAdmin]);
 
-  // Gestione Reset Filtri Dinamici al cambio categoria
   useEffect(() => {
     setDynamicFilters({});
   }, [selectedCategoriesAdmin]);
 
-  // Gestione Navigazione da altre pagine (es. Mappa)
   useEffect(() => {
     if (location.state?.editCampusId) {
       if (isAdmin) {
@@ -194,10 +189,15 @@ export default function AssetList() {
     }
   }, [location.state, isAdmin]);
 
+  // LOGICA MODIFICATA: Ricezione dell'asset intero passato dalla mappa
   useEffect(() => {
     const editAssetId = location.state?.editAssetId;
-    if (editAssetId && assets.length > 0) {
-      const assetToEdit = assets.find(a => a._id === editAssetId);
+    const fullAsset = location.state?.fullAsset; // Asset completo recuperato dallo state
+
+    if (editAssetId) {
+      // Priorità all'asset intero passato dalla mappa, altrimenti cerca nella pagina corrente
+      const assetToEdit = fullAsset || assets.find(a => a._id === editAssetId);
+      
       if (assetToEdit) {
         openEditModal(assetToEdit);
         navigate(location.pathname, { replace: true, state: {} });
@@ -282,9 +282,6 @@ export default function AssetList() {
     return range;
   };
 
-  // =================================================================
-  // ESPORTAZIONE CSV (Solo Admin)
-  // =================================================================
   const handleExportCSV = async () => {
     if (assets.length === 0) {
       showNotification('error', "Nessun asset trovato. Regola i filtri prima di esportare.");
@@ -468,7 +465,6 @@ export default function AssetList() {
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         
         {isAdmin ? (
-          // VISUALE AMMINISTRATORE (Doppia Tendina Multipla)
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="relative">
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -561,7 +557,6 @@ export default function AssetList() {
             </div>
           </div>
         ) : (
-          // VISUALE OPERATORE (Singola Tendina Multipla Custom)
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="relative">
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -704,7 +699,6 @@ export default function AssetList() {
         </div>
       </div>
 
-      {/* CONTROLLI PAGINAZIONE */}
       {!loading && totalPages > 1 && (
         <div className="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row bg-white p-4 rounded-xl shadow-sm border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
           <span className="text-sm font-medium text-slate-500 dark:text-slate-400">

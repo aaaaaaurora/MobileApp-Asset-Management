@@ -169,7 +169,6 @@ const CreateAsset: React.FC = () => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Funzione per acquisire una foto dalla fotocamera nativa
   const takePhoto = async () => {
     if (Capacitor.isNativePlatform()) {
       try {
@@ -204,7 +203,6 @@ const CreateAsset: React.FC = () => {
     }
   };
 
-  // Funzione per selezionare immagini dalla galleria nativa
   const pickFromGallery = async () => {
     if (Capacitor.isNativePlatform()) {
       try {
@@ -375,7 +373,8 @@ const CreateAsset: React.FC = () => {
           tags: Array.from(aggregatedTags)
         });
 
-        const primaryTextAttr = selectedCategoryObj.attributes.find(attr => attr.type === 'string');
+        // Modifica: Cerca solo tra gli attributi stringa ATTIVI
+        const primaryTextAttr = selectedCategoryObj.attributes.find(attr => attr.type === 'string' && attr.status !== 'unavailable');
 
         if (primaryTextAttr) {
           setMetadata(prev => ({ 
@@ -537,7 +536,6 @@ const CreateAsset: React.FC = () => {
                         ))}
                       </div>
                       
-                      {/* Gestione dinamica dei bottoni per aggiungere altre foto (Web vs Mobile) */}
                       <div className="flex gap-2">
                         {Capacitor.isNativePlatform() ? (
                           <>
@@ -556,7 +554,6 @@ const CreateAsset: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    // Gestione dinamica dei bottoni iniziali (Web vs Mobile)
                     <div className={Capacitor.isNativePlatform() ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
                       {Capacitor.isNativePlatform() ? (
                         <>
@@ -686,29 +683,60 @@ const CreateAsset: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {selectedCategoryObj?.attributes.map((attr) => (
+                  {/* MODIFICA: Filtriamo via gli attributi deprecati (unavailable) prima del map */}
+                  {selectedCategoryObj?.attributes
+                    .filter(attr => attr.status !== 'unavailable')
+                    .map((attr) => (
                     <div key={attr.name}>
                       <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize">
                         {attr.name.replace('_', ' ')} {attr.required && <span className="text-rose-500">*</span>}
                       </label>
                       
-                      {attr.type === 'enum' ? (
-                        <select 
-                          value={metadata[attr.name] || ''} 
-                          onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                        >
-                          <option value="">Seleziona...</option>
-                          {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                      ) : (
-                        <input 
-                          type={attr.type === 'number' ? 'number' : 'text'}
-                          value={metadata[attr.name] || ''}
-                          onChange={(e) => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                        />
-                      )}
+                      {(() => {
+                        if (attr.type === 'enum') {
+                          return (
+                            <select 
+                              value={metadata[attr.name] || ''} 
+                              onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
+                              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                            >
+                              <option value="">Seleziona...</option>
+                              {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          );
+                        }
+                        if (attr.type === 'boolean') {
+                          return (
+                            <select 
+                              value={metadata[attr.name] !== undefined ? String(metadata[attr.name]) : ''} 
+                              onChange={(e) => handleMetadataChange(attr.name, e.target.value === 'true')}
+                              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                            >
+                              <option value="">Seleziona...</option>
+                              <option value="true">Vero (Sì)</option>
+                              <option value="false">Falso (No)</option>
+                            </select>
+                          );
+                        }
+                        if (attr.type === 'date') {
+                          return (
+                            <input 
+                              type="date"
+                              value={metadata[attr.name] || ''}
+                              onChange={(e) => handleMetadataChange(attr.name, e.target.value)}
+                              className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                            />
+                          );
+                        }
+                        return (
+                          <input 
+                            type={attr.type === 'number' ? 'number' : 'text'}
+                            value={metadata[attr.name] || ''}
+                            onChange={(e) => handleMetadataChange(attr.name, attr.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-1.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
+                          />
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
