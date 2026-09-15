@@ -15,6 +15,7 @@ interface CategoryAttribute {
 interface Category {
   _id: string;
   name: string;
+  icon?: string;
   attributes: CategoryAttribute[];
 }
 
@@ -414,13 +415,9 @@ export default function AssetList() {
     }
   };
 
-  const activeCategoryIdForFilters = isAdmin 
-    ? (selectedCategoriesAdmin.length === 1 ? selectedCategoriesAdmin[0] : null)
-    : user?.category_id;
-
-  const filterableAttributes = activeCategoryIdForFilters 
-    ? categories.find(c => c._id === activeCategoryIdForFilters)?.attributes.filter(attr => attr.filterable && attr.status !== 'unavailable') || []
-    : [];
+  const activeCategoriesForFilters = isAdmin 
+    ? categories.filter(c => selectedCategoriesAdmin.includes(c._id))
+    : categories.filter(c => c._id === user?.category_id);
 
   const activeCategory = selectedAsset ? categories.find(c => c._id === selectedAsset.category_id) : null;
   const hasChanges = selectedAsset ? (
@@ -605,44 +602,71 @@ export default function AssetList() {
           </div>
         )}
 
-        {filterableAttributes.length > 0 && (
-          <div className="mt-5 pt-5 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-end gap-4">
-            {filterableAttributes.map(attr => (
-              <div key={attr.name} className="w-full sm:w-[200px]">
-                <label className="mb-1.5 block text-[11px] font-bold text-slate-500 dark:text-slate-400 capitalize tracking-wide truncate">
-                  {attr.name.replace('_', ' ')}
-                </label>
-                
-                {attr.type === 'enum' ? (
-                  <select 
-                    value={dynamicFilters[attr.name] || ''}
-                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                  >
-                    <option value="">Tutti</option>
-                    {attr.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                ) : attr.type === 'boolean' ? (
-                   <select 
-                    value={dynamicFilters[attr.name] || ''}
-                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                    className="w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                  >
-                    <option value="">Tutti</option>
-                    <option value="true">Sì</option>
-                    <option value="false">No</option>
-                  </select>
-                ) : (
-                  <input 
-                    type={attr.type === 'number' ? 'number' : 'text'}
-                    value={dynamicFilters[attr.name] || ''}
-                    onChange={(e) => handleDynamicFilterChange(attr.name, e.target.value)}
-                    placeholder="Cerca..."
-                    className="w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:text-white dark:bg-slate-800"
-                  />
-                )}
-              </div>
-            ))}
+        {/* FILTRI DINAMICI COMPATTI PER CATEGORIA */}
+        {activeCategoriesForFilters.length > 0 && activeCategoriesForFilters.some(cat => cat.attributes?.some((attr: any) => attr.filterable && attr.status !== 'unavailable')) && (
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Filtri Specifici per Categoria
+            </span>
+            
+            <div className="flex flex-wrap items-center gap-4">
+              {activeCategoriesForFilters.map(cat => {
+                const catAttributes = cat.attributes?.filter((attr: any) => attr.filterable && attr.status !== 'unavailable') || [];
+                if (catAttributes.length === 0) return null;
+
+                return (
+                  <div key={cat._id} className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+                    {/* Badge Categoria */}
+                    <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700">
+                      <span className="text-sm">{cat.icon || '📌'}</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                        {cat.name}
+                      </span>
+                    </div>
+
+                    {/* Controlli compatti */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {catAttributes.map((attr: any) => (
+                        <div key={attr.name} className="flex items-center gap-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 capitalize whitespace-nowrap">
+                            {attr.name.replace('_', ' ')}:
+                          </label>
+                          
+                          {attr.type === 'enum' ? (
+                            <select 
+                              value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
+                              onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
+                              className="rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
+                            >
+                              <option value="">Tutti</option>
+                              {attr.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          ) : attr.type === 'boolean' ? (
+                             <select 
+                              value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
+                              onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
+                              className="rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
+                            >
+                              <option value="">Tutti</option>
+                              <option value="true">Sì</option>
+                              <option value="false">No</option>
+                            </select>
+                          ) : (
+                            <input 
+                              type={attr.type === 'number' ? 'number' : 'text'}
+                              value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
+                              onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
+                              placeholder="Cerca..."
+                              className="w-28 rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

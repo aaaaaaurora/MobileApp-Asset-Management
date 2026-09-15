@@ -953,36 +953,96 @@ def get_assets():
                 return error_response(f"ID Categoria non valido: {cat_id}", 400)
         mongo_query['category_id'] = {'$in': requested_categories}
         
-    # 3. Filtri Dinamici sugli Attributi (US 5-2)
+    # 3. Filtri Dinamici e Logica di Isolamento Assoluto per Categoria
+    category_id_param = request.args.get('category_id')
+    requested_categories = [c.strip() for c in category_id_param.split(',')] if category_id_param else []
+
     def parse_filter_value(v):
-        """Tenta il cast del valore stringa al tipo nativo corretto."""
         v = v.strip()
         if v.lower() == 'true': return True
         if v.lower() == 'false': return False
-        try:
-            return float(v) # MongoDB incrocia automaticamente int e float
-        except ValueError:
-            return v # Se fallisce, è una normale stringa
+        try: return float(v) 
+        except ValueError: return v 
+
+    dynamic_filters_by_cat = {}
+    global_dynamic_filters = {}
 
     for key, value in request.args.items():
-        if key.startswith('attr_'):
-            attr_name = key[5:] 
-            
+        if key.startswith('attr_') and value.strip():
+            remainder = key[5:]
+            # Verifichiamo se è il nuovo formato frontend: attr_{cat_id}_{attr_name}
+            if '_' in remainder:
+                parts = remainder.split('_', 1)
+                potential_cat_id = parts[0]
+                
+                # Un ObjectId di MongoDB è sempre di 24 caratteri
+                if len(potential_cat_id) == 24:
+                    cat_id = potential_cat_id
+                    attr_name = parts[1]
+                    
+                    if cat_id not in dynamic_filters_by_cat:
+                        dynamic_filters_by_cat[cat_id] = {}
+                        
+                    if ',' in value:
+                        parsed_values = [parse_filter_value(v) for v in value.split(',')]
+                        dynamic_filters_by_cat[cat_id][f'metadata.{attr_name}'] = {'$in': parsed_values}
+                    else:
+                        dynamic_filters_by_cat[cat_id][f'metadata.{attr_name}'] = parse_filter_value(value)
+                    continue
+                    
+            # Fallback ai filtri globali legacy
+            attr_name = remainder
             if ',' in value:
                 parsed_values = [parse_filter_value(v) for v in value.split(',')]
-                mongo_query[f'metadata.{attr_name}'] = {'$in': parsed_values}
+                global_dynamic_filters[f'metadata.{attr_name}'] = {'$in': parsed_values}
             else:
-                mongo_query[f'metadata.{attr_name}'] = parse_filter_value(value)
-                
+                global_dynamic_filters[f'metadata.{attr_name}'] = parse_filter_value(value)
+
+    if requested_categories and (dynamic_filters_by_cat or global_dynamic_filters):
+        or_clauses = []
+        categories_map = {str(c['_id']): [attr['name'] for attr in c.get('attributes', [])] for c in categories_col.find({"_id": {"$in": [ObjectId(cid) for cid in requested_categories if ObjectId.is_valid(cid)]}})}
+
+        for cat_id in requested_categories:
+            # Isoliamo la sub-query per non intaccare le altre
+            cat_sub_query = {k: v for k, v in mongo_query.items() if k != 'category_id' and k != '$or'}
+            cat_sub_query['category_id'] = cat_id
+            
+            valid_attr_names_for_cat = categories_map.get(cat_id, [])
+            
+            # 1. Applica in modo chirurgico solo i filtri della sua specifica categoria
+            if cat_id in dynamic_filters_by_cat:
+                for filter_key, filter_val in dynamic_filters_by_cat[cat_id].items():
+                    attr_real_name = filter_key.replace('metadata.', '')
+                    if attr_real_name in valid_attr_names_for_cat:
+                        cat_sub_query[filter_key] = filter_val
+                        
+            # 2. Applica eventuali filtri globali se validi per questa categoria
+            for filter_key, filter_val in global_dynamic_filters.items():
+                attr_real_name = filter_key.replace('metadata.', '')
+                if attr_real_name in valid_attr_names_for_cat:
+                    cat_sub_query[filter_key] = filter_val
+            
+            or_clauses.append(cat_sub_query)
+            
+        mongo_query = {k: v for k, v in mongo_query.items() if k not in ['category_id', '$or']}
+        mongo_query['$or'] = or_clauses
+
+    elif requested_categories:
+        mongo_query['category_id'] = {'$in': requested_categories}
+    
+    elif global_dynamic_filters:
+        for k, v in global_dynamic_filters.items():
+            mongo_query[k] = v
+            
     # 4. Configurazione Paginazione
     try:
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 50)) # Mostra 50 risultati di default
+        limit = int(request.args.get('limit', 500)) # Alzato a 500 per la mappa (gestione massiva)
         if page < 1: page = 1
-        if limit < 1 or limit > 500: limit = 50 # Previeni payload massivi
+        if limit < 1 or limit > 1000: limit = 500
     except ValueError:
         page = 1
-        limit = 50
+        limit = 500
         
     skip = (page - 1) * limit
 
@@ -996,10 +1056,6 @@ def get_assets():
         
         serialized_assets = [serialize_mongo_doc(asset) for asset in assets_list]
         
-        # 6. Costruzione della Risposta
-        # Ogni elemento in 'assets' include il campo 'geometry' in formato GeoJSON,
-        # fornendo al frontend (US 5-1) tutto ciò che serve per piazzare i marker sulla mappa
-        # e per costruire la tabella in Visualizzazione Elenco.
         return jsonify({
             "assets": serialized_assets,
             "pagination": {
@@ -1012,7 +1068,6 @@ def get_assets():
         
     except Exception as e:
         return error_response(f"Errore durante la ricerca degli asset: {str(e)}", 500)
-    
 
 # ============================================================================
 # ENDPOINT: Esportazione CSV degli Assets 
@@ -1042,36 +1097,101 @@ def export_assets():
     else:
         mongo_query['campus_id'] = {'$in': user_campuses}
 
-    # 2. Filtro Categoria
+    # 2. Filtro Categoria base (se inserito nei parametri)
     requested_category_param = request.args.get('category_id')
     if requested_category_param:
         requested_categories = [c.strip() for c in requested_category_param.split(',')]
         mongo_query['category_id'] = {'$in': requested_categories}
         
-    # 3. Filtri Dinamici
+    # 3. Filtri Dinamici e Logica di Isolamento Assoluto per Categoria
+    category_id_param = request.args.get('category_id')
+    requested_categories = [c.strip() for c in category_id_param.split(',')] if category_id_param else []
+
     def parse_filter_value(v):
         v = v.strip()
         if v.lower() == 'true': return True
         if v.lower() == 'false': return False
-        try: return float(v)
-        except ValueError: return v
+        try: return float(v) 
+        except ValueError: return v 
+
+    dynamic_filters_by_cat = {}
+    global_dynamic_filters = {}
 
     for key, value in request.args.items():
-        if key.startswith('attr_'):
-            attr_name = key[5:]
+        if key.startswith('attr_') and value.strip():
+            remainder = key[5:]
+            # Verifichiamo se è il nuovo formato frontend: attr_{cat_id}_{attr_name}
+            if '_' in remainder:
+                parts = remainder.split('_', 1)
+                potential_cat_id = parts[0]
+                
+                # Un ObjectId di MongoDB è sempre di 24 caratteri
+                if len(potential_cat_id) == 24:
+                    cat_id = potential_cat_id
+                    attr_name = parts[1]
+                    
+                    if cat_id not in dynamic_filters_by_cat:
+                        dynamic_filters_by_cat[cat_id] = {}
+                        
+                    if ',' in value:
+                        parsed_values = [parse_filter_value(v) for v in value.split(',')]
+                        dynamic_filters_by_cat[cat_id][f'metadata.{attr_name}'] = {'$in': parsed_values}
+                    else:
+                        dynamic_filters_by_cat[cat_id][f'metadata.{attr_name}'] = parse_filter_value(value)
+                    continue
+                    
+            # Fallback ai filtri globali legacy
+            attr_name = remainder
             if ',' in value:
                 parsed_values = [parse_filter_value(v) for v in value.split(',')]
-                mongo_query[f'metadata.{attr_name}'] = {'$in': parsed_values}
+                global_dynamic_filters[f'metadata.{attr_name}'] = {'$in': parsed_values}
             else:
-                mongo_query[f'metadata.{attr_name}'] = parse_filter_value(value)
+                global_dynamic_filters[f'metadata.{attr_name}'] = parse_filter_value(value)
+
+    if requested_categories and (dynamic_filters_by_cat or global_dynamic_filters):
+        or_clauses = []
+        categories_map = {str(c['_id']): [attr['name'] for attr in c.get('attributes', [])] for c in categories_col.find({"_id": {"$in": [ObjectId(cid) for cid in requested_categories if ObjectId.is_valid(cid)]}})}
+
+        for cat_id in requested_categories:
+            # Isoliamo la sub-query per non intaccare le altre
+            cat_sub_query = {k: v for k, v in mongo_query.items() if k != 'category_id' and k != '$or'}
+            cat_sub_query['category_id'] = cat_id
+            
+            valid_attr_names_for_cat = categories_map.get(cat_id, [])
+            
+            # 1. Applica in modo chirurgico solo i filtri della sua specifica categoria
+            if cat_id in dynamic_filters_by_cat:
+                for filter_key, filter_val in dynamic_filters_by_cat[cat_id].items():
+                    attr_real_name = filter_key.replace('metadata.', '')
+                    if attr_real_name in valid_attr_names_for_cat:
+                        cat_sub_query[filter_key] = filter_val
+                        
+            # 2. Applica eventuali filtri globali se validi per questa categoria
+            for filter_key, filter_val in global_dynamic_filters.items():
+                attr_real_name = filter_key.replace('metadata.', '')
+                if attr_real_name in valid_attr_names_for_cat:
+                    cat_sub_query[filter_key] = filter_val
+            
+            or_clauses.append(cat_sub_query)
+            
+        mongo_query = {k: v for k, v in mongo_query.items() if k not in ['category_id', '$or']}
+        mongo_query['$or'] = or_clauses
+
+    elif requested_categories:
+        mongo_query['category_id'] = {'$in': requested_categories}
+    
+    elif global_dynamic_filters:
+        for k, v in global_dynamic_filters.items():
+            mongo_query[k] = v
 
     try:
+        # Estrazione completa degli asset corrispondenti alla query (senza limiti di paginazione per l'export) 
         assets_list = list(assets_col.find(mongo_query))
         
         # Recupero nomi categorie in cache per la colonna descrittiva
         cat_cache = {str(c['_id']): c.get('name', 'Sconosciuta') for c in categories_col.find()}
         
-        # Estrazione dinamica delle chiavi dei metadati da tutti gli asset
+        # Estrazione dinamica delle chiavi dei metadati da tutti gli asset trovati
         meta_keys = set()
         for asset in assets_list:
             meta_keys.update(asset.get('metadata', {}).keys())
