@@ -82,13 +82,11 @@ export default function CampusMap() {
 
   const [viewState, setViewState] = useState({ longitude: 14.7900, latitude: 40.7700, zoom: 15, pitch: 45, bearing: 0 });
   const [campuses, setCampuses] = useState<any[]>([]);
-  const [isInitializingLocation, setIsInitializingLocation] = useState(true); // Stato per lo spinner iniziale
+  const [isInitializingLocation, setIsInitializingLocation] = useState(true); 
   
-  // FILTRO CAMPUS (Singolo)
   const [selectedCampus, setSelectedCampus] = useState<string>('');
   const [isCampusDropdownOpen, setIsCampusDropdownOpen] = useState(false);
   
-  // FILTRI AGGIUNTIVI
   const [selectedCategoriesAdmin, setSelectedCategoriesAdmin] = useState<string[]>([]);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [dynamicFilters, setDynamicFilters] = useState<Record<string, string>>({});
@@ -101,11 +99,32 @@ export default function CampusMap() {
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  const handleDeleteAsset = async () => {
+    if (!selectedAsset) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/asset/api/assets/${selectedAsset._id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setAssets(prev => prev.filter(a => a._id !== selectedAsset._id));
+        setIsDeleteConfirmOpen(false);
+        setSelectedAsset(null);
+      } else {
+        alert("Errore durante l'eliminazione dell'asset.");
+      }
+    } catch (error) {
+      console.error("Errore API eliminazione:", error);
+    }
+  };
+
   const [permissionLimitationMsg, setPermissionLimitationMsg] = useState<string | null>(null);
   
   const [clusters, setClusters] = useState<any[]>([]);
 
-  // 1. Geolocalizzazione iniziale con blocco dello spinner
   useEffect(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -136,7 +155,6 @@ export default function CampusMap() {
     }
   }, [focusCampusId]);
 
-  // 2. Caricamento Campus e Categorie + Logica di auto-selezione basata sul perimetro (Geo-fencing)
   useEffect(() => {
     if (user) {
       const fetchStaticData = async () => {
@@ -153,7 +171,6 @@ export default function CampusMap() {
             if (focusCampusId && realCampuses.some((c: any) => c.id === focusCampusId)) {
               setSelectedCampus(focusCampusId);
             } else if (userLocation) {
-              // Verifica automatica se l'utente si trova all'interno di un perimetro campus
               const matchedCampus = realCampuses.find((c: any) => {
                 if (c.geometry && c.geometry.type === 'Polygon' && c.geometry.coordinates) {
                   return isPointInPolygon([userLocation.longitude, userLocation.latitude], c.geometry.coordinates);
@@ -179,12 +196,10 @@ export default function CampusMap() {
     }
   }, [user, token, focusCampusId, userLocation]);
 
-  // Gestione Reset Filtri Dinamici al cambio categoria
   useEffect(() => {
     setDynamicFilters({});
   }, [selectedCategoriesAdmin]);
 
-  // 3. Recupero Asset con protezione contro le race conditions
   useEffect(() => {
     let isActive = true;
 
@@ -373,10 +388,11 @@ export default function CampusMap() {
     }
   }, [assets, viewState, supercluster, maxBounds]);
 
+  // MODIFICA QUI: Rimosso h-[calc(100vh-100px)] e overflow-hidden dal genitore, 
+  // permettendo alla pagina di scrollare interamente.
   return (
-    <div className="flex flex-col h-[750px] w-full relative mb-10">
+    <div className="flex flex-col w-full relative mb-10">
       
-      {/* SPINNER DI CARICAMENTO INIZIALE GPS */}
       {isInitializingLocation && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600 mb-3"></div>
@@ -385,10 +401,9 @@ export default function CampusMap() {
       )}
 
       {campuses.length > 0 && (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0 z-10">
           <div className={`grid grid-cols-1 ${isAdmin ? 'sm:grid-cols-2' : ''} gap-6`}>
             
-            {/* FILTRO CAMPUS (Singolo) */}
             <div className="relative">
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Filtro Campus
@@ -409,12 +424,9 @@ export default function CampusMap() {
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsCampusDropdownOpen(false)}></div>
                   <div className="absolute z-20 w-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto animate-fade-in-up">
-                    
-                    {/* Opzione segnaposto non cliccabile */}
                     <div className="px-4 py-3 h-12 flex items-center text-sm text-slate-400 dark:text-slate-500 italic bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 select-none">
                       Seleziona un campus...
                     </div>
-
                     {campuses.map((campus) => (
                       <div 
                         key={campus.id} 
@@ -485,30 +497,26 @@ export default function CampusMap() {
             )}
           </div>
 
-          {/* FILTRI DINAMICI SUDDIVISI PER CATEGORIA */}
-        {/* FILTRI DINAMICI COMPATTI PER CATEGORIA */}
         {activeCategoriesForFilters.length > 0 && activeCategoriesForFilters.some(cat => cat.attributes?.some((attr: any) => attr.filterable && attr.status !== 'unavailable')) && (
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Filtri Specifici per Categoria
             </span>
             
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-start gap-4 max-h-[25vh] overflow-y-auto pr-2 custom-scrollbar">
               {activeCategoriesForFilters.map(cat => {
                 const catAttributes = cat.attributes?.filter((attr: any) => attr.filterable && attr.status !== 'unavailable') || [];
                 if (catAttributes.length === 0) return null;
 
                 return (
-                  <div key={cat._id} className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
-                    {/* Badge Categoria */}
-                    <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700">
+                  <div key={cat._id} className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 w-full">
+                    <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700 shrink-0">
                       <span className="text-sm">{cat.icon || '📌'}</span>
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
                         {cat.name}
                       </span>
                     </div>
 
-                    {/* Controlli compatti */}
                     <div className="flex flex-wrap items-center gap-3">
                       {catAttributes.map((attr: any) => (
                         <div key={attr.name} className="flex items-center gap-1.5">
@@ -556,7 +564,8 @@ export default function CampusMap() {
         </div>
       )}
 
-      <div className="relative flex-1 w-full overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
+      {/* MODIFICA QUI: Aggiunta un'altezza fissa minima per garantire che la mappa non si schiacci mai */}
+      <div className="relative w-full h-[calc(100vh-120px)] min-h-[600px] overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
         <Map 
           ref={mapRef} 
           {...viewState} 
@@ -688,6 +697,17 @@ export default function CampusMap() {
                       </svg>
                     </button>
                   )}
+                  {isAdmin && (
+                    <button 
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                      title="Elimina Asset"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 <button 
                   onClick={() => setSelectedAsset(null)} 
@@ -746,6 +766,44 @@ export default function CampusMap() {
         </>,
         document.body
       )}
+    {/* MODALE DI CONFERMA ELIMINAZIONE PERSONALIZZATA (Va messa QUI, fuori dal portal precedente) */}
+    {isDeleteConfirmOpen && selectedAsset && createPortal(
+        <div className="fixed inset-0 z-[10005] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden animate-fade-in-up">
+            <div className="p-6 text-center">
+              
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-600">
+                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              
+              <h3 className="mb-2 text-xl font-bold text-black dark:text-white">Elimina Asset</h3>
+              <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
+                Sei sicuro di voler eliminare definitivamente questo asset dalla mappa? Questa azione non può essere annullata.
+              </p>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsDeleteConfirmOpen(false)} 
+                  className="flex-1 rounded-lg border border-stroke dark:border-strokedark bg-gray-50 dark:bg-meta-4 py-2.5 text-sm font-medium text-black dark:text-white transition hover:bg-gray-100 dark:hover:bg-meta-3"
+                >
+                  Annulla
+                </button>
+                <button 
+                  onClick={handleDeleteAsset} 
+                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 shadow-sm"
+                >
+                  Sì, elimina
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 }

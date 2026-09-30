@@ -9,7 +9,7 @@ from sqlalchemy import text
 import json
 import threading
 
-# Assumo la presenza del modulo condiviso come negli altri servizi 
+# Assumo la presenza del modulo condiviso come negli altri servizi
 from shared_utils.messaging import RabbitMQManager 
 
 app = Flask(__name__)
@@ -30,6 +30,7 @@ mq_manager = RabbitMQManager(rabbitmq_url=RABBITMQ_URL)
 class WarningStatus(enum.Enum):
     aperta = 'aperta'
     chiusa = 'chiusa'
+    annullata = 'annullata'
 
 class MaintenanceType(enum.Enum):
     preventiva = 'preventiva'
@@ -39,7 +40,7 @@ class Warning(db.Model):
     __tablename__ = 'warning'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     asset_id = db.Column(db.String(24), nullable=False)
-    category_id = db.Column(db.String(24), nullable=False) # AGGIUNTO
+    category_id = db.Column(db.String(24), nullable=False) 
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
     reporter_id = db.Column(UUID(as_uuid=True), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -61,7 +62,7 @@ class MaintenanceIntervention(db.Model):
 class LocalAssetCache(db.Model):
     __tablename__ = 'local_asset_cache'
     asset_id = db.Column(db.String(24), primary_key=True)
-    category_id = db.Column(db.String(24), nullable=False) # AGGIUNTO
+    category_id = db.Column(db.String(24), nullable=False) 
     campus_id = db.Column(UUID(as_uuid=True), nullable=False)
     
     campus_name = db.Column(db.String(100), nullable=True)
@@ -90,7 +91,6 @@ def publish_audit(action, entity_id, actor_id, campus_id, payload_details):
         "campus_id": str(campus_id)
     }
     
-    # Unisce i dettagli direttamente alla radice del dizionario
     if payload_details:
         event_data.update(payload_details)
     
@@ -109,32 +109,29 @@ def process_asset_events(ch, method, properties, body):
             payload = json.loads(body.decode('utf-8'))
             action = payload.get("azione")
             
-            # Intercettiamo solo gli eventi legati agli asset
             if action in ["ASSET_CREATED", "ASSET_UPDATED"]:
                 asset_id = payload.get("asset_id")
                 campus_id = payload.get("campus_id")
-                category_id = payload.get("category_id") # AGGIUNTO
+                category_id = payload.get("category_id") 
                 
                 campus_name = payload.get("campus_name")
                 asset_name = payload.get("asset_name")
                 
-                if asset_id and campus_id and category_id: # AGGIORNATO
+                if asset_id and campus_id and category_id: 
                     campus_uuid = uuid.UUID(campus_id)
                     asset = db.session.get(LocalAssetCache, asset_id)
                     
                     if not asset:
-                        # Se non esiste, lo creiamo memorizzando anche i nomi e la categoria
                         asset = LocalAssetCache(
                             asset_id=asset_id, 
-                            category_id=category_id, # AGGIUNTO
+                            category_id=category_id, 
                             campus_id=campus_uuid,
                             campus_name=campus_name,
                             asset_name=asset_name
                         )
                         db.session.add(asset)
                     else:
-                        # Se esiste, aggiorniamo tutto (in caso di ridenominazione o spostamento)
-                        asset.category_id = category_id # AGGIUNTO
+                        asset.category_id = category_id 
                         asset.campus_id = campus_uuid
                         asset.campus_name = campus_name
                         asset.asset_name = asset_name
@@ -145,6 +142,38 @@ def process_asset_events(ch, method, properties, body):
                 asset_id = payload.get("asset_id")
                 if asset_id:
                     asset = db.session.get(LocalAssetCache, asset_id)
+                    
+                    campus_name_str = asset.campus_name if asset else None
+                    category_id_str = str(asset.category_id) if asset else None
+                    asset_name_str = asset.asset_name if asset else None
+                    
+                    pending_warnings = db.session.query(Warning).filter_by(asset_id=asset_id, status=WarningStatus.aperta).all()
+                    
+                    for w in pending_warnings:
+                        # Estrazione preventiva dei dati per evitare DetachedInstanceError post-commit
+                        w_id_str = str(w.id)
+                        w_campus_id_str = str(w.campus_id)
+                        
+                        w.status = WarningStatus.annullata
+                        db.session.commit()
+                        
+                        event_data = {
+                            "azione": "CANCEL_WARNING",
+                            "entity_id": w_id_str,
+                            "autore_id": None, 
+                            "campus_id": w_campus_id_str,
+                            "asset_id": asset_id,
+                            "status_precedente": "aperta",
+                            "status_nuovo": "annullata",
+                            "campus_name": campus_name_str, 
+                            "category_id": category_id_str,
+                            "asset_name": asset_name_str,
+                            "email": "System Auto"
+                        }
+                        
+                        # Passiamo None come terzo parametro
+                        mq_manager.publish_event('system_events', 'CANCEL_WARNING', None, 'warning-service', event_data)
+
                     if asset:
                         db.session.delete(asset)
                         db.session.commit()
@@ -153,11 +182,33 @@ def process_asset_events(ch, method, properties, body):
                 campus_id = payload.get("campus_id")
                 if campus_id:
                     campus_uuid = uuid.UUID(campus_id)
-                    # Elimina dalla cache locale tutti gli asset di quel campus
+                    
+                    pending_warnings = db.session.query(Warning).filter_by(campus_id=campus_uuid, status=WarningStatus.aperta).all()
+                    
+                    for w in pending_warnings:
+                        # Estrazione preventiva
+                        w_id_str = str(w.id)
+                        w_asset_id_str = str(w.asset_id)
+                        w_campus_id_str = str(w.campus_id)
+                        
+                        w.status = WarningStatus.annullata
+                        db.session.commit()
+                        
+                        event_data = {
+                            "azione": "CANCEL_WARNING",
+                            "entity_id": w_id_str,
+                            "autore_id": None, # None fa superare la validazione UUID del log-service
+                            "campus_id": w_campus_id_str,
+                            "asset_id": w_asset_id_str,
+                            "status_precedente": "aperta",
+                            "status_nuovo": "annullata",
+                            "email": "System Auto"
+                        }
+                        mq_manager.publish_event('system_events', 'CANCEL_WARNING', None, 'warning-service', event_data)
+                    
                     db.session.query(LocalAssetCache).filter_by(campus_id=campus_uuid).delete()
                     db.session.commit()
 
-            # Ack manuale se auto_ack è impostato a False nel manager
             if ch.is_open and not getattr(ch, 'auto_ack', True):
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 
@@ -232,7 +283,7 @@ def create_warning():
     # Creazione record
     new_warning = Warning(
         asset_id=asset_id_str,
-        category_id=local_asset.category_id, # AGGIUNTO
+        category_id=local_asset.category_id, 
         campus_id=campus_uuid,
         reporter_id=reporter_uuid,
         description=description.strip()
@@ -254,6 +305,7 @@ def create_warning():
                 "asset_id": str(asset_id_str), 
                 "status": "aperta",
                 "campus_name": local_asset.campus_name, 
+                "category_id": str(local_asset.category_id),
                 "asset_name": local_asset.asset_name   
             }
         )
@@ -266,7 +318,7 @@ def create_warning():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Errore interno del server: {str(e)}"}), 500
- 
+  
 # ==========================================
 # ENDPOINT: US 6-2
 # ==========================================
@@ -283,7 +335,7 @@ def get_warnings():
     # Filtri opzionali da query string
     req_campus_id = request.args.get('campus_id')
     req_status = request.args.get('status')
-    req_category_id = request.args.get('category_id') # <-- AGGIUNTO
+    req_category_id = request.args.get('category_id') 
 
     # Inizializziamo la query di base
     query = Warning.query
@@ -322,7 +374,7 @@ def get_warnings():
         except KeyError:
             return jsonify({"error": "Stato segnalazione non valido"}), 400
 
-    # 4. Filtro per categoria (AGGIUNTO)
+    # 4. Filtro per categoria 
     if req_category_id:
         query = query.filter(Warning.category_id == req_category_id)
 
@@ -378,8 +430,8 @@ def resolve_warning(warning_id_str):
         return jsonify({"error": "Non sei autorizzato a operare sugli asset di questo campus"}), 403
 
     # 3. Controllo Stato Logico
-    if warning.status == WarningStatus.chiusa:
-        return jsonify({"error": "La segnalazione è già stata chiusa"}), 400
+    if warning.status == WarningStatus.chiusa or warning.status == WarningStatus.annullata:
+        return jsonify({"error": "La segnalazione è già stata chiusa o annullata"}), 400
 
     # 4. Estrazione Payload
     data = request.get_json()
@@ -399,7 +451,6 @@ def resolve_warning(warning_id_str):
         
         # A. Chiusura del ticket pubblico
         warning.status = WarningStatus.chiusa
-        # NB: il trigger Postgres "set_warning_updated_at" aggiornerà in automatico la colonna updated_at
         
         # B. Registrazione permanente della manutenzione 
         new_maintenance = MaintenanceIntervention(
@@ -407,7 +458,7 @@ def resolve_warning(warning_id_str):
             campus_id=warning.campus_id,
             operator_id=uuid.UUID(user_id),
             warning_id=warning.id,
-            intervention_type=MaintenanceType.correttiva, # Correttiva in quanto evasa da una segnalazione
+            intervention_type=MaintenanceType.correttiva, 
             technical_note=technical_note.strip()
         )
         
@@ -426,6 +477,7 @@ def resolve_warning(warning_id_str):
                 "status_nuovo": "chiusa",
                 "maintenance_id": str(new_maintenance.id),
                 "campus_name": local_asset.campus_name if local_asset else None, 
+                "category_id": str(warning.category_id),
                 "asset_name": local_asset.asset_name if local_asset else None    
             }
         )
@@ -520,6 +572,7 @@ def create_maintenance():
                 "asset_id": asset_id_str,
                 "tipo_intervento": m_type_enum.value,
                 "campus_name": local_asset.campus_name, 
+                "category_id": str(local_asset.category_id),
                 "asset_name": local_asset.asset_name    
             }
         )
