@@ -44,6 +44,61 @@ interface Campus {
   name: string;
 }
 
+// NUOVO COMPONENTE: Carica l'immagine in modo sicuro tramite il token JWT
+const SecureImage = ({ mediaId, token, className, alt }: { mediaId: string, token: string, className: string, alt: string }) => {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string;
+    
+    const fetchImage = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const blob = await res.blob();
+          objectUrl = URL.createObjectURL(blob);
+          setImgSrc(objectUrl);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error("Errore caricamento immagine:", err);
+        setError(true);
+      }
+    };
+
+    fetchImage();
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [mediaId, token]);
+
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 text-slate-400 text-[10px] ${className}`}>
+        Errore Foto
+      </div>
+    );
+  }
+
+  if (!imgSrc) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-200 animate-pulse ${className}`}>
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-solid border-slate-400 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  return <img src={imgSrc} className={className} alt={alt} />;
+};
+
 export default function TicketSegnalazioni() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
@@ -429,7 +484,7 @@ export default function TicketSegnalazioni() {
         </div>
       </div>
 
-      {/* MODALE DI GESTIONE RISOLUZIONE (SIMILE AD ASSET LIST) */}
+      {/* MODALE DI GESTIONE RISOLUZIONE */}
       {selectedTicket && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto transform transition-all">
@@ -455,10 +510,13 @@ export default function TicketSegnalazioni() {
                 <div className="mb-6">
                   <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-3">Gestione Foto Asset</h4>
                   <div className="flex gap-3 overflow-x-auto pb-2">
+                    
+                    {/* MODIFICA: Uso del nuovo componente SecureImage */}
                     {formData.media_ids.map(mediaId => (
                       <div key={mediaId} className="relative min-w-[120px] h-28 flex-shrink-0 group">
-                        <img 
-                          src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`} 
+                        <SecureImage 
+                          mediaId={mediaId}
+                          token={token!}
                           className="w-full h-full object-cover rounded-lg border border-slate-200 dark:border-slate-600"
                           alt="Asset Media" 
                         />

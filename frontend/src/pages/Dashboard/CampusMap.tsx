@@ -388,271 +388,270 @@ export default function CampusMap() {
     }
   }, [assets, viewState, supercluster, maxBounds]);
 
-  // MODIFICA QUI: Rimosso h-[calc(100vh-100px)] e overflow-hidden dal genitore, 
-  // permettendo alla pagina di scrollare interamente.
   return (
     <div className="flex flex-col w-full relative mb-10">
       
-      {isInitializingLocation && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all">
+      {isInitializingLocation ? (
+        <div className="flex flex-col items-center justify-center w-full h-[calc(100vh-120px)] min-h-[500px] bg-transparent">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600 mb-3"></div>
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Rilevamento posizione...</p>
         </div>
-      )}
-
-      {campuses.length > 0 && (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0 z-10">
-          <div className={`grid grid-cols-1 ${isAdmin ? 'sm:grid-cols-2' : ''} gap-6`}>
-            
-            <div className="relative">
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Filtro Campus
-              </label>
-              <div 
-                onClick={() => setIsCampusDropdownOpen(!isCampusDropdownOpen)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-white outline-none cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400"
-              >
-                <span className={`truncate pr-2 ${selectedCampus === '' ? 'text-slate-400 dark:text-slate-500 font-normal italic' : 'font-semibold'}`}>
-                  {selectedCampus === '' 
-                    ? "Seleziona un campus..." 
-                    : campuses.find(c => c.id === selectedCampus)?.name || 'Campus Selezionato'}
-                </span>
-                <svg className={`w-4 h-4 text-slate-500 transition-transform ${isCampusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-              </div>
-
-              {isCampusDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsCampusDropdownOpen(false)}></div>
-                  <div className="absolute z-20 w-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto animate-fade-in-up">
-                    <div className="px-4 py-3 h-12 flex items-center text-sm text-slate-400 dark:text-slate-500 italic bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 select-none">
-                      Seleziona un campus...
-                    </div>
-                    {campuses.map((campus) => (
-                      <div 
-                        key={campus.id} 
-                        className={`flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${
-                          selectedCampus === campus.id 
-                            ? 'text-blue-600 dark:text-blue-400 font-bold bg-slate-50 dark:bg-slate-700/50' 
-                            : 'text-slate-600 dark:text-slate-300 font-medium'
-                        }`}
-                        onClick={() => { 
-                          setSelectedCampus(campus.id); 
-                          setSelectedAsset(null); 
-                          setIsCampusDropdownOpen(false); 
-                        }}
-                      >
-                        <span className="truncate">{campus.name}</span>
-                      </div>
-                    ))}
+      ) : (
+        <>
+          {campuses.length > 0 && (
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0 z-10">
+              <div className={`grid grid-cols-1 ${isAdmin ? 'sm:grid-cols-2' : ''} gap-6`}>
+                
+                <div className="relative">
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Filtro Campus
+                  </label>
+                  <div 
+                    onClick={() => setIsCampusDropdownOpen(!isCampusDropdownOpen)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-white outline-none cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400"
+                  >
+                    <span className={`truncate pr-2 ${selectedCampus === '' ? 'text-slate-400 dark:text-slate-500 font-normal italic' : 'font-semibold'}`}>
+                      {selectedCampus === '' 
+                        ? "Seleziona un campus..." 
+                        : campuses.find(c => c.id === selectedCampus)?.name || 'Campus Selezionato'}
+                    </span>
+                    <svg className={`w-4 h-4 text-slate-500 transition-transform ${isCampusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                   </div>
-                </>
-              )}
-            </div>
 
-            {isAdmin && (
-              <div className="relative">
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Filtro Categoria
-                </label>
-                <div 
-                  onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-white outline-none cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400"
-                >
-                  <span className="truncate pr-2">
-                    {selectedCategoriesAdmin.length === 0 
-                      ? "Tutte le Categorie" 
-                      : selectedCategoriesAdmin.length === 1 
-                        ? categories.find(c => c._id === selectedCategoriesAdmin[0])?.name || 'Categoria Selezionata'
-                        : `${selectedCategoriesAdmin.length} Categorie selezionate`}
-                  </span>
-                  <svg className={`w-4 h-4 text-slate-500 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  {isCampusDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setIsCampusDropdownOpen(false)}></div>
+                      <div className="absolute z-20 w-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto animate-fade-in-up">
+                        <div className="px-4 py-3 h-12 flex items-center text-sm text-slate-400 dark:text-slate-500 italic bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 select-none">
+                          Seleziona un campus...
+                        </div>
+                        {campuses.map((campus) => (
+                          <div 
+                            key={campus.id} 
+                            className={`flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${
+                              selectedCampus === campus.id 
+                                ? 'text-blue-600 dark:text-blue-400 font-bold bg-slate-50 dark:bg-slate-700/50' 
+                                : 'text-slate-600 dark:text-slate-300 font-medium'
+                            }`}
+                            onClick={() => { 
+                              setSelectedCampus(campus.id); 
+                              setSelectedAsset(null); 
+                              setIsCampusDropdownOpen(false); 
+                            }}
+                          >
+                            <span className="truncate">{campus.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {isCategoryDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setIsCategoryDropdownOpen(false)}></div>
-                    <div className="absolute z-20 w-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto animate-fade-in-up">
-                      <div 
-                        className="flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm font-bold text-slate-700 dark:text-white border-b border-slate-100 dark:border-slate-700 transition-colors"
-                        onClick={() => { setSelectedCategoriesAdmin([]); setIsCategoryDropdownOpen(false); }}
-                      >
-                        <div className="w-4 mr-3 flex-none"></div>
-                        Tutte le Categorie
-                      </div>
-                      {categories.map((category) => (
-                        <label key={category._id} className="flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-300 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategoriesAdmin.includes(category._id)}
-                            onChange={() => toggleCategoryAdmin(category._id)}
-                            className="mr-3 h-4 w-4 flex-none rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 cursor-pointer"
-                          />
-                          <span className="truncate">{category.name}</span>
-                        </label>
-                      ))}
+                {isAdmin && (
+                  <div className="relative">
+                    <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Filtro Categoria
+                    </label>
+                    <div 
+                      onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-white outline-none cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400"
+                    >
+                      <span className="truncate pr-2">
+                        {selectedCategoriesAdmin.length === 0 
+                          ? "Tutte le Categorie" 
+                          : selectedCategoriesAdmin.length === 1 
+                            ? categories.find(c => c._id === selectedCategoriesAdmin[0])?.name || 'Categoria Selezionata'
+                            : `${selectedCategoriesAdmin.length} Categorie selezionate`}
+                      </span>
+                      <svg className={`w-4 h-4 text-slate-500 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                     </div>
-                  </>
+
+                    {isCategoryDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setIsCategoryDropdownOpen(false)}></div>
+                        <div className="absolute z-20 w-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto animate-fade-in-up">
+                          <div 
+                            className="flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm font-bold text-slate-700 dark:text-white border-b border-slate-100 dark:border-slate-700 transition-colors"
+                            onClick={() => { setSelectedCategoriesAdmin([]); setIsCategoryDropdownOpen(false); }}
+                          >
+                            <div className="w-4 mr-3 flex-none"></div>
+                            Tutte le Categorie
+                          </div>
+                          {categories.map((category) => (
+                            <label key={category._id} className="flex items-center px-4 py-3 h-12 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-300 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0">
+                              <input
+                                type="checkbox"
+                                checked={selectedCategoriesAdmin.includes(category._id)}
+                                onChange={() => toggleCategoryAdmin(category._id)}
+                                className="mr-3 h-4 w-4 flex-none rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 cursor-pointer"
+                              />
+                              <span className="truncate">{category.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-        {activeCategoriesForFilters.length > 0 && activeCategoriesForFilters.some(cat => cat.attributes?.some((attr: any) => attr.filterable && attr.status !== 'unavailable')) && (
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Filtri Specifici per Categoria
-            </span>
-            
-            <div className="flex flex-wrap items-start gap-4 max-h-[25vh] overflow-y-auto pr-2 custom-scrollbar">
-              {activeCategoriesForFilters.map(cat => {
-                const catAttributes = cat.attributes?.filter((attr: any) => attr.filterable && attr.status !== 'unavailable') || [];
-                if (catAttributes.length === 0) return null;
+            {activeCategoriesForFilters.length > 0 && activeCategoriesForFilters.some(cat => cat.attributes?.some((attr: any) => attr.filterable && attr.status !== 'unavailable')) && (
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Filtri Specifici per Categoria
+                </span>
+                
+                <div className="flex flex-wrap items-start gap-4 max-h-[25vh] overflow-y-auto pr-2 custom-scrollbar">
+                  {activeCategoriesForFilters.map(cat => {
+                    const catAttributes = cat.attributes?.filter((attr: any) => attr.filterable && attr.status !== 'unavailable') || [];
+                    if (catAttributes.length === 0) return null;
+
+                    return (
+                      <div key={cat._id} className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 w-full">
+                        <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700 shrink-0">
+                          <span className="text-sm">{cat.icon || '📌'}</span>
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                            {cat.name}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          {catAttributes.map((attr: any) => (
+                            <div key={attr.name} className="flex items-center gap-1.5">
+                              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 capitalize whitespace-nowrap">
+                                {attr.name.replace('_', ' ')}:
+                              </label>
+                              
+                              {attr.type === 'enum' ? (
+                                <select 
+                                  value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
+                                  onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
+                                  className="rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
+                                >
+                                  <option value="">Tutti</option>
+                                  {attr.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                              ) : attr.type === 'boolean' ? (
+                                 <select 
+                                  value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
+                                  onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
+                                  className="rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
+                                >
+                                  <option value="">Tutti</option>
+                                  <option value="true">Sì</option>
+                                  <option value="false">No</option>
+                                </select>
+                              ) : (
+                                <input 
+                                  type={attr.type === 'number' ? 'number' : 'text'}
+                                  value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
+                                  onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
+                                  placeholder="Cerca..."
+                                  className="w-28 rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            </div>
+          )}
+
+          <div className="relative w-full h-[calc(100vh-120px)] min-h-[600px] overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
+            <Map 
+              ref={mapRef} 
+              {...viewState} 
+              onMove={evt => setViewState(evt.viewState)} 
+              style={{ width: '100%', height: '100%' }} 
+              mapStyle="https://tiles.openfreemap.org/styles/liberty" 
+              interactive={true}
+              maxBounds={maxBounds} 
+              onLoad={() => {
+                if (mapRef.current) {
+                  const bounds = mapRef.current.getBounds();
+                  if (bounds) {
+                    setClusters(supercluster.getClusters(
+                      [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], 
+                      Math.round(viewState.zoom)
+                    ));
+                  }
+                }
+              }}
+            >
+              {activeCampusData && (
+                <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
+                  <Layer id="campus-fill" type="fill" paint={{ 'fill-color': '#3C50E0', 'fill-opacity': 0.2 }} />
+                  <Layer id="campus-outline" type="line" paint={{ 'line-color': '#3C50E0', 'line-width': 2 }} />
+                </Source>
+              )}
+
+              {clusters.map(cluster => {
+                const [longitude, latitude] = cluster.geometry.coordinates;
+                const { cluster: isCluster, point_count: pointCount, asset } = cluster.properties;
+
+                if (isCluster) {
+                  return (
+                    <Marker 
+                      key={`cluster-${cluster.id}`} 
+                      longitude={longitude} 
+                      latitude={latitude}
+                      onClick={(e) => {
+                        e.originalEvent.stopPropagation();
+                        const expansionZoom = Math.min(supercluster.getClusterExpansionZoom(cluster.id), 20);
+                        mapRef.current?.flyTo({ center: [longitude, latitude], zoom: expansionZoom, speed: 1.2 });
+                      }}
+                    >
+                      <div className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-blue-600/90 text-white shadow-lg border-2 border-white font-bold hover:scale-110 transition-transform">
+                        {pointCount}
+                      </div>
+                    </Marker>
+                  );
+                }
 
                 return (
-                  <div key={cat._id} className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 w-full">
-                    <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 dark:border-slate-700 shrink-0">
-                      <span className="text-sm">{cat.icon || '📌'}</span>
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                        {cat.name}
-                      </span>
+                  <Marker 
+                    key={asset._id} 
+                    longitude={longitude} 
+                    latitude={latitude} 
+                    onClick={(e) => { 
+                      e.originalEvent.stopPropagation(); 
+                      setSelectedAsset(asset);
+                    }}
+                  >
+                    <div className="text-2xl cursor-pointer hover:scale-125 transition-transform">
+                      {getAssetIcon(asset)}
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      {catAttributes.map((attr: any) => (
-                        <div key={attr.name} className="flex items-center gap-1.5">
-                          <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 capitalize whitespace-nowrap">
-                            {attr.name.replace('_', ' ')}:
-                          </label>
-                          
-                          {attr.type === 'enum' ? (
-                            <select 
-                              value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
-                              onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
-                              className="rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
-                            >
-                              <option value="">Tutti</option>
-                              {attr.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                          ) : attr.type === 'boolean' ? (
-                             <select 
-                              value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
-                              onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
-                              className="rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
-                            >
-                              <option value="">Tutti</option>
-                              <option value="true">Sì</option>
-                              <option value="false">No</option>
-                            </select>
-                          ) : (
-                            <input 
-                              type={attr.type === 'number' ? 'number' : 'text'}
-                              value={dynamicFilters[`${cat._id}_${attr.name}`] || ''}
-                              onChange={(e) => handleDynamicFilterChange(`${cat._id}_${attr.name}`, e.target.value)}
-                              placeholder="Cerca..."
-                              className="w-28 rounded border border-slate-300 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500"
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  </Marker>
                 );
               })}
-            </div>
-          </div>
-        )}
-        </div>
-      )}
 
-      {/* MODIFICA QUI: Aggiunta un'altezza fissa minima per garantire che la mappa non si schiacci mai */}
-      <div className="relative w-full h-[calc(100vh-120px)] min-h-[600px] overflow-hidden border rounded-xl border-stroke shadow-default dark:border-strokedark dark:bg-boxdark">
-        <Map 
-          ref={mapRef} 
-          {...viewState} 
-          onMove={evt => setViewState(evt.viewState)} 
-          style={{ width: '100%', height: '100%' }} 
-          mapStyle="https://tiles.openfreemap.org/styles/liberty" 
-          interactive={true}
-          maxBounds={maxBounds} 
-          onLoad={() => {
-            if (mapRef.current) {
-              const bounds = mapRef.current.getBounds();
-              if (bounds) {
-                setClusters(supercluster.getClusters(
-                  [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], 
-                  Math.round(viewState.zoom)
-                ));
-              }
-            }
-          }}
-        >
-          {activeCampusData && (
-            <Source id="campus-boundary" type="geojson" data={activeCampusData as any}>
-              <Layer id="campus-fill" type="fill" paint={{ 'fill-color': '#3C50E0', 'fill-opacity': 0.2 }} />
-              <Layer id="campus-outline" type="line" paint={{ 'line-color': '#3C50E0', 'line-width': 2 }} />
-            </Source>
-          )}
-
-          {clusters.map(cluster => {
-            const [longitude, latitude] = cluster.geometry.coordinates;
-            const { cluster: isCluster, point_count: pointCount, asset } = cluster.properties;
-
-            if (isCluster) {
-              return (
-                <Marker 
-                  key={`cluster-${cluster.id}`} 
-                  longitude={longitude} 
-                  latitude={latitude}
-                  onClick={(e) => {
-                    e.originalEvent.stopPropagation();
-                    const expansionZoom = Math.min(supercluster.getClusterExpansionZoom(cluster.id), 20);
-                    mapRef.current?.flyTo({ center: [longitude, latitude], zoom: expansionZoom, speed: 1.2 });
-                  }}
-                >
-                  <div className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-blue-600/90 text-white shadow-lg border-2 border-white font-bold hover:scale-110 transition-transform">
-                    {pointCount}
+              {userLocation && (
+                <Marker longitude={userLocation.longitude} latitude={userLocation.latitude}>
+                  <div className="relative flex h-5 w-5 items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow-md"></span>
                   </div>
                 </Marker>
-              );
-            }
-
-            return (
-              <Marker 
-                key={asset._id} 
-                longitude={longitude} 
-                latitude={latitude} 
-                onClick={(e) => { 
-                  e.originalEvent.stopPropagation(); 
-                  setSelectedAsset(asset);
-                }}
+              )}
+            </Map>
+            
+            {user?.role === 'OPERATORE' && (
+              <button
+                onClick={() => navigate('/assets/new')}
+                className="absolute bottom-6 left-6 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 hover:bg-blue-700"
+                title="Censisci Nuovo Asset"
               >
-                <div className="text-2xl cursor-pointer hover:scale-125 transition-transform">
-                  {getAssetIcon(asset)}
-                </div>
-              </Marker>
-            );
-          })}
-
-          {userLocation && (
-            <Marker longitude={userLocation.longitude} latitude={userLocation.latitude}>
-              <div className="relative flex h-5 w-5 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow-md"></span>
-              </div>
-            </Marker>
-          )}
-        </Map>
-        
-        {user?.role === 'OPERATORE' && (
-          <button
-            onClick={() => navigate('/assets/new')}
-            className="absolute bottom-6 left-6 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 hover:bg-blue-700"
-            title="Censisci Nuovo Asset"
-          >
-            <span className="text-3xl font-light leading-none mb-1">+</span>
-          </button>
-        )}
-      </div>
+                <span className="text-3xl font-light leading-none mb-1">+</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {permissionLimitationMsg && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -766,7 +765,7 @@ export default function CampusMap() {
         </>,
         document.body
       )}
-    {/* MODALE DI CONFERMA ELIMINAZIONE PERSONALIZZATA (Va messa QUI, fuori dal portal precedente) */}
+    {/* MODALE DI CONFERMA ELIMINAZIONE PERSONALIZZATA */}
     {isDeleteConfirmOpen && selectedAsset && createPortal(
         <div className="fixed inset-0 z-[10005] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-boxdark border border-stroke dark:border-strokedark overflow-hidden animate-fade-in-up">

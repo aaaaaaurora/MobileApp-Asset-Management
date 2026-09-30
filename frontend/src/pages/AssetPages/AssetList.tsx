@@ -35,6 +35,62 @@ interface Asset {
   created_at: string;
 }
 
+// NUOVO COMPONENTE: Carica l'immagine in modo sicuro tramite il token JWT
+const SecureImage = ({ mediaId, token, className, alt }: { mediaId: string, token: string, className: string, alt: string }) => {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string;
+    
+    const fetchImage = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const blob = await res.blob();
+          objectUrl = URL.createObjectURL(blob);
+          setImgSrc(objectUrl);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error("Errore caricamento immagine:", err);
+        setError(true);
+      }
+    };
+
+    fetchImage();
+
+    // Cleanup per evitare memory leak sul dispositivo mobile
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [mediaId, token]);
+
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 text-slate-400 text-[10px] ${className}`}>
+        Errore Foto
+      </div>
+    );
+  }
+
+  if (!imgSrc) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-200 animate-pulse ${className}`}>
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-solid border-slate-400 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  return <img src={imgSrc} className={className} alt={alt} />;
+};
+
 export default function AssetList() {
   const { token, user } = useAuth();
   const location = useLocation();
@@ -190,13 +246,11 @@ export default function AssetList() {
     }
   }, [location.state, isAdmin]);
 
-  // LOGICA MODIFICATA: Ricezione dell'asset intero passato dalla mappa
   useEffect(() => {
     const editAssetId = location.state?.editAssetId;
-    const fullAsset = location.state?.fullAsset; // Asset completo recuperato dallo state
+    const fullAsset = location.state?.fullAsset;
 
     if (editAssetId) {
-      // Priorità all'asset intero passato dalla mappa, altrimenti cerca nella pagina corrente
       const assetToEdit = fullAsset || assets.find(a => a._id === editAssetId);
       
       if (assetToEdit) {
@@ -786,8 +840,9 @@ export default function AssetList() {
                 
                 {formData.media_ids.map(mediaId => (
                   <div key={mediaId} className="relative min-w-[120px] h-28 flex-shrink-0 group">
-                    <img 
-                      src={`${import.meta.env.VITE_API_URL}/media/images/${mediaId}`} 
+                    <SecureImage 
+                      mediaId={mediaId}
+                      token={token!}
                       className="w-full h-full object-cover rounded-lg border border-slate-200 dark:border-slate-600"
                       alt="Asset Media" 
                     />
