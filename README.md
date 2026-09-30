@@ -57,8 +57,6 @@ Il ramo mobile è identico al principale per backend, `k8s/` e `Jenkinsfile`. Le
 | **Debug** | – | **vConsole** attivo in `main.tsx` per diagnosticare la WebView |
 | **CORS del gateway** | `CORS(app)` aperto | Origini esplicite: Web App (`http://192.168.72.109.nip.io:32080`) e Android (`http://localhost`) |
 
-Il ramo contiene anche alcune modifiche alla Web App non legate al mobile: pagina categorie con `CategoryManagerModal` al posto di `CategoryManager`, e in dashboard i componenti `DynamicAttributeChart` e `RecentLogsTable`. Le altre differenze sono solo di formattazione.
-
 Il codice della pagina di censimento (`CreateAsset.tsx`) è **lo stesso della Web App**: la parte GPS, fotocamera e galleria funziona in entrambi i contesti e sfrutta i plugin nativi quando eseguita sull'app.
 
 ---
@@ -155,10 +153,6 @@ Clic su "Accedi con Google"
 
 ## 6. Modifiche al backend
 
-Nel ramo mobile cambia un solo file di backend rilevante:
-
-- **API Gateway (`api-gateway-service/app.py`):** il CORS non è più aperto a tutte le origini, ma limitato a Web App e origine locale di Capacitor, con `supports_credentials`.
-
 Il `verify_google_token` dell'Auth Service (uguale nei due rami) gestisce già entrambi i flussi: se il token ha tre segmenti separati da punti è un **`id_token`** (app mobile) e viene verificato con `google-auth`; altrimenti è un **`access_token`** (Web App) e viene validato tramite l'endpoint `userinfo` di Google.
 
 L'URL dell'API usato dall'app è in `frontend/.env`: `VITE_API_URL=http://192.168.72.109.nip.io:32050/api` (API Gateway sul NodePort `32050`).
@@ -254,4 +248,4 @@ Progetto accademico – DIEM, Università degli Studi di Salerno. La base grafic
 | | |
 |---|---|
 | **Aurora Campione** | a.campione5@studenti.unisa.it |
-| **Claudia Carucci** | – |
+| **Claudia Carucci** | c.carucci2@studenti.unisa.it |
